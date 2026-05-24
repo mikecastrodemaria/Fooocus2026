@@ -74,6 +74,9 @@
     opacity: 0.45; font-style: italic;
   }
   aside .item.hidden-row .hide-btn { display: inline-block; background: rgba(78,205,196,0.18); }
+  /* Favorites virtual sidebar entry — golden hue to stand out from real subfolders. */
+  aside .item.fav-row { color: #ffd54f; }
+  aside .item.fav-row.active { background: #ffd54f; color: #000; }
 
   /* Header right cluster: extra toggles + tabs. */
   header .right {
@@ -135,6 +138,22 @@
   }
   main .card.placeholder { outline: 1px dashed var(--border); }
   main .card.negative .badges span { color: #ff8a8a; }
+
+  /* Favorite star — top-left to avoid clashing with .badges (top-right). */
+  main .card .fav-btn {
+    position: absolute; top: 6px; left: 6px;
+    background: rgba(0,0,0,0.55); border: 0; color: #ddd;
+    width: 24px; height: 24px; border-radius: 50%;
+    font-size: 14px; line-height: 22px; text-align: center;
+    cursor: pointer; padding: 0;
+    transition: transform 0.12s ease, background 0.12s ease;
+    z-index: 2;
+  }
+  main .card .fav-btn:hover { background: rgba(0,0,0,0.85); transform: scale(1.15); }
+  main .card .fav-btn.on { color: #ffd54f; background: rgba(0,0,0,0.75); }
+  main .card .fav-btn.on:hover { color: #ffeb8a; }
+  /* Subtle pinned-favorite hint (border accent on starred cards). */
+  main .card.is-favorite { outline: 2px solid rgba(255, 213, 79, 0.55); outline-offset: -2px; }
   .empty { color: var(--muted); padding: 40px; text-align: center; font-size: 14px; }
   .empty code { background: #222; padding: 2px 6px; border-radius: 3px; }
   footer {
@@ -187,6 +206,134 @@
   .pswp__dynamic-caption .copy-row button.fetch-civitai-btn:disabled {
     opacity: 0.7; cursor: wait;
   }
+  /* Apply-update inline panel (Phase 3B v2) — buttons live INSIDE the update banner,
+     no floating modal. The banner expands when the user clicks 📥 to show the
+     3 backup-mode choices, then morphs into a progress text while downloading. */
+  .pswp__dynamic-caption .ab-update-banner button.apply-update {
+    margin-top: 6px; align-self: flex-start;
+    background: var(--accent); color: #000; border: 1px solid var(--accent);
+    padding: 5px 12px; border-radius: 5px; font-size: 11px; font-weight: 700; cursor: pointer;
+  }
+  .pswp__dynamic-caption .ab-update-banner button.apply-update:hover { background: #d4aafd; }
+  .pswp__dynamic-caption .ab-update-banner button.apply-update:disabled { opacity: 0.6; cursor: wait; }
+  /* Inline panel: choose / progress / done */
+  .pswp__dynamic-caption .ab-update-banner .um-choose,
+  .pswp__dynamic-caption .ab-update-banner .um-progress,
+  .pswp__dynamic-caption .ab-update-banner .um-done {
+    margin-top: 8px; padding-top: 8px;
+    border-top: 1px dashed rgba(255,255,255,0.15);
+  }
+  .pswp__dynamic-caption .ab-update-banner .um-choose .um-help {
+    color: rgba(255,255,255,0.7); font-size: 11px; line-height: 1.5; margin-bottom: 8px;
+  }
+  .pswp__dynamic-caption .ab-update-banner .um-actions {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .pswp__dynamic-caption .ab-update-banner .um-actions button {
+    background: #222; color: var(--text); border: 1px solid var(--border);
+    padding: 6px 10px; border-radius: 5px; font-size: 11px; cursor: pointer;
+  }
+  .pswp__dynamic-caption .ab-update-banner .um-actions button:hover { background: #333; }
+  .pswp__dynamic-caption .ab-update-banner .um-actions button.primary {
+    background: rgba(187,134,252,0.22); color: var(--accent); border-color: var(--accent); font-weight: 600;
+  }
+  .pswp__dynamic-caption .ab-update-banner .um-actions button.primary:hover { background: var(--accent); color: #000; }
+  .pswp__dynamic-caption .ab-update-banner .um-actions button.danger {
+    background: rgba(200,60,60,0.18); color: #ff8a8a; border-color: #c33;
+  }
+  .pswp__dynamic-caption .ab-update-banner .um-actions button.danger:hover { background: #c33; color: #fff; }
+  .pswp__dynamic-caption .ab-update-banner .um-progress { color: var(--accent-2); font-size: 12px; }
+  .pswp__dynamic-caption .ab-update-banner .um-progress::before { content: '⏳ '; }
+  .pswp__dynamic-caption .ab-update-banner .um-done.ok { color: var(--accent-2); font-size: 12px; }
+  .pswp__dynamic-caption .ab-update-banner .um-done.fail { color: #ff8a8a; font-size: 12px; }
+
+  /* CivitAI update-check banner (Phase 3A) — appears in the lightbox caption of
+     every model item. Three visual states: checking / up-to-date / update-available.
+     Silently removed by JS when the model isn't on CivitAI (no noise for non-CivitAI users). */
+  .pswp__dynamic-caption .ab-update-banner {
+    margin: 10px 0; padding: 8px 10px; border-radius: 6px;
+    font-size: 12px; line-height: 1.45;
+    background: #2a2a2a; color: var(--muted);
+  }
+  .pswp__dynamic-caption .ab-update-banner.checking::before { content: '⏳ '; opacity: 0.7; }
+  .pswp__dynamic-caption .ab-update-banner.ok {
+    background: rgba(78,205,196,0.12); color: var(--accent-2);
+  }
+  .pswp__dynamic-caption .ab-update-banner.new {
+    background: rgba(187,134,252,0.16); color: var(--accent);
+    border: 1px solid var(--accent);
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  /* Cross-architecture upgrade (SDXL -> Flux etc.) — orange warning, not gold accent. */
+  .pswp__dynamic-caption .ab-update-banner.upgrade {
+    background: rgba(204, 136, 0, 0.16); color: #ffb84d;
+    border: 1px solid #c80;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .pswp__dynamic-caption .ab-update-banner.upgrade b { color: #ffd99a; }
+  .pswp__dynamic-caption .ab-update-banner.upgrade button.apply-update {
+    background: #c80; color: #000; border-color: #c80;
+  }
+  .pswp__dynamic-caption .ab-update-banner.upgrade button.apply-update:hover { background: #e0a020; }
+  .pswp__dynamic-caption .ab-update-banner .ab-update-cur { font-size: 11px; opacity: 0.7; }
+  .pswp__dynamic-caption .ab-update-banner b { color: inherit; font-weight: 700; }
+
+  /* Lightbox Delete button — danger styling, pushed to the right edge of the row. */
+  .pswp__dynamic-caption .copy-row button.lb-delete {
+    margin-left: auto;
+    background: rgba(200, 60, 60, 0.18); color: #ff8a8a;
+    border-color: #c33; font-weight: 600;
+  }
+  .pswp__dynamic-caption .copy-row button.lb-delete:hover:not(:disabled) {
+    background: #c33; color: #fff;
+  }
+  .pswp__dynamic-caption .copy-row button.lb-delete:disabled { opacity: 0.7; cursor: wait; }
+
+  /* Lightbox favorite button — gold accent when active, mirrors the card star. */
+  .pswp__dynamic-caption .copy-row button.lb-fav.on {
+    background: rgba(255, 213, 79, 0.18); color: #ffd54f;
+    border-color: #ffd54f; font-weight: 600;
+  }
+  .pswp__dynamic-caption .copy-row button.lb-fav.on:hover {
+    background: #ffd54f; color: #000;
+  }
+
+  /* === Batch CivitAI fetch — floating progress overlay bottom-right ===
+     Always above PhotoSwipe (z-index 10000) so it stays visible if the user
+     opens the lightbox while a batch is running. Click-through outside the
+     panel itself (no full-screen backdrop — user can keep browsing). */
+  #batch-overlay {
+    position: fixed; right: 16px; bottom: 16px;
+    width: 340px; background: var(--panel); color: var(--text);
+    border: 1px solid var(--accent); border-radius: 8px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.6);
+    padding: 12px 14px; font-size: 12px; z-index: 10000;
+    display: none;
+  }
+  #batch-overlay.on { display: block; }
+  #batch-overlay h4 { margin: 0 0 8px; font-size: 13px; color: var(--accent); }
+  #batch-overlay .bar {
+    height: 8px; background: #2a2a2a; border-radius: 4px;
+    overflow: hidden; margin: 6px 0 8px;
+  }
+  #batch-overlay .bar .fill {
+    height: 100%; background: var(--accent); width: 0%;
+    transition: width 0.25s ease;
+  }
+  #batch-overlay .row { display: flex; justify-content: space-between; margin: 4px 0; }
+  #batch-overlay .row .k { color: var(--muted); }
+  #batch-overlay .row .v { color: var(--text); font-family: ui-monospace, monospace; font-size: 11px;
+    max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #batch-overlay .current { color: var(--accent-2); }
+  #batch-overlay .skipped { color: var(--muted); }
+  #batch-overlay .failed { color: #ff8a8a; }
+  #batch-overlay .actions { margin-top: 10px; display: flex; gap: 6px; justify-content: flex-end; }
+  #batch-overlay button {
+    background: #222; color: var(--text); border: 1px solid var(--border);
+    padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;
+  }
+  #batch-overlay button.cancel:hover { background: #c33; color: #fff; border-color: #c33; }
+  #batch-overlay button.close:hover { background: #333; }
   .pswp__dynamic-caption .triggers, .pswp__dynamic-caption code {
     background: #111; padding: 6px 8px; border-radius: 4px; display: block;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -201,8 +348,18 @@
     <div class="toggles" id="header-toggles">
       <input type="text" id="search-input" placeholder="Search…" title="Filter by filename, trigger words, prompt"
              style="background:#2a2a2a;color:#e0e0e0;border:1px solid #555;border-radius:4px;padding:4px 8px;font-size:13px;width:180px;margin-right:8px;">
+      <select id="sort-select" title="Sort order (per tab, saved). Favorites are always pinned at the top."
+              style="background:#2a2a2a;color:#e0e0e0;border:1px solid #555;border-radius:4px;padding:4px 6px;font-size:13px;margin-right:8px;">
+        <option value="filename_asc">Name ↑</option>
+        <option value="filename_desc">Name ↓</option>
+        <option value="modified_desc">Modified ↓</option>
+        <option value="modified_asc">Modified ↑</option>
+        <option value="size_desc">Size ↓</option>
+        <option value="size_asc">Size ↑</option>
+      </select>
       <button id="btn-blur"        title="Blur all thumbnails (NSFW privacy). Hover or click to reveal individually.">🌫️ Blur</button>
       <button id="btn-show-hidden" title="Reveal hidden days / subfolders (use the eye-slash button on each item to hide it).">👁️ Hidden</button>
+      <button id="btn-batch-fetch" title="Fetch missing CivitAI previews for ALL models (LoRAs + checkpoints + embeddings). Sequential with throttle." style="display:none;">🌐 Fetch missing</button>
     </div>
     <nav class="tabs" id="tabs">
       <button class="active" data-tab="outputs">📅 Outputs</button>
@@ -223,6 +380,24 @@
   </main>
 </div>
 <footer id="footer"></footer>
+
+<!-- Batch CivitAI fetch overlay — hidden until a batch is running. -->
+<div id="batch-overlay" role="status" aria-live="polite">
+  <h4>🌐 Fetching CivitAI previews</h4>
+  <div class="bar"><div class="fill" id="batch-fill"></div></div>
+  <div class="row"><span class="k">Progress</span><span class="v" id="batch-progress">0 / 0</span></div>
+  <div class="row"><span class="k">Current</span><span class="v current" id="batch-current">—</span></div>
+  <div class="row"><span class="k">Succeeded</span><span class="v" id="batch-ok">0</span></div>
+  <div class="row"><span class="k">Skipped (not on CivitAI)</span><span class="v skipped" id="batch-skipped">0</span></div>
+  <div class="row"><span class="k">Failed (network / rate-limit)</span><span class="v failed" id="batch-ko">0</span></div>
+  <div class="actions">
+    <button class="cancel" id="batch-cancel">Cancel</button>
+    <button class="close"  id="batch-close" style="display:none;">Close & reload</button>
+  </div>
+</div>
+
+<!-- (Phase 3B v2: the floating modal was replaced by an inline panel that mutates
+     the update banner in-place — see the Update module in script below.) -->
 
 <script type="module">
 import PhotoSwipeLightbox from './_assets/photoswipe-lightbox.esm.js';
@@ -277,6 +452,8 @@ function renderEmpty(target, msg) { target.innerHTML = `<div class="empty">${msg
 // unhide button.
 const LS_HIDDEN     = 'fooocus2025_assetbrowser_hidden';
 const LS_BLUR_OVR   = 'fooocus2025_assetbrowser_blur_override';   // null | 'on' | 'off'
+const LS_FAVORITES  = 'fooocus2025_assetbrowser_favorites';       // { "loras": [id, ...], "checkpoints": [...], ... }
+const LS_SORT       = 'fooocus2025_assetbrowser_sort';            // { "loras": "filename_asc", ... }
 const State = {
   spaSettings: { blur_thumbnails: false },   // populated from spa_settings.json on init
   hidden: { /* "outputs:days": Set, "loras:subfolders": Set, ... */ },
@@ -333,8 +510,63 @@ const State = {
     document.body.classList.toggle('blur-active', this.blurActive);
     document.getElementById('btn-blur').classList.toggle('on', this.blurActive);
   },
+
+  // --- Favorites: per-kind list of item IDs, backed by localStorage.
+  // Kinds: 'loras' | 'checkpoints' | 'embeddings' (NOT 'outputs' — user-validated scope).
+  // Stored shape: { loras: Set<id>, checkpoints: Set<id>, embeddings: Set<id> }
+  favorites: { loras: new Set(), checkpoints: new Set(), embeddings: new Set() },
+  _favoritesChangeListeners: [],
+  loadFavorites() {
+    try {
+      const raw = localStorage.getItem(LS_FAVORITES);
+      const obj = raw ? JSON.parse(raw) : {};
+      for (const k of ['loras', 'checkpoints', 'embeddings']) {
+        this.favorites[k] = new Set(Array.isArray(obj[k]) ? obj[k] : []);
+      }
+    } catch (e) {
+      this.favorites = { loras: new Set(), checkpoints: new Set(), embeddings: new Set() };
+    }
+  },
+  saveFavorites() {
+    const out = {};
+    for (const k of Object.keys(this.favorites)) out[k] = Array.from(this.favorites[k]);
+    try { localStorage.setItem(LS_FAVORITES, JSON.stringify(out)); } catch (e) {}
+    for (const cb of this._favoritesChangeListeners) { try { cb(); } catch (_) {} }
+  },
+  isFavorite(kind, id) {
+    return !!(this.favorites[kind] && id && this.favorites[kind].has(id));
+  },
+  toggleFavorite(kind, id) {
+    if (!this.favorites[kind] || !id) return false;
+    if (this.favorites[kind].has(id)) { this.favorites[kind].delete(id); }
+    else { this.favorites[kind].add(id); }
+    this.saveFavorites();
+    return this.favorites[kind].has(id);
+  },
+  favoriteCount(kind) {
+    return (this.favorites[kind] && this.favorites[kind].size) || 0;
+  },
+  onFavoritesChange(cb) { this._favoritesChangeListeners.push(cb); },
+
+  // --- Sort preference: per-kind string key, persisted.
+  // Allowed values: 'filename_asc'|'filename_desc'|'modified_desc'|'modified_asc'|'size_desc'|'size_asc'
+  // (favorites are ALWAYS pinned at top regardless — user-validated UX choice).
+  _sortPrefs: {},
+  loadSortPrefs() {
+    try {
+      const raw = localStorage.getItem(LS_SORT);
+      this._sortPrefs = raw ? (JSON.parse(raw) || {}) : {};
+    } catch (e) { this._sortPrefs = {}; }
+  },
+  getSort(kind) { return this._sortPrefs[kind] || 'filename_asc'; },
+  setSort(kind, value) {
+    this._sortPrefs[kind] = value;
+    try { localStorage.setItem(LS_SORT, JSON.stringify(this._sortPrefs)); } catch (e) {}
+  },
 };
 State.loadHidden();
+State.loadFavorites();
+State.loadSortPrefs();
 
 // Render badge "👁️ Hidden +N" + active state.
 function refreshHeaderToggles() {
@@ -390,6 +622,343 @@ document.addEventListener('click', (ev) => {
     ev.preventDefault();
     copyToClipboard(t.getAttribute('data-copy'), t);
   }
+  // Star toggle from lightbox caption — same UX as the card-level star, but here
+  // we have no grid to re-render in place, so we just update the button glyph.
+  // The grid will pick up the new state next time the user closes the lightbox
+  // and the tab is re-init'd (e.g. on tab switch or search).
+  const fav = ev.target.closest('[data-fav-toggle]');
+  if (fav) {
+    ev.preventDefault();
+    const [kind, id] = fav.getAttribute('data-fav-toggle').split('|');
+    const nowFav = State.toggleFavorite(kind, id);
+    fav.classList.toggle('on', nowFav);
+    fav.textContent = nowFav ? '★ Favorite' : '☆ Add to favorites';
+    // Best-effort: also update the matching card in the grid (if it's still rendered).
+    const card = document.querySelector(`.card[data-item-id="${CSS.escape(id)}"]`);
+    if (card) {
+      card.classList.toggle('is-favorite', nowFav);
+      const cardBtn = card.querySelector('.fav-btn');
+      if (cardBtn) {
+        cardBtn.classList.toggle('on', nowFav);
+        cardBtn.textContent = nowFav ? '★' : '☆';
+      }
+    }
+  }
+});
+
+// Lightbox star button — same look as a copy-row button, but with gold accent when active.
+function favLightboxBtnHtml(kind, it) {
+  if (!it || !it.id) return '';
+  const isFav = State.isFavorite(kind, it.id);
+  const cls = isFav ? 'lb-fav on' : 'lb-fav';
+  return `<button class="${cls}" data-fav-toggle="${escapeHtml(kind)}|${escapeHtml(it.id)}"
+            title="Toggle favorite (saved in this browser)">${isFav ? '★ Favorite' : '☆ Add to favorites'}</button>`;
+}
+
+// === CivitAI update-check banner (Phase 3A) ============================
+// Each model caption ships with a placeholder `<div class="ab-update-banner checking">`.
+// A MutationObserver picks them up as they're inserted by PhotoSwipe's Dynamic
+// Caption plugin and fires an async fetch to /run/ab_check_update. The backend
+// caches the result for 24h per file, so reopening the same item is instant.
+const _bannerScanned = new WeakSet();   // avoid double-fetching the same DOM node
+
+function updateBannerHtml(kind, relPath) {
+  if (!HAS_FOOOCUS) return '';  // standalone file:// — no Fooocus backend to ask
+  return `<div class="ab-update-banner checking"
+            data-update-kind="${escapeHtml(kind)}"
+            data-update-rel="${escapeHtml(relPath)}">Checking CivitAI for updates…</div>`;
+}
+
+async function fetchUpdateAndPatchBanner(banner) {
+  if (_bannerScanned.has(banner)) return;
+  _bannerScanned.add(banner);
+  const kind = banner.getAttribute('data-update-kind');
+  const rel  = banner.getAttribute('data-update-rel');
+  if (!kind || !rel) { banner.remove(); return; }
+  const body = JSON.stringify({ data: [kind, rel] });
+  const opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body };
+  let result = null;
+  for (const url of ['/run/ab_check_update', '/api/ab_check_update']) {
+    try {
+      const resp = await fetch(url, opts);
+      if (!resp.ok) continue;
+      const json = await resp.json();
+      if (json && Array.isArray(json.data) && json.data.length) result = json.data[0];
+      else if (json && typeof json === 'object') result = json;
+      if (result) break;
+    } catch (e) { /* try next URL */ }
+  }
+  // Banner might have been removed (lightbox closed) — bail out gracefully.
+  if (!banner.isConnected) return;
+  if (!result || result.status === 'not_on_civitai' || result.status === 'error') {
+    // Silently hide — most non-CivitAI LoRAs would otherwise be visually noisy.
+    banner.remove();
+    return;
+  }
+  if (result.status === 'up_to_date') {
+    banner.className = 'ab-update-banner ok';
+    banner.textContent = `✓ Up to date (v${result.local_version_name || '?'})`;
+    return;
+  }
+  if (result.status === 'update_available' || result.status === 'upgrade_available') {
+    const isUpgrade = (result.status === 'upgrade_available');
+    banner.className = isUpgrade ? 'ab-update-banner upgrade' : 'ab-update-banner new';
+    const sz = (result.latest_size_mb != null) ? ` · ${result.latest_size_mb} MB` : '';
+    const dt = result.latest_published_at ? ` · ${result.latest_published_at.slice(0, 10)}` : '';
+    const k = banner.getAttribute('data-update-kind');
+    const r = banner.getAttribute('data-update-rel');
+    // Header line differs depending on whether this is a same-architecture
+    // update or a cross-architecture migration (SDXL -> Flux etc).
+    const headLine = isUpgrade
+      ? `<span>⚠️ <b>Architecture change</b>: <b>${escapeHtml(result.local_base_model || '?')}</b> → <b>${escapeHtml(result.latest_base_model || '?')}</b> — NOT a drop-in update</span>`
+      : `<span>🆕 Newer version available: <b>${escapeHtml(result.latest_version_name || '?')}</b>${dt}${sz}</span>`;
+    const subLine = isUpgrade
+      ? `<span class="ab-update-cur">Latest: <b>${escapeHtml(result.latest_version_name || '?')}</b>${dt}${sz} · Local: <b>${escapeHtml(result.local_version_name || '?')}</b></span>`
+      : `<span class="ab-update-cur">Local: v${escapeHtml(result.local_version_name || '?')}</span>`;
+    const btnLabel = isUpgrade ? '📥 Replace with different architecture' : '📥 Update from CivitAI';
+    banner.innerHTML =
+      headLine + subLine +
+      `<button class="apply-update"
+               data-apply-kind="${escapeHtml(k)}"
+               data-apply-rel="${escapeHtml(r)}"
+               data-apply-label="${escapeHtml(result.latest_version_name || '?')}"
+               data-apply-size="${escapeHtml(String(result.latest_size_mb || ''))}"
+               data-apply-model="${escapeHtml(result.model_name || '')}"
+               data-apply-local="${escapeHtml(result.local_version_name || '?')}"
+               data-apply-local-arch="${escapeHtml(result.local_base_model || '')}"
+               data-apply-latest-arch="${escapeHtml(result.latest_base_model || '')}"
+               data-apply-is-upgrade="${isUpgrade ? '1' : '0'}"
+              >${btnLabel}</button>`;
+    return;
+  }
+  // Unknown status — hide silently.
+  banner.remove();
+}
+
+// === Apply-update inline panel (Phase 3B v2) ============================
+// Click on '📥 Update from CivitAI' (or '📥 Replace with different architecture')
+// → the banner expands IN PLACE with 3 backup-mode choices.
+// On choice → banner becomes a progress text while POST /run/ab_apply_update runs.
+// On success → reload to pick up the rebuilt manifest.
+
+// Build the inline "choose backup mode" panel injected inside an update banner.
+function _renderUpdateChoose(meta) {
+  const archWarn = meta.isUpgrade
+    ? `<div class="um-help" style="color:#ffb84d;"><b>⚠ This is NOT a drop-in replacement.</b> The new file uses a different architecture (${escapeHtml(meta.localArch || '?')} → ${escapeHtml(meta.latestArch || '?')}) and may not load in your current pipeline.</div>`
+    : '';
+  return `<div class="um-choose">
+    ${archWarn}
+    <div class="um-help">
+      What to do with the current file?<br>
+      • <b>Send old to Trash</b> — recoverable from OS recycle bin (recommended).<br>
+      • <b>Keep old as .old</b> — old becomes ${escapeHtml(meta.oldStem)}.old${escapeHtml(meta.ext)}, new takes the original name.<br>
+      • <b>Keep as it</b> — old stays untouched, new downloaded as ${escapeHtml(meta.oldStem)}.new${escapeHtml(meta.ext)}.
+    </div>
+    <div class="um-actions">
+      <button class="um-cancel">Cancel</button>
+      <button data-um-mode="keep">Keep old as .old</button>
+      <button data-um-mode="keep_as_is">Keep as it</button>
+      <button class="danger" data-um-mode="trash">Send old to Trash</button>
+    </div>
+  </div>`;
+}
+
+// Helpers: derive '<stem>' and '<ext>' from a relative path like 'sub/foo.safetensors'.
+function _splitNameForUpdate(rel) {
+  const base = (rel || '').split('/').pop();
+  const i = base.lastIndexOf('.');
+  return i > 0 ? { stem: base.slice(0, i), ext: base.slice(i) } : { stem: base, ext: '' };
+}
+
+// Replace the banner content with the "choose backup mode" panel.
+function openUpdatePanel(banner, btn) {
+  const meta = {
+    kind:        btn.getAttribute('data-apply-kind'),
+    rel:         btn.getAttribute('data-apply-rel'),
+    latestLabel: btn.getAttribute('data-apply-label'),
+    sizeMb:      btn.getAttribute('data-apply-size'),
+    local:       btn.getAttribute('data-apply-local'),
+    localArch:   btn.getAttribute('data-apply-local-arch'),
+    latestArch:  btn.getAttribute('data-apply-latest-arch'),
+    isUpgrade:   btn.getAttribute('data-apply-is-upgrade') === '1',
+  };
+  const split = _splitNameForUpdate(meta.rel);
+  meta.oldStem = split.stem; meta.ext = split.ext;
+  // Snapshot the current banner so Cancel restores it exactly.
+  const snapshot = banner.innerHTML;
+  banner.insertAdjacentHTML('beforeend', _renderUpdateChoose(meta));
+  const choose = banner.querySelector('.um-choose');
+  // Cancel: restore snapshot.
+  choose.querySelector('.um-cancel').addEventListener('click', () => {
+    banner.innerHTML = snapshot;
+  });
+  // Apply buttons.
+  choose.querySelectorAll('[data-um-mode]').forEach(b => {
+    b.addEventListener('click', () => applyUpdate(banner, meta, b.getAttribute('data-um-mode')));
+  });
+}
+
+async function applyUpdate(banner, meta, backupMode) {
+  // Extra hard guard for upgrades — make sure the user really gets it.
+  if (meta.isUpgrade) {
+    if (!confirm(
+      `⚠ ARCHITECTURE CHANGE\n\n` +
+      `You are about to download a ${meta.latestArch || 'unknown'} file ` +
+      `(local is ${meta.localArch || 'unknown'}).\n\n` +
+      `This is NOT an update — the two files use completely different neural ` +
+      `architectures. The new one likely won't work in pipelines configured ` +
+      `for the old one.\n\n` +
+      `Continue with mode "${backupMode}"?`
+    )) return;
+  }
+  const sz = meta.sizeMb ? `~${meta.sizeMb} MB` : 'unknown size';
+  // Swap content for progress UI.
+  const choose = banner.querySelector('.um-choose');
+  if (choose) choose.remove();
+  banner.insertAdjacentHTML('beforeend',
+    `<div class="um-progress">Downloading ${escapeHtml(meta.latestLabel)} (${escapeHtml(sz)})…</div>
+     <div class="um-help">Large checkpoints can take several minutes. Do not close this page.</div>`);
+  const body = JSON.stringify({ data: [meta.kind, meta.rel, backupMode] });
+  const opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body };
+  let result = null;
+  for (const url of ['/run/ab_apply_update', '/api/ab_apply_update']) {
+    try {
+      const resp = await fetch(url, opts);
+      if (!resp.ok) continue;
+      const json = await resp.json();
+      if (json && Array.isArray(json.data) && json.data.length) result = json.data[0];
+      else if (json && typeof json === 'object' && 'success' in json) result = json;
+      if (result) break;
+    } catch (e) { /* try next URL */ }
+  }
+  // Remove progress UI, append done block.
+  banner.querySelector('.um-progress')?.remove();
+  banner.querySelectorAll('.um-help').forEach(e => e.remove());
+  if (!result) {
+    banner.insertAdjacentHTML('beforeend', `<div class="um-done fail">✗ Network error — see browser console.</div>`);
+    return;
+  }
+  if (!result.success) {
+    banner.insertAdjacentHTML('beforeend',
+      `<div class="um-done fail">✗ ${escapeHtml(result.message || 'Update failed.')}</div>`);
+    return;
+  }
+  banner.insertAdjacentHTML('beforeend',
+    `<div class="um-done ok">✓ ${escapeHtml(result.message || 'Updated.')}<br>Reloading in 2s…</div>`);
+  setTimeout(() => window.location.reload(), 2000);
+}
+
+// Delegated click for '📥 Update from CivitAI' buttons inside any update banner.
+document.addEventListener('click', (ev) => {
+  const t = ev.target.closest('[data-apply-kind]');
+  if (!t) return;
+  // Make sure clicks INSIDE the choose panel don't re-trigger this handler.
+  if (t.hasAttribute('data-um-mode') || t.classList.contains('um-cancel')) return;
+  ev.preventDefault(); ev.stopPropagation();
+  const banner = t.closest('.ab-update-banner');
+  if (!banner) return;
+  // Disable the Apply button so a double-click can't open two panels.
+  t.disabled = true;
+  openUpdatePanel(banner, t);
+});
+
+// Global observer: pick up any update-banner that gets inserted (PhotoSwipe
+// recreates the caption DOM on every slide change, so we cannot rely on
+// captionContent being called once).
+(function() {
+  const scan = (root) => {
+    const banners = (root.querySelectorAll
+      ? root.querySelectorAll('.ab-update-banner.checking')
+      : []);
+    banners.forEach(b => fetchUpdateAndPatchBanner(b));
+  };
+  const mo = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      for (const node of m.addedNodes) {
+        if (node.nodeType !== 1) continue;  // ELEMENT_NODE only
+        if (node.classList && node.classList.contains('ab-update-banner') &&
+            node.classList.contains('checking')) {
+          fetchUpdateAndPatchBanner(node);
+        }
+        scan(node);
+      }
+    }
+  });
+  mo.observe(document.body, { childList: true, subtree: true });
+})();
+
+// Lightbox Delete button — sends file + sidecars to OS trash via the Fooocus
+// backend (route /run/ab_delete_file). Hidden in standalone file:// mode.
+// 'kind' is one of 'outputs' | 'loras' | 'checkpoints' | 'embeddings'.
+// 'rel' for models = the manifest rel_path; for outputs = "date/filename".
+function deleteBtnHtml(kind, rel, filenameLabel, sizeBytes) {
+  if (!HAS_FOOOCUS) return '';
+  const k = escapeHtml(kind);
+  const r = escapeHtml(rel);
+  const lbl = escapeHtml(filenameLabel || rel);
+  const sz = (sizeBytes != null) ? fmtBytes(sizeBytes) : '';
+  return `<button class="lb-delete" data-delete-kind="${k}" data-delete-rel="${r}"
+            data-delete-label="${lbl}" data-delete-size="${escapeHtml(sz)}"
+            title="Delete this file (sent to OS trash by default)">🗑️ Delete</button>`;
+}
+
+// Delegated click handler for Delete buttons inside any lightbox caption.
+// Uses a detailed confirm() then POSTs to the Gradio /run/ab_delete_file route.
+// On success: closes the lightbox + reloads (cheapest way to refresh manifests).
+document.addEventListener('click', async (ev) => {
+  const t = ev.target.closest('[data-delete-kind]');
+  if (!t) return;
+  ev.preventDefault(); ev.stopPropagation();
+  const kind = t.getAttribute('data-delete-kind');
+  const rel  = t.getAttribute('data-delete-rel');
+  const lbl  = t.getAttribute('data-delete-label') || rel;
+  const sz   = t.getAttribute('data-delete-size') || '';
+  // What sidecars are likely to disappear too — different per kind.
+  const sidecarHint = (kind === 'outputs')
+    ? '• Thumbnail sidecar (*_thumb.jpg) if present\n• Entry removed from this day\'s manifest'
+    : '• All sidecar previews (.preview.png, .png, .jpg, .webp…)\n'
+      + '• Sidecar metadata (.civitai.json, .json, .txt)\n'
+      + '• Manifest rebuilt automatically';
+  const msg = `Delete this ${kind === 'outputs' ? 'image' : kind.slice(0, -1)}?\n\n`
+            + `File:  ${lbl}\n`
+            + (sz ? `Size:  ${sz}\n` : '')
+            + `\nWill also delete:\n${sidecarHint}\n\n`
+            + `Default: sent to OS trash (recoverable).\n`
+            + `If send2trash isn't installed, falls back to permanent delete.`;
+  if (!confirm(msg)) return;
+  // Disable button + visual feedback.
+  const orig = t.textContent;
+  t.disabled = true; t.textContent = '🗑️ Deleting…';
+  const body = JSON.stringify({ data: [kind, rel] });
+  const opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body };
+  let result = null;
+  for (const url of ['/run/ab_delete_file', '/api/ab_delete_file']) {
+    try {
+      const resp = await fetch(url, opts);
+      if (!resp.ok) continue;
+      const json = await resp.json();
+      if (json && Array.isArray(json.data) && json.data.length) result = json.data[0];
+      else if (json && typeof json === 'object' && 'success' in json) result = json;
+      if (result) break;
+    } catch (e) { /* try next */ }
+  }
+  if (!result) {
+    t.textContent = '✗ Network error';
+    t.style.background = 'rgba(200,60,60,0.4)';
+    setTimeout(() => { t.textContent = orig; t.disabled = false; t.style.background = ''; }, 4000);
+    return;
+  }
+  if (!result.success) {
+    t.textContent = '✗ ' + (result.message || 'Failed');
+    t.style.background = 'rgba(200,60,60,0.4)';
+    setTimeout(() => { t.textContent = orig; t.disabled = false; t.style.background = ''; }, 5000);
+    return;
+  }
+  t.textContent = '✓ ' + (result.message || 'Deleted') + ' — reloading…';
+  t.style.background = 'rgba(78,205,196,0.4)';
+  // Same UX as the CivitAI single-fetch button: full reload picks up the
+  // rebuilt manifests cleanly.
+  setTimeout(() => { window.location.reload(); }, 1200);
 });
 
 // --------- Lightbox factory (one per tab kind) ----------
@@ -525,6 +1094,7 @@ function captionImage(d) {
       ${negativeText ? `<button data-copy="${escapeHtml(negativeText)}">📋 Negative</button>` : ''}
       <button data-copy="${escapeHtml(allParamsJson)}">📋 All params (JSON)</button>
       ${rawA1111 ? `<button data-copy="${escapeHtml(rawA1111)}">📋 Raw A1111</button>` : ''}
+      ${d._date ? deleteBtnHtml('outputs', `${d._date}/${d._filename}`, d._filename, d._sizeBytes) : ''}
     </div>`;
 }
 function captionLora(d) {
@@ -536,11 +1106,14 @@ function captionLora(d) {
     <div class="meta-row"><span class="k">Size</span><span class="v">${fmtBytes(it.size_bytes)}</span></div>
     <div class="meta-row"><span class="k">Modified</span><span class="v">${escapeHtml(it.modified_at || '')}</span></div>
     ${triggers ? `<div class="meta-row"><span class="k">Triggers</span><div class="v"><code class="triggers">${escapeHtml(triggers)}</code></div></div>` : '<div class="meta-row"><span class="k">Triggers</span><span class="v" style="opacity:.6">— none —</span></div>'}
+    ${updateBannerHtml('loras', it.rel_path)}
     <div class="copy-row">
+      ${favLightboxBtnHtml('loras', it)}
       ${fetchBtn}
       ${triggers ? `<button data-copy="${escapeHtml(triggers)}">📋 Copy triggers</button>` : ''}
       <button data-copy="${escapeHtml(it.filename)}">📋 Copy filename</button>
       ${it.civitai_url ? `<a href="${escapeHtml(it.civitai_url)}" target="_blank">🔗 Open on CivitAI</a>` : ''}
+      ${deleteBtnHtml('loras', it.rel_path, it.filename, it.size_bytes)}
     </div>`;
 }
 function captionCheckpoint(d) {
@@ -560,11 +1133,14 @@ function captionCheckpoint(d) {
     <div class="meta-row"><span class="k">Size</span><span class="v">${fmtBytes(it.size_bytes)}</span></div>
     ${it.base_model ? `<div class="meta-row"><span class="k">Base</span><span class="v">${escapeHtml(it.base_model)}</span></div>` : ''}
     ${consensusRows}
+    ${updateBannerHtml('checkpoints', it.rel_path)}
     <div class="copy-row">
+      ${favLightboxBtnHtml('checkpoints', it)}
       ${fetchBtn}
       ${Object.keys(c).length ? `<button data-copy="${escapeHtml(consensusJson)}">📋 Copy consensus (JSON)</button>` : ''}
       <button data-copy="${escapeHtml(it.filename)}">📋 Copy filename</button>
       ${it.civitai_url ? `<a href="${escapeHtml(it.civitai_url)}" target="_blank">🔗 Open on CivitAI</a>` : ''}
+      ${deleteBtnHtml('checkpoints', it.rel_path, it.filename, it.size_bytes)}
     </div>`;
 }
 function captionEmbedding(d) {
@@ -578,11 +1154,14 @@ function captionEmbedding(d) {
     <div class="meta-row"><span class="k">Path</span><span class="v">${escapeHtml(it.rel_path)}</span></div>
     <div class="meta-row"><span class="k">Size</span><span class="v">${fmtBytes(it.size_bytes)}</span></div>
     ${triggers ? `<div class="meta-row"><span class="k">Extra triggers</span><div class="v"><code class="triggers">${escapeHtml(triggers)}</code></div></div>` : ''}
+    ${updateBannerHtml('embeddings', it.rel_path)}
     <div class="copy-row">
+      ${favLightboxBtnHtml('embeddings', it)}
       ${fetchBtn}
       <button data-copy="${escapeHtml(embToken)}">📋 ${escapeHtml(embToken)}</button>
       <button data-copy="${escapeHtml(it.trigger)}">📋 Trigger only</button>
       ${it.civitai_url ? `<a href="${escapeHtml(it.civitai_url)}" target="_blank">🔗 Open on CivitAI</a>` : ''}
+      ${deleteBtnHtml('embeddings', it.rel_path, it.filename, it.size_bytes)}
     </div>`;
 }
 
@@ -648,6 +1227,8 @@ const Outputs = {
         msrc: img.thumb ? `./${date}/${encodeURIComponent(img.thumb)}` : undefined,
         width: w, height: h,
         _filename: img.src,
+        _date: date,                 // needed by the Delete button (rel_path = date/filename)
+        _sizeBytes: img.size_bytes,  // shown in the Delete confirmation
         _createdAt: img.created_at,
         _fooocusMeta: img.metadata || {},
       };
@@ -675,6 +1256,9 @@ function buildModelsTab(kind, opts) {
     items: [], subfolders: [], activeSubfolder: '__all__', _slides: [],
     async init() {
       $sidebarTitle.textContent = opts.sidebarTitle;
+      // Sync the sort dropdown to this tab's stored preference (per-kind).
+      const sortSel = document.getElementById('sort-select');
+      if (sortSel) sortSel.value = State.getSort(this.kind);
       const idx = await fetchJson(this.file);
       if (!idx || !idx.items || idx.items.length === 0) {
         renderEmpty($sidebarList, `No <code>${kind}.json</code> yet.`);
@@ -702,8 +1286,15 @@ function buildModelsTab(kind, opts) {
     },
     renderSidebar() {
       const total = this.items.length;
+      const favCount = State.favoriteCount(this.kind);
       const scope = `${this.kind}:subfolders`;
-      // 'All' is always shown — it's a virtual entry, can't be hidden.
+      // Two virtual entries at the top — neither can be hidden.
+      // 1) ⭐ Favorites — only shown if at least one star exists in this kind (avoids clutter).
+      // 2) 'All' — always shown.
+      const favHead = favCount > 0
+        ? `<div class="item fav-row${this.activeSubfolder === '__favorites__' ? ' active' : ''}" data-sub="__favorites__">
+              <span>⭐ Favorites</span><span class="count">${favCount}</span></div>`
+        : '';
       const head = `<div class="item${this.activeSubfolder === '__all__' ? ' active' : ''}" data-sub="__all__">
           <span>All</span><span class="count">${total}</span></div>`;
       const rest = this.subfolders.map(sf => sidebarItemHtml({
@@ -712,11 +1303,11 @@ function buildModelsTab(kind, opts) {
         count: sf.count,
         active: this.activeSubfolder === sf.name,
       })).join('');
-      $sidebarList.innerHTML = head + rest;
+      $sidebarList.innerHTML = favHead + head + rest;
       $sidebarList.querySelectorAll('.item').forEach(el => {
         el.addEventListener('click', (ev) => {
           if (ev.target.closest('.hide-btn')) return;
-          // 'All' uses data-sub, sub-folders use data-key (from sidebarItemHtml).
+          // 'All' and 'Favorites' use data-sub, sub-folders use data-key (from sidebarItemHtml).
           const sub = el.dataset.sub != null ? el.dataset.sub : el.dataset.key;
           this.activeSubfolder = sub;
           this.renderSidebar(); this.renderGrid();
@@ -732,20 +1323,58 @@ function buildModelsTab(kind, opts) {
         if (this.activeSubfolder !== '__all__' && this.activeSubfolder === sf) return true;
         return !State.isHidden(scope, sf);
       };
-      let filtered = (this.activeSubfolder === '__all__'
-        ? this.items.filter(it => subfolderVisible(it.subfolder || '.'))
-        : this.items.filter(it => (it.subfolder || '.') === this.activeSubfolder));
+      let filtered;
+      if (this.activeSubfolder === '__favorites__') {
+        // Only items starred for THIS kind, regardless of subfolder. We deliberately
+        // ignore the hidden-subfolder filter here — a starred item must never vanish
+        // because its parent folder got hidden.
+        filtered = this.items.filter(it => State.isFavorite(this.kind, it.id));
+      } else if (this.activeSubfolder === '__all__') {
+        filtered = this.items.filter(it => subfolderVisible(it.subfolder || '.'));
+      } else {
+        filtered = this.items.filter(it => (it.subfolder || '.') === this.activeSubfolder);
+      }
       // Search filter — match against filename, trigger_words, prompt, rel_path
       const q = (document.getElementById('search-input') || {}).value || '';
       if (q.trim()) {
         const lq = q.toLowerCase().trim();
         filtered = filtered.filter(it => {
-          const fields = [it.filename, it.rel_path, it.trigger_words,
+          // trigger_words is an array (see model_indexer._build_lora_item).
+          // Flatten to a string before searching; otherwise f.toLowerCase()
+          // throws on the array and the whole filter() callback dies silently
+          // — that was the reason the LoRAs tab search appeared to "do nothing".
+          const tw = Array.isArray(it.trigger_words)
+            ? it.trigger_words.join(' ')
+            : it.trigger_words;
+          const fields = [it.filename, it.rel_path, tw,
                           it.metadata && it.metadata.prompt,
                           it.metadata && it.metadata.negative_prompt].filter(Boolean);
-          return fields.some(f => f.toLowerCase().includes(lq));
+          return fields.some(f => String(f).toLowerCase().includes(lq));
         });
       }
+      // Sort — favorites always pinned at top, then user-chosen criterion below.
+      // (User-validated UX: favorites are NEVER demoted regardless of sort order.)
+      const sortKey = State.getSort(this.kind);
+      const cmpFilename = (a, b) => (a.filename || '').localeCompare(b.filename || '');
+      const cmpModified = (a, b) => (a.modified_at || '').localeCompare(b.modified_at || '');
+      const cmpSize     = (a, b) => (a.size_bytes || 0) - (b.size_bytes || 0);
+      const baseCmp = {
+        filename_asc:   cmpFilename,
+        filename_desc:  (a, b) => -cmpFilename(a, b),
+        modified_desc:  (a, b) => -cmpModified(a, b),
+        modified_asc:   cmpModified,
+        size_desc:      (a, b) => -cmpSize(a, b),
+        size_asc:       cmpSize,
+      }[sortKey] || cmpFilename;
+      filtered.sort((a, b) => {
+        // Favorites first — only relevant when NOT already in the Favorites virtual tab
+        // (in that case all items are favorites so this is a no-op).
+        const fa = State.isFavorite(this.kind, a.id) ? 1 : 0;
+        const fb = State.isFavorite(this.kind, b.id) ? 1 : 0;
+        if (fa !== fb) return fb - fa;   // favorite (1) before non-favorite (0)
+        return baseCmp(a, b);
+      });
+
       if (filtered.length === 0) { renderEmpty($main, 'Nothing to show here.'); return; }
 
       // Slides for lightbox — uses preview_full (full-res sidecar copy) and
@@ -768,13 +1397,43 @@ function buildModelsTab(kind, opts) {
 
       $main.innerHTML = `<div class="grid">${filtered.map((it, i) => this.renderCard(it, i)).join('')}</div>`;
       $main.querySelectorAll('.card').forEach(el => {
-        el.addEventListener('click', () => lb.loadAndOpen(parseInt(el.dataset.idx, 10)));
+        el.addEventListener('click', (ev) => {
+          // Ignore clicks that originated on the favorite star — it has its own handler.
+          if (ev.target.closest('.fav-btn')) return;
+          lb.loadAndOpen(parseInt(el.dataset.idx, 10));
+        });
+      });
+      // Favorite star handler — toggles State + glyph + .is-favorite outline in place,
+      // without re-rendering the whole grid (which would be visually jarring).
+      const self = this;
+      $main.querySelectorAll('.fav-btn').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          ev.preventDefault();
+          const id = btn.getAttribute('data-fav-id');
+          const nowFav = State.toggleFavorite(self.kind, id);
+          btn.classList.toggle('on', nowFav);
+          btn.textContent = nowFav ? '★' : '☆';
+          btn.title = nowFav ? 'Remove from favorites' : 'Add to favorites';
+          const card = btn.closest('.card');
+          if (card) card.classList.toggle('is-favorite', nowFav);
+          // If we're currently viewing the Favorites virtual subfolder, removing the
+          // last star on a visible card should hide it. Cheapest: re-render the grid.
+          if (self.activeSubfolder === '__favorites__' && !nowFav) {
+            self.renderSidebar(); self.renderGrid();
+          } else {
+            // Otherwise just keep the sidebar count fresh.
+            self.renderSidebar();
+          }
+        });
       });
     },
     renderCard(it, i) {
       const previewSrc = it.preview ? `./${it.preview}` : '';
+      const isFav = State.isFavorite(this.kind, it.id);
       const cls = ['card']; if (it.preview_kind === 'placeholder') cls.push('placeholder');
       if (it.is_negative_hint) cls.push('negative');
+      if (isFav) cls.push('is-favorite');
       const badges = [];
       if (it.trigger_words && it.trigger_words.length)
         badges.push(`<span title="${escapeHtml(it.trigger_words.join(', '))}">⚡ ${it.trigger_words.length}</span>`);
@@ -784,10 +1443,15 @@ function buildModelsTab(kind, opts) {
       const label = it.filename;
       const titleAttr = `${it.rel_path} · ${fmtBytes(it.size_bytes)}`
         + (it.trigger_words && it.trigger_words.length ? `\nTriggers: ${it.trigger_words.join(', ')}` : '');
-      return `<div class="${cls.join(' ')}" data-idx="${i}" title="${escapeHtml(titleAttr)}">
+      // Star button — data-fav-id wires it to the delegated click handler below.
+      // We render ☆/★ as glyphs (not emoji) for crisp color control via CSS.
+      const starBtn = `<button class="fav-btn${isFav ? ' on' : ''}" data-fav-id="${escapeHtml(it.id)}"
+                              title="${isFav ? 'Remove from favorites' : 'Add to favorites'}">${isFav ? '★' : '☆'}</button>`;
+      return `<div class="${cls.join(' ')}" data-idx="${i}" data-item-id="${escapeHtml(it.id)}" title="${escapeHtml(titleAttr)}">
         ${previewSrc
           ? `<img loading="lazy" src="${escapeHtml(previewSrc)}" alt="">`
           : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#444">no preview</div>`}
+        ${starBtn}
         ${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}
         <div class="label">${escapeHtml(label)}</div>
       </div>`;
@@ -863,6 +1527,33 @@ document.getElementById('btn-show-hidden').addEventListener('click', () => {
   });
 })();
 
+// Sort selector — persists per-kind, instant re-render on change.
+// Hidden on the Outputs tab (which is grouped by date, no sort UI needed).
+(function() {
+  const sortSel = document.getElementById('sort-select');
+  if (!sortSel) return;
+  sortSel.addEventListener('change', () => {
+    if (_activeTabName === 'outputs') return;   // nothing to do on the Outputs tab
+    State.setSort(_activeTabName, sortSel.value);
+    _reInitActiveTab();
+  });
+  // Hide on Outputs tab, show on every other tab.
+  function syncSortVisibility() {
+    sortSel.style.display = (_activeTabName === 'outputs') ? 'none' : '';
+  }
+  document.querySelectorAll('#tabs button').forEach(b => {
+    b.addEventListener('click', () => {
+      // _activeTabName is updated by the setActiveTab wrapper further down — but
+      // it runs AFTER the click handler chain. Read the dataset directly here.
+      const tabName = b.dataset.tab;
+      sortSel.style.display = (tabName === 'outputs') ? 'none' : '';
+      if (tabName !== 'outputs') sortSel.value = State.getSort(tabName);
+    });
+  });
+  // Initial visibility — outputs is the default active tab.
+  syncSortVisibility();
+})();
+
 // Delegated click for hide/unhide buttons in the sidebar.
 document.addEventListener('click', (ev) => {
   const t = ev.target.closest('[data-toggle-hide]');
@@ -882,6 +1573,209 @@ setActiveTab = function(name) {
   return _origSetActiveTab(name);
 };
 
+// =================== Batch CivitAI fetch ===================
+// Walks LoRAs + checkpoints + embeddings manifests, finds every item whose
+// preview_kind === 'placeholder' (no sidecar preview on disk), and downloads
+// the top CivitAI image for each — sequentially, with throttle, polite.
+// Designed to be re-runnable: items that already have a preview are skipped.
+const Batch = {
+  running: false,
+  cancelled: false,
+  items: [],          // [{kind, rel_path, filename}]
+  done: 0,
+  ok: 0,
+  skipped: 0,         // soft fails — model not on CivitAI / no images / etc.
+  ko: 0,              // hard fails — network / rate-limit / unknown error
+  consecutiveFails: 0,
+  THROTTLE_MS: 1500,           // user-validated default
+  MAX_CONSECUTIVE_FAILS: 5,    // hard-fail-only guard (rate-limit / network)
+
+  // Substrings (case-insensitive) that mean "this model legitimately can't be
+  // fetched from CivitAI" — NOT a transport-level problem. We skip & continue
+  // without incrementing consecutiveFails. Whole list comes from backend
+  // model_indexer.fetch_civitai_preview_for() error paths.
+  SOFT_FAIL_PATTERNS: [
+    'not found on civitai',          // hash unknown → user has non-CivitAI lora
+    'no images for this model',      // CivitAI knows the model but has no preview
+    'no usable image url',           // CivitAI returned malformed image list
+    'no version id',                 // CivitAI version response missing id
+    'could not hash',                // local I/O issue on the model file
+    'model not found on disk',       // user removed the file between scans
+    'sidecar preview already exists',// race vs single-fetch in lightbox
+    'unknown kind',                  // programmer error, not a CivitAI problem
+  ],
+
+  async collectAllPlaceholders() {
+    const kinds = ['loras', 'checkpoints', 'embeddings'];
+    const all = [];
+    for (const k of kinds) {
+      const idx = await fetchJson(`./_index/${k}.json`);
+      if (!idx || !Array.isArray(idx.items)) continue;
+      for (const it of idx.items) {
+        if (it.preview_kind === 'placeholder') {
+          all.push({ kind: k, rel_path: it.rel_path, filename: it.filename });
+        }
+      }
+    }
+    return all;
+  },
+
+  async refreshButton() {
+    const btn = document.getElementById('btn-batch-fetch');
+    if (!btn) return;
+    if (!HAS_FOOOCUS) { btn.style.display = 'none'; return; }
+    const all = await this.collectAllPlaceholders();
+    if (all.length === 0) { btn.style.display = 'none'; return; }
+    btn.style.display = '';
+    btn.innerHTML = `\u{1F310} Fetch missing <span class="pill">${all.length}</span>`;
+  },
+
+  async start() {
+    if (this.running) return;
+    const items = await this.collectAllPlaceholders();
+    if (items.length === 0) {
+      alert('No missing previews to fetch — everything already has a sidecar image.');
+      return;
+    }
+    const eta = Math.ceil((items.length * this.THROTTLE_MS) / 1000);
+    const m = Math.floor(eta / 60), s = eta % 60;
+    const etaStr = m > 0 ? `~${m}m ${s}s` : `~${s}s`;
+    if (!confirm(`Fetch ${items.length} missing CivitAI previews?\n\n` +
+                 `• Throttle: ${this.THROTTLE_MS}ms between requests\n` +
+                 `• Estimated time: ${etaStr}\n` +
+                 `• Models legitimately absent from CivitAI are skipped (no penalty)\n` +
+                 `• Auto-stop only after ${this.MAX_CONSECUTIVE_FAILS} consecutive HARD failures (network / rate-limit)\n` +
+                 `• You can Cancel at any time from the progress panel`)) return;
+
+    this.running = true; this.cancelled = false;
+    this.items = items; this.done = 0; this.ok = 0; this.skipped = 0; this.ko = 0; this.consecutiveFails = 0;
+    this.showOverlay();
+    this.updateOverlay();
+    document.getElementById('btn-batch-fetch').disabled = true;
+    await this.loop();
+    this.finish();
+  },
+
+  async loop() {
+    for (const item of this.items) {
+      if (this.cancelled) break;
+      // Auto-stop guard targets ONLY hard failures (network / rate-limit / unknown).
+      // "Not found on CivitAI" etc. are legitimate skips and don't count here —
+      // a user with 200 non-CivitAI LoRAs would otherwise hit this on item #6.
+      if (this.consecutiveFails >= this.MAX_CONSECUTIVE_FAILS) {
+        console.warn(`[batch] stopping after ${this.consecutiveFails} consecutive HARD failures — likely rate-limited or network down`);
+        break;
+      }
+      this.setCurrent(item.filename);
+      const outcome = await this.fetchOne(item);   // 'ok' | 'soft' | 'hard'
+      if (outcome === 'ok')        { this.ok++;      this.consecutiveFails = 0; }
+      else if (outcome === 'soft') { this.skipped++; this.consecutiveFails = 0; }
+      else                          { this.ko++;     this.consecutiveFails++; }
+      this.done++;
+      this.updateOverlay();
+      // Throttle, but skip the wait after the very last one
+      if (this.done < this.items.length && !this.cancelled) {
+        await new Promise(r => setTimeout(r, this.THROTTLE_MS));
+      }
+    }
+  },
+
+  // Classify the outcome of a single fetch:
+  //   'ok'   — preview saved
+  //   'soft' — backend said "no, but legitimately" (not on CivitAI, no images…) — skip & continue
+  //   'hard' — network error / rate-limit / unknown failure — counts toward auto-stop
+  classify(result) {
+    if (!result) return 'hard';
+    if (result.success) return 'ok';
+    const msg = String(result.message || '').toLowerCase();
+    for (const pat of this.SOFT_FAIL_PATTERNS) {
+      if (msg.includes(pat)) return 'soft';
+    }
+    return 'hard';
+  },
+
+  async fetchOne(item) {
+    const body = JSON.stringify({ data: [item.kind, item.rel_path] });
+    const opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body };
+    for (const url of ['/run/ab_fetch_preview', '/api/ab_fetch_preview']) {
+      try {
+        const resp = await fetch(url, opts);
+        if (!resp.ok) continue;   // try next URL
+        const json = await resp.json();
+        let result = null;
+        if (json && Array.isArray(json.data) && json.data.length) result = json.data[0];
+        else if (json && typeof json === 'object' && 'success' in json) result = json;
+        if (!result) continue;
+        const outcome = this.classify(result);
+        if (outcome !== 'ok') {
+          const tag = outcome === 'soft' ? 'skip' : 'fail';
+          console.warn(`[batch ${tag}] ${item.kind}/${item.rel_path}: ${result.message || 'unknown'}`);
+        }
+        return outcome;
+      } catch (e) {
+        console.warn(`[batch fail] ${item.kind}/${item.rel_path}: network error`, e);
+        // Network exception — try next URL; if none work, fall through to 'hard'
+      }
+    }
+    return 'hard';
+  },
+
+  setCurrent(name) {
+    const el = document.getElementById('batch-current');
+    if (el) el.textContent = name;
+  },
+  updateOverlay() {
+    const total = this.items.length;
+    document.getElementById('batch-progress').textContent = `${this.done} / ${total}`;
+    document.getElementById('batch-ok').textContent = this.ok;
+    document.getElementById('batch-skipped').textContent = this.skipped;
+    document.getElementById('batch-ko').textContent = this.ko;
+    const pct = total > 0 ? (this.done / total) * 100 : 0;
+    document.getElementById('batch-fill').style.width = pct.toFixed(1) + '%';
+  },
+  showOverlay() {
+    document.getElementById('batch-overlay').classList.add('on');
+    document.getElementById('batch-cancel').style.display = '';
+    document.getElementById('batch-close').style.display = 'none';
+  },
+  hideOverlay() {
+    document.getElementById('batch-overlay').classList.remove('on');
+  },
+
+  finish() {
+    this.running = false;
+    this.setCurrent(this.cancelled ? '(cancelled)' : '(done)');
+    // Flip Cancel -> Close & reload. Reloading picks up the new previews
+    // (gallery_writer rebuilds manifests when sidecar files appear).
+    document.getElementById('batch-cancel').style.display = 'none';
+    const closeBtn = document.getElementById('batch-close');
+    closeBtn.style.display = '';
+    closeBtn.textContent = this.ok > 0 ? `Close & reload (${this.ok} new)` : 'Close';
+    const btn = document.getElementById('btn-batch-fetch');
+    if (btn) btn.disabled = false;
+  },
+
+  cancel() {
+    if (!this.running) return;
+    this.cancelled = true;
+    document.getElementById('batch-current').textContent = '(cancelling after current request…)';
+  },
+};
+
+// Wire up the button + overlay actions.
+(function() {
+  const btn = document.getElementById('btn-batch-fetch');
+  if (btn) btn.addEventListener('click', () => Batch.start());
+  const cancelBtn = document.getElementById('batch-cancel');
+  if (cancelBtn) cancelBtn.addEventListener('click', () => Batch.cancel());
+  const closeBtn = document.getElementById('batch-close');
+  if (closeBtn) closeBtn.addEventListener('click', () => {
+    Batch.hideOverlay();
+    // Reload only if at least one new preview was fetched.
+    if (Batch.ok > 0) window.location.reload();
+  });
+})();
+
 // =================== Boot ===================
 (async () => {
   // Load SPA-side settings (blur default written by gallery_writer.ensure_gallery_assets).
@@ -893,6 +1787,10 @@ setActiveTab = function(name) {
   // Initial tab from URL hash, fallback to outputs.
   const initial = (window.location.hash || '#outputs').replace('#', '');
   setActiveTab(tabs[initial] ? initial : 'outputs');
+
+  // Show/hide + counter for the "🌐 Fetch missing" header button.
+  // Fire-and-forget — Batch reads the same _index/*.json manifests as the tabs.
+  Batch.refreshButton();
 })();
 </script>
 </body>

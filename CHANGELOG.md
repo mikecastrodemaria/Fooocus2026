@@ -3,6 +3,114 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-8.12] — 2026-05-25 — Move "⚠ Restart UI" button from Settings tab to Advanced tab
+
+### Changed
+- **`⚠ Restart UI` button** moved out of the Settings tab (where it shared a row with `🔄 Refresh All Files`) to the **bottom of the Advanced tab**. Sits after the FreeU sub-tab in the dev tools area, separated by an `<hr>` rule.
+- **`🔄 Refresh All Files`** now stands alone in Settings (no more `gr.Row()` with `scale=` allocation) and its help text points users to the new Restart location.
+
+### Why
+- The Restart button was right next to a frequently-used Refresh control, and the red `variant='stop'` made it visually loud during normal workflow. Sending it down to the bottom of Advanced keeps it discoverable for the "after editing config.txt" use case but out of accidental-click range.
+
+### Notes
+- All wiring unchanged — `restart_ui_btn.click(...)` handler at the same line still resolves because the variable is still declared before its `.click()` registration.
+- The launcher `.bat` loop (`if errorlevel 42 goto loop`) still picks up the exit-code-42 contract from `_restart_ui()`.
+
+## [custom-8.11] — 2026-05-25 — Asset Browser: CivitAI update detector + Apply (with architecture-change warning)
+
+### Added — Phase 3A — detection
+- **In-lightbox update check** — each model caption (LoRAs / Checkpoints / Embeddings) ships with a placeholder banner that fires `/run/ab_check_update` async on open. A `MutationObserver` catches the placeholder in the DOM whenever PhotoSwipe rebuilds the caption between slides.
+- **Backend `check_update_for(kind, rel_filename)`** in `modules/model_indexer.py` — hashes the file, looks up the local version on CivitAI by hash, then fetches the model's most recent version. Result is a dict with `status` in `{up_to_date, update_available, upgrade_available, not_on_civitai, error}`, cached **24h per file** in `civitai_cache/<file>.updatecheck.json` to avoid re-querying when the user re-opens the same item.
+- **Backend `civitai_api.get_latest_version_for_model(model_id)`** — calls `/api/v1/models/{id}`, returns the first version (most recent) with primary file info (name, sizeKB, sha256, downloadUrl) and the `baseModel` field.
+- **Banner states**: silently removed for `not_on_civitai`/`error`, soft-gray `✓ Up to date` for `up_to_date`, violet `🆕 Newer version available` for `update_available`, and orange `⚠ Architecture change` for `upgrade_available` (see below).
+
+### Added — Phase 3B — apply
+- **`📥 Update from CivitAI` button** appears inline in the update banner when a newer version is available.
+- **Inline panel** (no floating modal — user-validated UX) — clicking the Apply button expands the banner with 3 backup-mode buttons + Cancel:
+  - **Send old to Trash** — old file → OS recycle bin, new takes the original name (recommended default, recoverable).
+  - **Keep old as .old** — old renamed to `<stem>.old<ext>` (or `.old.2`, `.old.3`… if `.old` is taken), new takes the original name.
+  - **Keep as it** — old file untouched, new downloaded as `<stem>.new<ext>` (or `.new.2`…). Both versions coexist on disk.
+- **Backend `apply_update_for(kind, rel_filename, backup_mode)`** in `modules/model_indexer.py` — streams the download in 1 MiB chunks (no RAM blowout on 7 GB checkpoints), verifies size against CivitAI's announcement (with 1% slack for size_kb rounding), then performs the backup-or-replace dance with full roll-back on failure (download deleted, old file untouched).
+- **Cache invalidation** — `civitai_cache/<file>.json` and `<file>.triggers.json` are wiped after a successful replace (modes `trash`/`keep`) because the version changed. For `keep_as_is`, the original's caches are preserved (the file didn't move). The `<file>.updatecheck.json` cache is invalidated in all 3 modes so the SPA shows fresh state on reload.
+
+### Added — Phase 3B extra — architecture change warning (upgrade vs update)
+- **Recognition of cross-architecture migrations** — CivitAI groups every version of a "model page" together, even when the author migrates the model from SDXL to Flux (or SD1.5 to SDXL, etc.). Loading a Flux file as if it were SDXL = guaranteed pipeline crash. `check_update_for` now compares `baseModel` family (normalized: `'SDXL 1.0'`, `'SDXL 1.0 LCM'` → `sdxl`) between local and latest. When they differ, `status='upgrade_available'`.
+- **Orange banner with `⚠ Architecture change`** instead of the violet `🆕`. Apply button relabeled `📥 Replace with different architecture`.
+- **Extra `confirm()` gate** before the download starts in upgrade mode — text reads *"You are about to download a Flux file (local is SDXL). This is NOT an update — the two files use completely different neural architectures. The new one likely won't work in pipelines configured for the old one. Continue with mode 'trash'?"*.
+
+### Files touched
+- `modules/civitai_api.py` — `get_latest_version_for_model()` (+`baseModel` field).
+- `modules/model_indexer.py` — `check_update_for()`, `apply_update_for()`, `_backup_path_for_keep()`, `_new_path_for_keep_as_is()`, `_stream_download()`, `_load_cached_update()`, `_save_cached_update()`.
+- `webui.py` — two new hidden Gradio bridges: `api_name='ab_check_update'` and `api_name='ab_apply_update'` (the apply one is queued, not the fast-path `queue=False` used by the other bridges, because downloads can run for minutes).
+- `gallery_template/index.html` — CSS for the banner variants (`new`, `upgrade`) + inline `um-choose/um-progress/um-done` panel states; JS `updateBannerHtml()`, `fetchUpdateAndPatchBanner()`, MutationObserver, `openUpdatePanel()`, `applyUpdate()`, plus injection of `updateBannerHtml()` in the 3 model captions.
+
+### Notes
+- 24h cache (`_UPDATE_CHECK_TTL_SECONDS = 86400`) is deliberately conservative — CivitAI rate-limit policies are opaque and re-querying the same model 10 times in a session is wasteful.
+- Architecture family normalization handles: `sdxl`, `sd1.5`, `sd3`, `flux`, `pony`, `svd`. Anything outside this list falls back to first-token comparison, which is good enough for less-common bases.
+- The download uses `urllib.request` with the user's `civitai_api_key` from `config.txt` as `Authorization: Bearer <key>` — covers gated/mature models.
+
+## [custom-8.10] — 2026-05-25 — Asset Browser: Delete button with native Windows Recycle Bin
+
+### Added
+- **🗑️ Delete button in every lightbox caption** — Outputs (images), LoRAs, Checkpoints, Embeddings. Detailed `confirm()` lists the target filename, size, and which sidecars will follow it to the trash. Hidden in standalone `file://` mode (no Fooocus backend available).
+- **Sends to the OS Recycle Bin by default** with three-tier fallback in `_to_trash_or_remove()`:
+  1. `send2trash` if the user happens to have it installed (cross-platform);
+  2. **Windows native** — `powershell.exe` invoking `[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($p, OnlyErrorDialogs, SendToRecycleBin)`. **No `pip install` needed** — works out-of-the-box on the Fooocus `python_embeded` distribution which has no pip;
+  3. Hard `os.remove()` with `[asset-browser] WARNING: hard-deleted X` log line — last resort if neither of the above is available.
+- **Backend route `/run/ab_delete_file`** (Gradio `api_name='ab_delete_file'`) — hidden Textbox/JSON bridge, same pattern as the existing `ab_fetch_preview` route.
+- **`delete_file_for(kind, rel_filename)`** in `modules/model_indexer.py`:
+  - For models — deletes `.safetensors` + every sidecar preview (`.preview.png`, `.png`, `.jpg`, `.webp`…) + sidecar metadata (`.civitai.json`, `.json`, `.txt`) + cached preview thumbs under `outputs/_previews/<kind>/`. Manifest rebuilt automatically.
+  - For outputs — deletes the image + its `_thumb.jpg` sidecar, then patches the day's `manifest.json` in-place (no full rebuild).
+
+### Why
+- Asking the user to manually rm a LoRA + its 4-5 sidecar files from Explorer is friction. One-click delete from the same panel that shows the preview is what every modern asset manager has had for a decade. Doing it via the OS Recycle Bin (not `os.remove`) means an accidental click is recoverable in two clicks.
+
+### Notes
+- **Restart Fooocus** after pulling — the new Gradio route is declared at boot. A simple browser refresh won't make `/run/ab_delete_file` exist.
+- The PowerShell recycle approach spawns one subprocess per deleted file (~300-500 ms each). Acceptable for manual deletes; a future bulk-delete would batch them.
+- `Microsoft.VisualBasic.FileIO` is part of every Windows 10/11 install — no extra runtime needed.
+
+## [custom-8.9] — 2026-05-25 — Asset Browser: CivitAI batch fetch (all missing previews, one click)
+
+### Added
+- **🌐 Fetch missing N** header button — appears only when at least one model across the 3 kinds (LoRAs / checkpoints / embeddings) lacks a sidecar preview. Counter recomputed at boot via `Batch.refreshButton()` reading the three `_index/*.json` manifests.
+- **Sequential batch loop** with 1.5 s throttle (polite to CivitAI). Re-uses the existing `/run/ab_fetch_preview` route — no new backend code, just orchestration on the SPA side.
+- **Floating progress overlay** (bottom-right, `z-index 10000` so it stays visible if the user opens the lightbox during a batch). Shows: progress bar, current filename, three counters (Succeeded / Skipped / Failed), Cancel button. Cancel flips to "Close & reload (N new)" when the loop finishes.
+- **Soft vs hard fail classification** — `Batch.classify()` reads the backend message. "Not found on CivitAI / no images / no usable image URL / could not hash / sidecar already exists" → **skip & continue** (doesn't penalize). Network errors / HTTP non-2xx / unknown messages → **hard fail** (counts toward the auto-stop guard).
+- **Auto-stop only on 5 consecutive *hard* failures** — protects against CivitAI rate-limit / network outage without killing a batch where 200/300 LoRAs are legitimately non-CivitAI (typical for users with self-trained or HuggingFace LoRAs).
+
+### Why
+- Filling in CivitAI previews one-by-one through the lightbox was tedious for users with hundreds of placeholder cards. The original auto-stop guard from the single-fetch button blindly counted every "not found" as a failure — a non-starter for libraries with mixed CivitAI/non-CivitAI provenance.
+
+### Notes
+- Throttle and max-consecutive constants live on the `Batch` object (`THROTTLE_MS = 1500`, `MAX_CONSECUTIVE_FAILS = 5`) — easy to tweak if CivitAI's rate-limit policy changes.
+- Console logs `[batch ok|skip|fail]` per item (silent for ok to avoid spam).
+
+## [custom-8.8] — 2026-05-25 — Asset Browser: Favorites + per-kind sort (model tabs only)
+
+### Added
+- **⭐ Favorites per kind** — star button on every model card (top-left). Click toggles + persists to `localStorage` under `fooocus2025_assetbrowser_favorites` ({ loras: [...ids], checkpoints: [...], embeddings: [...] }). Cards keep a subtle gold outline when starred.
+- **⭐ Favorites virtual sidebar entry** — appears in tab head as `⭐ Favorites (N)` when at least one star exists. Click filters the grid to starred items only, ignoring the hidden-subfolder filter (a starred item must never disappear because its parent folder got hidden).
+- **Sort dropdown in the header** (next to the search input) — Name ↑↓, Modified ↑↓, Size ↑↓. Persisted **per kind** under `fooocus2025_assetbrowser_sort`. Hidden on the Outputs tab (which is grouped by date and doesn't need it).
+- **Favorites always pinned at the top** of the grid, regardless of the chosen sort. UX-validated decision — predictable for users, no surprise demotions.
+- **Star button also in the lightbox caption** of model items — same toggle, synchronized with the visible card (when re-renderable) and the sidebar count.
+
+### Why
+- For a library of 5 000+ LoRAs, scrolling alphabetically is hostile. Star your daily-drivers and they're always one click away at the top.
+
+### Notes
+- No backend changes — pure SPA-side state + `localStorage`. Survives page reload, browser restart, and Fooocus restart. Wiped only via `localStorage.clear()` or a fresh browser profile.
+- Scope is deliberately **per kind** (a LoRA favorite and a checkpoint favorite are unrelated). Mike validated this scope.
+
+## [custom-8.7] — 2026-05-25 — Asset Browser: LoRA search filter regression fix
+
+### Fixed
+- **The header search bar in the LoRAs tab silently did nothing** — typing a query never narrowed the grid. Root cause: in `renderGrid()`, the search-filter callback included `it.trigger_words` (which is an **array** per `model_indexer._build_lora_item`) in the fields list. `[].filter(Boolean)` keeps arrays (truthy in JS), then `.some(f => f.toLowerCase().includes(lq))` threw `TypeError: f.toLowerCase is not a function` on the array. The whole `.filter()` callback died silently and `renderGrid()` short-circuited without updating the DOM — the user saw nothing happen.
+- Fix flattens the array before searching: `const tw = Array.isArray(it.trigger_words) ? it.trigger_words.join(' ') : it.trigger_words` and the comparator now uses `String(f).toLowerCase()` as a belt-and-suspenders guard against any future field becoming non-string.
+
+### Why
+- Checkpoints and Embeddings tabs were unaffected (no `trigger_words`), which is why the bug went unnoticed during initial Asset Browser QA. Reported by Mike via Cowork — caught in <2 min of code reading once the symptom was clear.
+
 ## [custom-11.1] — 2026-05-16 — Resilient sha256_from_cache (no more crash on missing LoRA/checkpoint)
 
 ### Fixed
