@@ -22,7 +22,8 @@ __pycache__/
 /models/vae/
 /models/vae_approx/
 /models/clip/
-/models/clip_vision//models/controlnet/
+/models/clip_vision/
+/models/controlnet/
 /models/diffusers/
 /models/gligen/
 /models/hypernetworks/
@@ -51,7 +52,8 @@ model_arch_cache.json
 config.txt
 config.json
 config_modification_tutorial.txt
-user_path_config.txtuser_path_config-deprecated.txt
+user_path_config.txt
+user_path_config-deprecated.txt
 ui-config.json
 /auth.json
 /config_states/
@@ -103,3 +105,7 @@ civitai_api_key.txt
 /_versions/
 memory/
 MEMORY.md
+## Per-install backups + auto-generated model metadata + local sync test
+_sync_test*.txt
+config.txt.bak*
+/models/models_info.json
