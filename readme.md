@@ -2,11 +2,11 @@
 <img src="https://github.com/lllyasviel/Fooocus/assets/19834515/483fb86d-c9a2-4c20-997c-46dafc124f25">
 </div>
 
-# Fooocus 2025 — Custom Fork
+# Fooocus 2026 — Custom Fork
 
-> Version **`2026.2.0`** · A personal fork of **[lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) v2.5.5** with a series of quality-of-life features: a **Save Preset** button, **CivitAI Model Settings** integration (checkpoint triggers, consensus settings, save-as-preset), **LoRA trigger words** from local metadata + CivitAI, **Embeddings panel** with bulk-insert, **Wildcards editor**, **Vary-with-aspect-ratio** override, **Custom Resolution** (any ratio + size, snapped to /64), an **🖼️ Asset Browser** (PhotoSwipe-based standalone gallery for outputs + LoRAs/Checkpoints/Embeddings previews — opt-in, zero impact when disabled), **architecture filtering** (auto-hides Flux/SD3/LLMs from dropdowns — SD/SDXL only), and a real **Restart UI** button.
+> Version **`2026.2.0`** · A personal fork of **[lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) v2.5.5** with a series of quality-of-life features: a **Save Preset** button, **CivitAI Model Settings** integration (checkpoint triggers, consensus settings, save-as-preset), **LoRA trigger words** from local metadata + CivitAI, **Embeddings panel** with bulk-insert, **Wildcards editor**, **Vary-with-aspect-ratio** override, **Custom Resolution** (any ratio + size, snapped to /64), an **🖼️ Asset Browser** (PhotoSwipe-based standalone gallery for outputs + LoRAs/Checkpoints/Embeddings previews — opt-in, zero impact when disabled), **architecture filtering** (auto-hides Flux/SD3/LLMs from dropdowns — SD/SDXL only), a real **Restart UI** button, and an **🧩 Extra Plugins** tab that runs external upscalers (e.g. **crispz**) installed straight from a GitHub URL.
 
-![Fooocus2025 fork — Models tab showing CivitAI / LoRA / Embeddings / Wildcards accordions and Restart UI, with wildcards in the prompt](docs/screenshots/overview.png)
+![Fooocus2026 fork — Models tab showing CivitAI / LoRA / Embeddings / Wildcards accordions and Restart UI, with wildcards in the prompt](docs/screenshots/overview.png)
 
 *Above: the Models tab of the Advanced panel, showing the four fork-specific accordions (CivitAI, LoRA, Embeddings, Wildcards) and the Restart UI button. The generated images come from a prompt that uses two wildcards: `__artist-anime__` for the style and `__neg-weight__` in the negative — each expands to a random line from the matching `.txt` at generation time.*
 
@@ -169,7 +169,7 @@ Unchecked → original upstream behaviour (preserves input's native aspect). Doe
 
 **💾 Save as preset entry** — one-click button that appends the computed `W*H` to `available_aspect_ratios` in `config.txt`. After the next restart the resolution shows up directly in the Aspect Ratios dropdown, so you don't have to re-dial it every session.
 
-**Preset round-trip:** `save_preset_to_file` writes a `custom_resolution: {enabled, ratio_w, ratio_h, mode, size}` block into preset JSONs. Old presets without the block default to OFF (full back-compat). The block is invisible to vanilla Fooocus, so cross-loading a Fooocus2025 preset on upstream Fooocus is safe.
+**Preset round-trip:** `save_preset_to_file` writes a `custom_resolution: {enabled, ratio_w, ratio_h, mode, size}` block into preset JSONs. Old presets without the block default to OFF (full back-compat). The block is invisible to vanilla Fooocus, so cross-loading a Fooocus2026 preset on upstream Fooocus is safe.
 
 **Compose with custom-6:** select **`Custom`** in the Aspect Ratios dropdown AND tick **Use Aspect Ratio for Vary** to force Vary outputs to your custom W × H — handy for re-framing source images to arbitrary print/social formats.
 
@@ -276,14 +276,29 @@ Without this loop, the restart button still works — it just becomes a clean ex
 
 ---
 
+### 12. 🧩 Extra Plugins (external upscalers via GitHub)
+**Where:** **Advanced** panel → tick **🧩 Extra Plugins** (same enable-in-Advanced pattern as the Asset Browser). A new **Extra** panel appears with a tab per installed plugin plus a **Manager** tab.
+
+**What it does:** lets you install and run external image tools that ship a `fooocus_extra.json` manifest, the way ComfyUI loads custom nodes. The first plugin is **[crispz](https://github.com/mikecastrodemaria/crispz)** (ESRGAN upscale + Z-Image Turbo detail pass).
+
+**How it works:**
+- **Manager tab:** paste a GitHub URL → the plugin is `git clone`d into `extra_plugins/installed/<name>/`, gets its **own isolated venv** (full-auto), and is registered from its manifest. A **⚠ Restart UI** button reloads Fooocus so the plugin's tab shows up.
+- **Process isolation:** the plugin runs as a **separate process via its CLI**, never imported into Fooocus. This is what lets crispz use its own `torch 2.x / CUDA 12.8 + diffusers` stack without touching Fooocus's pinned environment. Two install strategies: `fresh_venv` (installs torch from scratch) or `reuse_python` (inherits an existing interpreter's torch via `--system-site-packages` — fast).
+- **VRAM coordination:** before each call the host SDXL model is unloaded (`model_management.unload_all_models()`), giving the plugin the whole card; Fooocus reloads its model on the next generation.
+- **Plugin tab:** images on the left (input + result), settings on the right (built dynamically from the manifest). A **⬇ Get a generated image** button pulls your selected gallery image (or the latest output) straight into the plugin input. The ESRGAN folder, chosen model and settings are **remembered** between launches; the **🧩 Extra Plugins** toggle stays on after reboot.
+
+**Files:** the whole feature lives in a self-contained `extra_plugins/` package; `webui.py` only adds the checkbox + panel + toggle. See [`extra_plugins/INTEGRATION.md`](extra_plugins/INTEGRATION.md) to port it.
+
+---
+
 ## 🚀 Getting this fork
 
 ### Option A — I already have Fooocus installed
 ```bash
-git clone https://github.com/mikecastrodemaria/Fooocus2025.git
+git clone https://github.com/mikecastrodemaria/Fooocus2026.git
 # or, inside an existing clone:
-git remote add fork2025 https://github.com/mikecastrodemaria/Fooocus2025.git
-git fetch fork2025 && git checkout -b fork2025-main fork2025/main
+git remote add fork2026 https://github.com/mikecastrodemaria/Fooocus2026.git
+git fetch fork2026 && git checkout -b fork2026-main fork2026/main
 ```
 
 ### Option B — Fresh install on Windows
@@ -292,7 +307,7 @@ git fetch fork2025 && git checkout -b fork2025-main fork2025/main
 3. Inside the extracted `Fooocus/` subfolder, replace its contents with a clone of this fork:
    ```bash
    cd Fooocus_win64_2-5-0/Fooocus
-   git init && git remote add origin https://github.com/mikecastrodemaria/Fooocus2025.git
+   git init && git remote add origin https://github.com/mikecastrodemaria/Fooocus2026.git
    git fetch origin && git reset --hard origin/main
    ```
 4. Run `run.bat` from the install root as usual.
@@ -389,7 +404,9 @@ Example fragment:
 | `modules/model_indexer.py` | **New** — Asset Browser model scanners (LoRAs / Checkpoints / Embeddings) + sidecar preview lookup + placeholder generation (custom-8) |
 | `gallery_template/index.html` + `_assets/` | **New** — Asset Browser SPA + bundled PhotoSwipe v5 / Dynamic Caption / Deep Zoom (custom-8) |
 | `launch.py` | Spawns Asset Browser model indexer in a daemon thread when enabled (custom-8) |
-| `webui.py` | All fork UI: Save Preset, CivitAI / LoRA / Embeddings / Wildcards accordions, Aspect-for-Vary, Custom Resolution panel, Asset Browser accordion + link button, Restart UI |
+| `webui.py` | All fork UI: Save Preset, CivitAI / LoRA / Embeddings / Wildcards accordions, Aspect-for-Vary, Custom Resolution panel, Asset Browser accordion + link button, Restart UI, **Extra Plugins** checkbox + panel + toggle (custom-12) |
+| `extra_plugins/` | **New** — self-contained Extra Plugins subsystem: GitHub install + isolated venv, manifest parsing, CLI runner, per-plugin UI, settings persistence (custom-12). Runtime dirs (`installed/`, `outputs/`, `settings.json`) gitignored |
+| `run*.bat` / `run*.sh` / `boot_check_rtx5090.*` | **New** — RTX 5090 launch scripts (standard, realistic, anime, quality, boot diagnostic) for Windows + Mac/Linux |
 | `CHANGELOG.md` | Per-release fork history |
 | `.gitignore` | Excludes `civitai_cache/`, local presets, assistant artifacts |
 
