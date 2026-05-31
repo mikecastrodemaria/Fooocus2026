@@ -1,0 +1,6 @@
+# Runtime du sous-systeme Extra : ne pas versionner.
+installed/
+outputs/
+settings.json
+__pycache__/
+*.pyc

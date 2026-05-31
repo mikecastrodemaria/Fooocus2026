@@ -19,6 +19,7 @@ import args_manager
 import copy
 import launch
 from extras.inpaint_mask import SAMOptions
+from extra_plugins import ui as extra_ui
 
 from modules.sdxl_styles import legal_style_names
 from modules.private_logger import get_current_html_path
@@ -390,6 +391,9 @@ with shared.gradio_root:
 
                         metadata_input_image.upload(trigger_metadata_preview, inputs=metadata_input_image,
                                                     outputs=metadata_json, queue=False, show_progress=True)
+
+            with gr.Row(visible=extra_ui.enabled_default()) as extra_plugins_panel:
+                extra_ui.build_extra_panel(output_gallery=gallery)
 
             with gr.Row(visible=modules.config.default_enhance_checkbox) as enhance_input_panel:
                 with gr.Tabs():
@@ -1076,15 +1080,16 @@ with shared.gradio_root:
                             'in the wildcards folder using the current contents.'
                             '</div>')
 
-                refresh_files = gr.Button(
-                    label='Refresh',
-                    value='\U0001f504 Refresh All Files',
-                    variant='secondary',
-                    elem_classes='refresh_button',
-                )
+                with gr.Row():
+                    refresh_files = gr.Button(label='Refresh', value='\U0001f504 Refresh All Files', variant='secondary', elem_classes='refresh_button', scale=3)
+                    restart_ui_btn = gr.Button(
+                        value='\U000026A0 Restart UI', variant='stop',
+                        scale=1, min_width=110,
+                        elem_classes='refresh_button')
                 gr.HTML('<div style="font-size:11px;color:#888;padding:2px 6px;">'
-                        'Refreshes model / LoRA / VAE dropdowns when new files appear. '
-                        'The <b>Restart UI</b> button moved to the <b>Advanced</b> tab (bottom).</div>')
+                        'Use Refresh for new files. Restart reloads the whole Python process '
+                        '(re-reads config.txt, reimports modules, re-loads the model).</div>')
+                _restart_notice = gr.HTML(value='', visible=True)
             with gr.Tab(label='Advanced'):
                 guidance_scale = gr.Slider(label='Guidance Scale', minimum=1.0, maximum=30.0, step=0.01,
                                            value=modules.config.default_cfg_scale,
@@ -1388,85 +1393,12 @@ with shared.gradio_root:
                         api_name='ab_fetch_preview',
                         queue=False, show_progress=False,
                     )
-
-                    # === Hidden API bridge for the SPA's "Delete" lightbox button.
-                    # Sends file + sidecars to OS trash. Same Gradio bridge pattern
-                    # as ab_fetch_preview: hidden Textbox inputs + JSON output.
-                    ab_del_kind_in     = gr.Textbox(visible=False)
-                    ab_del_filename_in = gr.Textbox(visible=False)
-                    ab_del_result_out  = gr.JSON(visible=False)
-                    ab_del_btn         = gr.Button(visible=False)
-
-                    def _ab_delete_file(kind, rel_filename):
-                        try:
-                            from modules.model_indexer import delete_file_for
-                            return delete_file_for(kind, rel_filename)
-                        except Exception as e:
-                            return {'success': False,
-                                    'message': f'Internal error: {e}',
-                                    'kind': kind, 'rel_path': rel_filename}
-
-                    ab_del_btn.click(
-                        _ab_delete_file,
-                        inputs=[ab_del_kind_in, ab_del_filename_in],
-                        outputs=[ab_del_result_out],
-                        api_name='ab_delete_file',
-                        queue=False, show_progress=False,
-                    )
-
-                    # === Hidden API bridge for the SPA's lightbox update check (Phase 3A).
-                    # Same Gradio bridge pattern. Result is cached 24h backend-side.
-                    ab_chk_kind_in     = gr.Textbox(visible=False)
-                    ab_chk_filename_in = gr.Textbox(visible=False)
-                    ab_chk_result_out  = gr.JSON(visible=False)
-                    ab_chk_btn         = gr.Button(visible=False)
-
-                    def _ab_check_update(kind, rel_filename):
-                        try:
-                            from modules.model_indexer import check_update_for
-                            return check_update_for(kind, rel_filename)
-                        except Exception as e:
-                            return {'success': False,
-                                    'status': 'error',
-                                    'message': f'Internal error: {e}',
-                                    'kind': kind, 'rel_path': rel_filename}
-
-                    ab_chk_btn.click(
-                        _ab_check_update,
-                        inputs=[ab_chk_kind_in, ab_chk_filename_in],
-                        outputs=[ab_chk_result_out],
-                        api_name='ab_check_update',
-                        queue=False, show_progress=False,
-                    )
-
-                    # === Hidden API bridge for the SPA's "Update from CivitAI" Apply (Phase 3B).
-                    # 3 inputs (kind, rel_filename, backup_mode 'trash'|'keep'), JSON output.
-                    # NOTE: this one IS queued — downloads can take minutes for large checkpoints,
-                    # so we want Gradio's long-running task semantics rather than the
-                    # queue=False fast path used by the other ab_* routes.
-                    ab_upd_kind_in     = gr.Textbox(visible=False)
-                    ab_upd_filename_in = gr.Textbox(visible=False)
-                    ab_upd_backup_in   = gr.Textbox(visible=False)
-                    ab_upd_result_out  = gr.JSON(visible=False)
-                    ab_upd_btn         = gr.Button(visible=False)
-
-                    def _ab_apply_update(kind, rel_filename, backup_mode):
-                        try:
-                            from modules.model_indexer import apply_update_for
-                            return apply_update_for(kind, rel_filename, backup_mode or 'trash')
-                        except Exception as e:
-                            return {'success': False,
-                                    'message': f'Internal error: {e}',
-                                    'kind': kind, 'rel_path': rel_filename}
-
-                    ab_upd_btn.click(
-                        _ab_apply_update,
-                        inputs=[ab_upd_kind_in, ab_upd_filename_in, ab_upd_backup_in],
-                        outputs=[ab_upd_result_out],
-                        api_name='ab_apply_update',
-                        show_progress=False,
-                    )
                 # === end custom-8 =================================================
+
+                # Panneau Extra (plugins externes, ex: crispz). Active comme l'Asset Browser.
+                extra_plugins_checkbox = gr.Checkbox(label='\U0001F9E9 Extra Plugins', value=extra_ui.enabled_default(), container=False,
+                                                     info='Shows the Extra panel: external upscalers via plugins (e.g. crispz).')
+
                 dev_mode = gr.Checkbox(label='Developer Debug Mode', value=modules.config.default_developer_debug_mode_checkbox, container=False)
 
                 with gr.Column(visible=modules.config.default_developer_debug_mode_checkbox) as dev_tools:
@@ -1634,18 +1566,6 @@ with shared.gradio_root:
                         freeu_s1 = gr.Slider(label='S1', minimum=0, maximum=4, step=0.01, value=0.99)
                         freeu_s2 = gr.Slider(label='S2', minimum=0, maximum=4, step=0.01, value=0.95)
                         freeu_ctrls = [freeu_enabled, freeu_b1, freeu_b2, freeu_s1, freeu_s2]
-
-                # === Restart UI — moved from the Settings tab to the bottom of Advanced
-                # (user request). Reachable but out of the way of daily controls.
-                gr.HTML('<hr style="margin:24px 0 10px;border:none;border-top:1px solid #444;">')
-                restart_ui_btn = gr.Button(
-                    value='\U000026A0 Restart UI', variant='stop',
-                    elem_classes='refresh_button')
-                gr.HTML('<div style="font-size:11px;color:#888;padding:2px 6px;">'
-                        'Reloads the whole Python process (re-reads config.txt, reimports '
-                        'modules, re-loads the model). Use after editing config.txt or '
-                        'pulling code changes.</div>')
-                _restart_notice = gr.HTML(value='', visible=True)
 
                 def dev_mode_checked(r):
                     return gr.update(visible=r)
@@ -2540,6 +2460,12 @@ with shared.gradio_root:
         advanced_checkbox.change(lambda x: gr.update(visible=x), advanced_checkbox, advanced_column,
                                  queue=False, show_progress=False) \
             .then(fn=lambda: None, _js='refresh_grid_delayed', queue=False, show_progress=False)
+
+        def _toggle_extra_plugins(x):
+            extra_ui.save_enabled(x)
+            return gr.update(visible=x)
+        extra_plugins_checkbox.change(_toggle_extra_plugins, extra_plugins_checkbox,
+                                      extra_plugins_panel, queue=False, show_progress=False)
 
         inpaint_mode.change(inpaint_mode_change, inputs=[inpaint_mode, inpaint_engine_state], outputs=[
             inpaint_additional_prompt, outpaint_selections, example_inpaint_prompts,

@@ -203,64 +203,6 @@ def get_model_version_by_hash(file_hash, api_key=None):
     return None
 
 
-def get_latest_version_for_model(model_id, api_key=None):
-    """Return the most recent published version of a CivitAI model.
-
-    CivitAI's /models/{id} response includes a 'modelVersions' list ordered
-    most-recent-first. Each version has: id, name, publishedAt, downloadUrl,
-    files: [{name, sizeKB, hashes: {SHA256, ...}, downloadUrl}].
-
-    Returns:
-        dict with id (versionId), name, publishedAt (ISO string), downloadUrl,
-        primary_file ({name, sizeKB, sha256}), or None on miss.
-    """
-    if not model_id:
-        return None
-    data = _api_request(f'/models/{model_id}', api_key=api_key)
-    if not data or 'modelVersions' not in data:
-        return None
-    versions = data.get('modelVersions') or []
-    if not versions:
-        return None
-    # The API documents versions ordered most-recent-first. Trust that, but
-    # fall back to publishedAt sorting if it ever changes.
-    latest = versions[0]
-    # Extract the primary file (the one named like the version, or first .safetensors).
-    files = latest.get('files') or []
-    primary = None
-    for f in files:
-        if f.get('primary'):  # CivitAI marks the canonical download with primary=True
-            primary = f; break
-    if primary is None and files:
-        # Fallback: prefer .safetensors over .ckpt over anything else.
-        for ext in ('.safetensors', '.ckpt', '.pt', '.bin'):
-            for f in files:
-                if str(f.get('name', '')).lower().endswith(ext):
-                    primary = f; break
-            if primary: break
-        if primary is None:
-            primary = files[0]
-    primary_info = None
-    if primary:
-        primary_info = {
-            'name': primary.get('name'),
-            'sizeKB': primary.get('sizeKB'),
-            'sha256': (primary.get('hashes') or {}).get('SHA256'),
-            'downloadUrl': primary.get('downloadUrl'),
-        }
-    return {
-        'id': latest.get('id'),
-        'name': latest.get('name', 'Unknown'),
-        'publishedAt': latest.get('publishedAt'),
-        'downloadUrl': latest.get('downloadUrl'),
-        'modelName': data.get('name', 'Unknown'),
-        'baseModel': latest.get('baseModel'),   # 'SDXL 1.0', 'Flux.1 D', 'Pony', etc.
-                                                # Used by check_update_for to flag
-                                                # cross-architecture "upgrades" (NOT drop-in).
-        'primary_file': primary_info,
-    }
-
-
 def get_top_images(model_version_id, api_key=None, limit=20):
     """Fetch top-rated images for a model version.
 
