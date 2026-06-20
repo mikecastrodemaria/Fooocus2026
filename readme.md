@@ -291,6 +291,48 @@ Without this loop, the restart button still works — it just becomes a clean ex
 
 ---
 
+### 13. 🧭 Layout / Omost (prompt builder via local LLM)
+**Where:** Advanced tab → **🧭 Layout / Omost** accordion, just below **🎲 Wildcards** (master toggle is **OFF by default** via `omost.enabled`).
+
+**What it does:** Turns a short idea into a structured scene layout using an [Omost](https://github.com/lllyasviel/Omost) LLM (the Canvas DSL), then flattens that layout into a rich, deduplicated SDXL prompt you can inject into the main prompt box. This version is **prompt generation only** — no regional attention conditioning (kept for a future V2). The raw layout JSON is shown and stored so a later V2 can reuse it.
+
+**Requires:** A local [Ollama](https://ollama.com) server exposing an OpenAI-compatible endpoint, with an Omost model loaded. The default expects a model named `omost-llama3` (a Modelfile wrapping the `omost-llama-3-8b` GGUF, Q8) at `http://localhost:11434/v1/chat/completions`. No new pip dependency — the call uses the bundled `requests`.
+
+**Setting up the Omost model in Ollama (one time):**
+1. Install [Ollama](https://ollama.com) and make sure it is running — `ollama list` should respond. It serves on `http://localhost:11434` by default.
+2. Pull a Q8 GGUF of the Omost model (lllyasviel does not ship a GGUF, so use a community conversion, ~8.5 GB):
+   ```
+   ollama pull hf.co/zhaijunxiao/omost-llama-3-8b-Q8_0-GGUF:Q8_0
+   ```
+3. Register it under the name Fooocus expects (`omost-llama3`), with a larger context so long layouts are not truncated. Create a file named `Modelfile`:
+   ```
+   FROM hf.co/zhaijunxiao/omost-llama-3-8b-Q8_0-GGUF:Q8_0
+   PARAMETER num_ctx 8192
+   PARAMETER temperature 0.6
+   ```
+   then build it:
+   ```
+   ollama create omost-llama3 -f Modelfile
+   ```
+   Quick alternative without context tuning: `ollama cp hf.co/zhaijunxiao/omost-llama-3-8b-Q8_0-GGUF:Q8_0 omost-llama3`.
+4. `ollama list` should now show `omost-llama3`. You can `ollama rm` the `hf.co/...` source afterwards — the weights are content-addressed shared blobs, so the alias keeps working and nothing is re-downloaded.
+
+If you use a different model name or endpoint, set `omost.model` / `omost.endpoint` in `config.txt` to match.
+
+**How to use:**
+1. In `config.txt`, set `omost.enabled` to `true` (adjust `omost.endpoint` / `omost.model` / `omost.timeout` if needed), then Restart UI.
+2. Open **Advanced → 🧭 Layout / Omost**.
+3. Type a short idea in **💡 Idea**, e.g. `amira sato-chan in a neon tokyo alley at night`.
+4. Click **🧭 Generate layout**. Two read-only fields fill in: the raw **layout JSON** and the proposed **flattened prompt**.
+5. Click **➕ Inject into prompt** — the flattened prompt is appended to the positive prompt, deduplicated against what's already there (same helper as the LoRA trigger buttons, never overwrites).
+6. Generate as usual — a standard SDXL run picks up the enriched prompt transparently.
+
+**Zero impact when off:** with `omost.enabled=false` the accordion is never created — no import, no thread, no network call. If Ollama is unreachable or the model is missing, a readable error appears in the layout box and the UI stays alive.
+
+**Licensing:** `modules/omost_lib/canvas.py` is vendored verbatim from [lllyasviel/Omost](https://github.com/lllyasviel/Omost) (Apache-2.0, see `modules/omost_lib/NOTICE`). The LLM-returned code runs in Omost's own `Canvas` namespace, exactly as upstream — no custom parser.
+
+---
+
 ## 🚀 Getting this fork
 
 ### Option A — I already have Fooocus installed
@@ -370,6 +412,10 @@ All upstream keys still apply. The fork adds a few of its own. Most have a UI co
 | `path_dat` | `""` | path string (optional) | custom-10 | A1111-compatible: extra folder for DAT models. |
 | `path_gfpgan` | `""` | path string (optional) | custom-10 | A1111-compatible: extra folder for GFPGAN models. |
 | `path_codeformer` | `""` | path string (optional) | custom-10 | A1111-compatible: extra folder for CodeFormer models. |
+| `omost.enabled` | `false` | bool | Layout/Omost | Master toggle for **🧭 Layout / Omost**. **OFF by default** — when off the accordion is never built (no import, no thread, no network call). |
+| `omost.endpoint` | `"http://localhost:11434/v1/chat/completions"` | URL string | Layout/Omost | OpenAI-compatible chat/completions endpoint (Ollama by default). |
+| `omost.model` | `"omost-llama3"` | string | Layout/Omost | Name of the Omost model served by the endpoint. |
+| `omost.timeout` | `120` | 10..600 (int, seconds) | Layout/Omost | HTTP timeout for the LLM call. Clamped on load. |
 
 Each value is clamped on save — bad values in `config.txt` fall back to the default rather than crashing.
 
@@ -384,6 +430,12 @@ Example fragment:
     "enabled": true,
     "thumbnail_size": 128,
     "thumbnail_quality": 70
+  },
+  "omost": {
+    "enabled": true,
+    "endpoint": "http://localhost:11434/v1/chat/completions",
+    "model": "omost-llama3",
+    "timeout": 120
   }
 }
 ```
@@ -397,14 +449,17 @@ Example fragment:
 | `modules/civitai_api.py` | **New** — CivitAI client, caching, consensus aggregation, model+embedding triggers |
 | `modules/lora_metadata.py` | **New** — local safetensors metadata reader for LoRA/embedding triggers |
 | `modules/util.py` | Adds `compute_custom_wh()` — ratio + size → snapped W×H (custom-7) |
-| `modules/config.py` | Save Preset / preset round-trip (LoRAs, embeddings, custom resolution) + API key persistence + `asset_browser` config block (custom-8) |
+| `modules/config.py` | Save Preset / preset round-trip (LoRAs, embeddings, custom resolution) + API key persistence + `asset_browser` config block (custom-8) + `omost` config block (Layout/Omost) |
 | `modules/async_worker.py` | Reads `use_aspect_for_vary` (custom-6) and `custom_resolution` (custom-7) flags |
 | `modules/private_logger.py` | Silent hook into `gallery_writer.on_image_logged()` (custom-8) |
 | `modules/gallery_writer.py` | **New** — Asset Browser per-image hook, thumbnails, manifests, days.json (custom-8) |
 | `modules/model_indexer.py` | **New** — Asset Browser model scanners (LoRAs / Checkpoints / Embeddings) + sidecar preview lookup + placeholder generation (custom-8) |
+| `modules/omost_lib/canvas.py` | **New** — vendored verbatim from Omost (Apache-2.0): the `Canvas` DSL + system prompt (Layout/Omost) |
+| `modules/omost_lib/NOTICE` | **New** — Omost license attribution (Layout/Omost) |
+| `modules/omost_client.py` | **New** — Omost LLM call + `parse_canvas` + `flatten_to_prompt` helpers, Gradio-free (Layout/Omost) |
 | `gallery_template/index.html` + `_assets/` | **New** — Asset Browser SPA + bundled PhotoSwipe v5 / Dynamic Caption / Deep Zoom (custom-8) |
 | `launch.py` | Spawns Asset Browser model indexer in a daemon thread when enabled (custom-8) |
-| `webui.py` | All fork UI: Save Preset, CivitAI / LoRA / Embeddings / Wildcards accordions, Aspect-for-Vary, Custom Resolution panel, Asset Browser accordion + link button, Restart UI, **Extra Plugins** checkbox + panel + toggle (custom-12) |
+| `webui.py` | All fork UI: Save Preset, CivitAI / LoRA / Embeddings / Wildcards accordions, Aspect-for-Vary, Custom Resolution panel, Asset Browser accordion + link button, **Layout/Omost** accordion (Layout/Omost), Restart UI button (moved to end of Advanced tab), **Extra Plugins** checkbox + panel + toggle (custom-12) |
 | `extra_plugins/` | **New** — self-contained Extra Plugins subsystem: GitHub install + isolated venv, manifest parsing, CLI runner, per-plugin UI, settings persistence (custom-12). Runtime dirs (`installed/`, `outputs/`, `settings.json`) gitignored |
 | `run*.bat` / `run*.sh` / `boot_check_rtx5090.*` | **New** — RTX 5090 launch scripts (standard, realistic, anime, quality, boot diagnostic) for Windows + Mac/Linux |
 | `CHANGELOG.md` | Per-release fork history |

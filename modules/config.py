@@ -697,6 +697,66 @@ def write_asset_browser_settings(updates: dict) -> tuple:
         return True, 'Asset Browser settings saved. Restart UI for changes to take full effect.'
     except Exception as _e:
         return False, f'Could not write config.txt: {_e}'
+
+
+# === Layout / Omost (LLM layout helper, OFF by default) ===
+# Same contract as asset_browser : the master toggle is non-negotiable. When
+# enabled=False the webui hook returns immediately, no import, no thread, no
+# network call. Any invalid value below falls back to its default (timeout is
+# clamped), so a malformed config.txt can never crash the feature.
+_omost_defaults = {
+    'enabled': False,
+    'endpoint': 'http://localhost:11434/v1/chat/completions',
+    'model': 'omost-llama3',
+    'timeout': 120,                     # seconds, clamped to 10..600 below
+}
+omost_config = get_config_item_or_set_default(
+    key='omost',
+    default_value=dict(_omost_defaults),
+    validator=lambda x: isinstance(x, dict),
+    expected_type=dict
+)
+# Backfill missing sub-keys so newer defaults appear without losing user edits.
+for _k, _v in _omost_defaults.items():
+    omost_config.setdefault(_k, _v)
+
+# Sanitize each value : invalid types or empty strings revert to the default,
+# timeout is clamped. This runs once at load so the rest of the app can trust it.
+omost_config['enabled'] = bool(omost_config.get('enabled', False))
+
+_omost_ep = omost_config.get('endpoint', _omost_defaults['endpoint'])
+omost_config['endpoint'] = _omost_ep.strip() if isinstance(_omost_ep, str) and _omost_ep.strip() \
+    else _omost_defaults['endpoint']
+
+_omost_mdl = omost_config.get('model', _omost_defaults['model'])
+omost_config['model'] = _omost_mdl.strip() if isinstance(_omost_mdl, str) and _omost_mdl.strip() \
+    else _omost_defaults['model']
+
+try:
+    _omost_to = int(omost_config.get('timeout', _omost_defaults['timeout']))
+except (TypeError, ValueError):
+    _omost_to = _omost_defaults['timeout']
+omost_config['timeout'] = max(10, min(600, _omost_to))   # clamp 10..600
+
+
+def omost_setting(key, default=None):
+    """Safe getter for any omost sub-key. Mirrors asset_browser_setting."""
+    if key in _omost_defaults and default is None:
+        default = _omost_defaults[key]
+    try:
+        return omost_config.get(key, default)
+    except Exception:
+        return default
+
+
+def omost_enabled():
+    """Single-call hot-path check. Safe even if config is malformed."""
+    try:
+        return bool(omost_config.get('enabled', False))
+    except Exception:
+        return False
+
+
 default_selected_image_input_tab_id = get_config_item_or_set_default(
     key='default_selected_image_input_tab_id',
     default_value=modules.flags.default_input_image_tab,

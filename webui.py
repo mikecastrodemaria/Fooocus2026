@@ -1080,16 +1080,40 @@ with shared.gradio_root:
                             'in the wildcards folder using the current contents.'
                             '</div>')
 
+                # === Layout / Omost ============================================
+                # Off by default (omost.enabled). When disabled, the accordion is
+                # not created at all : no import, no thread, no network call.
+                _omost_cfg = getattr(modules.config, 'omost_config', {})
+                _omost_enabled = bool(_omost_cfg.get('enabled', False))
+                if _omost_enabled:
+                    import modules.omost_client as _omost_client
+                    with gr.Accordion(label='\U0001F9ED Layout / Omost', open=False,
+                                      elem_id='omost_accordion'):
+                        gr.HTML('<div style="font-size:12px;color:#888;margin-bottom:6px;">'
+                                'Turn a short idea into a structured layout (Omost Canvas DSL) '
+                                'via a local LLM, then flatten it into an injectable SDXL prompt. '
+                                'Requires Ollama with the Omost model loaded. '
+                                'Endpoint, model and timeout are set in config.txt.'
+                                '</div>')
+                        omost_idea = gr.Textbox(
+                            label='\U0001F4A1 Idea', lines=1,
+                            placeholder='e.g. amira sato-chan in a neon tokyo alley at night')
+                        omost_generate_btn = gr.Button(
+                            value='\U0001F9ED Generate layout', variant='primary')
+                        omost_layout_box = gr.Textbox(
+                            label='Raw layout (JSON, stored for a future V2)',
+                            value='', lines=10, max_lines=24, interactive=False)
+                        omost_prompt_box = gr.Textbox(
+                            label='Proposed flattened prompt',
+                            value='', lines=4, max_lines=12, interactive=False)
+                        omost_inject_btn = gr.Button(
+                            value='\U00002795 Inject into prompt', variant='secondary')
+
                 with gr.Row():
                     refresh_files = gr.Button(label='Refresh', value='\U0001f504 Refresh All Files', variant='secondary', elem_classes='refresh_button', scale=3)
-                    restart_ui_btn = gr.Button(
-                        value='\U000026A0 Restart UI', variant='stop',
-                        scale=1, min_width=110,
-                        elem_classes='refresh_button')
                 gr.HTML('<div style="font-size:11px;color:#888;padding:2px 6px;">'
-                        'Use Refresh for new files. Restart reloads the whole Python process '
-                        '(re-reads config.txt, reimports modules, re-loads the model).</div>')
-                _restart_notice = gr.HTML(value='', visible=True)
+                        'Use Refresh to pick up new files (models, LoRAs, wildcards). '
+                        'The Restart UI button now lives at the end of the Advanced tab.</div>')
             with gr.Tab(label='Advanced'):
                 guidance_scale = gr.Slider(label='Guidance Scale', minimum=1.0, maximum=30.0, step=0.01,
                                            value=modules.config.default_cfg_scale,
@@ -1608,13 +1632,6 @@ with shared.gradio_root:
                                            'If the page does not come back, your launcher does not implement the '
                                            'restart loop \u2014 re-run the .bat manually.</div>')
 
-                restart_ui_btn.click(
-                    _restart_ui,
-                    inputs=[],
-                    outputs=[_restart_notice],
-                    queue=False, show_progress=False
-                )
-
                 # === Preset Manager Event Handlers ===
                 if not args_manager.args.disable_metadata:
 
@@ -2092,6 +2109,51 @@ with shared.gradio_root:
                     queue=False, show_progress=False
                 )
 
+                # === Layout / Omost event handlers ===
+                # Wired only when the feature is enabled (components exist only then).
+                if _omost_enabled:
+                    def omost_generate(idea):
+                        cfg = getattr(modules.config, 'omost_config', {})
+                        endpoint = cfg.get('endpoint', 'http://localhost:11434/v1/chat/completions')
+                        model = cfg.get('model', 'omost-llama3')
+                        try:
+                            timeout = int(cfg.get('timeout', 120))
+                        except (TypeError, ValueError):
+                            timeout = 120
+                        try:
+                            code = _omost_client.call_omost_llm(idea, endpoint, model, timeout)
+                        except Exception as exc:
+                            return gr.update(value='[Omost error] ' + str(exc)), gr.update(value='')
+                        layout = _omost_client.parse_canvas(code)
+                        if 'error' in layout:
+                            msg = ('[Parsing error] ' + layout['error']
+                                   + '\n\n--- Code returned by the LLM ---\n' + (code or ''))
+                            return gr.update(value=msg), gr.update(value='')
+                        layout_json = json.dumps(layout, indent=2, ensure_ascii=False)
+                        flat = _omost_client.flatten_to_prompt(layout)
+                        return gr.update(value=layout_json), gr.update(value=flat)
+
+                    omost_generate_btn.click(
+                        omost_generate,
+                        inputs=[omost_idea],
+                        outputs=[omost_layout_box, omost_prompt_box],
+                        queue=True, show_progress=True
+                    )
+
+                    # Reuse the LoRA dedup helper : never overwrite, append deduplicated.
+                    def omost_inject(flat_prompt, current_prompt):
+                        if not flat_prompt or not flat_prompt.strip():
+                            return gr.update()
+                        words = [w for w in flat_prompt.split(',') if w.strip()]
+                        return _append_words_to_prompt(words, current_prompt)
+
+                    omost_inject_btn.click(
+                        omost_inject,
+                        inputs=[omost_prompt_box, prompt],
+                        outputs=[prompt],
+                        queue=False, show_progress=False
+                    )
+
                 # === Embeddings event handlers ===
                 def fetch_embedding_triggers_for_slot(emb_name, api_key_field):
                     if not emb_name or emb_name == 'None':
@@ -2355,6 +2417,23 @@ with shared.gradio_root:
                     _insert_wildcard_token,
                     inputs=[wildcard_dropdown, prompt],
                     outputs=[prompt],
+                    queue=False, show_progress=False
+                )
+
+                # === Restart UI (moved here : end of the Advanced tab) ===
+                with gr.Row():
+                    restart_ui_btn = gr.Button(
+                        value='\U000026A0 Restart UI', variant='stop',
+                        scale=1, min_width=110,
+                        elem_classes='refresh_button')
+                _restart_notice = gr.HTML(value='', visible=True)
+                gr.HTML('<div style="font-size:11px;color:#888;padding:2px 6px;">'
+                        'Restart reloads the whole Python process '
+                        '(re-reads config.txt, reimports modules, re-loads the model).</div>')
+                restart_ui_btn.click(
+                    _restart_ui,
+                    inputs=[],
+                    outputs=[_restart_notice],
                     queue=False, show_progress=False
                 )
 

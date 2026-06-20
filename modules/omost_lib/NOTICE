@@ -1,0 +1,12 @@
+This directory vendors code from the Omost project.
+
+Source : https://github.com/lllyasviel/Omost (file lib_omost/canvas.py)
+License : Apache License 2.0
+Copyright : the Omost authors (lllyasviel and contributors)
+
+The file canvas.py is included verbatim (only a header comment was added),
+so that the LLM response code runs in the exact same Canvas namespace as the
+upstream project, as required. No parser was reinvented.
+
+A full copy of the Apache 2.0 license text is available at:
+https://www.apache.org/licenses/LICENSE-2.0
