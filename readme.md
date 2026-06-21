@@ -176,11 +176,11 @@ Unchecked → original upstream behaviour (preserves input's native aspect). Doe
 ---
 
 ### 8. 🖼️ Asset Browser (autonomous gallery)
-**Where:** Advanced tab → **🖼️ Asset Browser** accordion (master toggle is **OFF by default**). Once enabled, a **🖼️ Asset Browser** link appears next to **📚 History Log** in the prompt area; clicking it opens the gallery in a new browser tab.
+**Where:** Advanced tab → **🖼️ Asset Browser** accordion (master toggle is **ON by default** — set `asset_browser.enabled=false` in `config.txt` to opt out). When enabled, a **🖼️ Asset Browser** link appears next to **📚 History Log** in the prompt area; clicking it opens the gallery in a new browser tab.
 
 **What it does:** A standalone HTML/JSON gallery served from `outputs/index.html` — built on **PhotoSwipe v5** + **Dynamic Caption plugin** + **Deep Zoom plugin** (all MIT, vanilla JS, no React/Vue, ~50 KB gzip total). Browses **outputs** and **model previews** (LoRAs / Checkpoints / Embeddings) in the same UI, with click-to-zoom lightbox + per-type metadata sidebar + clipboard copy buttons.
 
-**Why it exists separately:** Designed as an **autonomous module** — Fooocus only knows it exists via 2 link buttons in the UI. The SPA is plain `outputs/index.html` reading JSON manifests, so it works even if Fooocus is not running. **Master toggle in `config.txt` (OFF by default)** keeps zero overhead on Fooocus when disabled (<1µs hook check). User-facing accordion in Advanced lets you enable + tune sub-features.
+**Why it exists separately:** Designed as an **autonomous module** — Fooocus only knows it exists via 2 link buttons in the UI. The SPA is plain `outputs/index.html` reading JSON manifests, so it works even if Fooocus is not running. **Master toggle in `config.txt` (ON by default)** still keeps zero overhead on Fooocus when set to `false` (<1µs hook check). User-facing accordion in Advanced lets you enable + tune sub-features.
 
 **4 tabs:**
 - **📅 Outputs** — left timeline (one entry per generation day, "today" highlighted), grid of thumbnails for the selected day. Click → PhotoSwipe lightbox with metadata sidebar (prompt, negative, sampler, CFG, steps, seed, resolution, model, LoRAs…) + 📋 Copy Prompt / Copy Negative / Copy All Params (JSON) buttons.
@@ -292,7 +292,7 @@ Without this loop, the restart button still works — it just becomes a clean ex
 ---
 
 ### 13. 🧭 Layout / Omost (prompt builder via local LLM)
-**Where:** Advanced tab → **🧭 Layout / Omost** accordion, just below **🎲 Wildcards** (master toggle is **OFF by default** via `omost.enabled`).
+**Where:** Advanced tab → **🧭 Layout / Omost** accordion, just below **🎲 Wildcards** (master toggle `omost.enabled`, **ON by default** — set it to `false` in `config.txt` to hide the panel).
 
 **What it does:** Turns a short idea into a structured scene layout using an [Omost](https://github.com/lllyasviel/Omost) LLM (the Canvas DSL), then flattens that layout into a rich, deduplicated SDXL prompt you can inject into the main prompt box. This version is **prompt generation only** — no regional attention conditioning (kept for a future V2). The raw layout JSON is shown and stored so a later V2 can reuse it.
 
@@ -320,7 +320,7 @@ Without this loop, the restart button still works — it just becomes a clean ex
 If you use a different model name or endpoint, set `omost.model` / `omost.endpoint` in `config.txt` to match.
 
 **How to use:**
-1. In `config.txt`, set `omost.enabled` to `true` (adjust `omost.endpoint` / `omost.model` / `omost.timeout` if needed), then Restart UI.
+1. Nothing to switch on — `omost.enabled` defaults to `true`, so the panel is there after a normal launch. (Optionally tune `omost.endpoint` / `omost.model` / `omost.timeout` in `config.txt`, or set `omost.enabled` to `false` to hide it, then Restart UI.)
 2. Open **Advanced → 🧭 Layout / Omost**.
 3. Type a short idea in **💡 Idea**, e.g. `amira sato-chan in a neon tokyo alley at night`.
 4. Click **🧭 Generate layout**. Two read-only fields fill in: the raw **layout JSON** and the proposed **flattened prompt**.
@@ -396,7 +396,7 @@ All upstream keys still apply. The fork adds a few of its own. Most have a UI co
 |---|---|---|---|---|
 | `civitai_api_key` | `""` | string | custom-2 | API key persisted from the CivitAI panel. |
 | `path_civitai_cache` | `"./civitai_cache"` | path string | custom-2 (custom-8 made it configurable) | CivitAI response cache directory. Move to a different drive if you have hundreds of cached models. |
-| `asset_browser.enabled` | `false` | bool | custom-8 | Master toggle. **OFF by default** — when off the per-image hook returns in <1 µs, the indexer thread is never spawned. |
+| `asset_browser.enabled` | `true` | bool | custom-8 | Master toggle. **ON by default** — set to `false` to opt out; when off the per-image hook returns in <1 µs and the indexer thread is never spawned. |
 | `asset_browser.generate_thumbnails` | `true` | bool | custom-8 | Generate `*_thumb.jpg` next to each output (~10 ms/image). |
 | `asset_browser.generate_dzi_tiles` | `"auto"` | `"auto"` / `"always"` / `"never"` | custom-8 | DZI tile generation mode (`auto` = above `dzi_threshold_mp`). DZI generation itself is still deferred in v1. |
 | `asset_browser.index_models_on_boot` | `true` | bool | custom-8 | Daemon thread on startup, scans LoRAs / Checkpoints / Embeddings (~2-5 s, cached). |
@@ -412,7 +412,7 @@ All upstream keys still apply. The fork adds a few of its own. Most have a UI co
 | `path_dat` | `""` | path string (optional) | custom-10 | A1111-compatible: extra folder for DAT models. |
 | `path_gfpgan` | `""` | path string (optional) | custom-10 | A1111-compatible: extra folder for GFPGAN models. |
 | `path_codeformer` | `""` | path string (optional) | custom-10 | A1111-compatible: extra folder for CodeFormer models. |
-| `omost.enabled` | `false` | bool | Layout/Omost | Master toggle for **🧭 Layout / Omost**. **OFF by default** — when off the accordion is never built (no import, no thread, no network call). |
+| `omost.enabled` | `true` | bool | Layout/Omost | Master toggle for **🧭 Layout / Omost**. **ON by default** — set to `false` to hide it; when off the accordion is never built (no import, no thread, no network call). |
 | `omost.endpoint` | `"http://localhost:11434/v1/chat/completions"` | URL string | Layout/Omost | OpenAI-compatible chat/completions endpoint (Ollama by default). |
 | `omost.model` | `"omost-llama3"` | string | Layout/Omost | Name of the Omost model served by the endpoint. |
 | `omost.timeout` | `120` | 10..600 (int, seconds) | Layout/Omost | HTTP timeout for the LLM call. Clamped on load. |

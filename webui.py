@@ -1081,7 +1081,7 @@ with shared.gradio_root:
                             '</div>')
 
                 # === Layout / Omost ============================================
-                # Off by default (omost.enabled). When disabled, the accordion is
+                # On by default (omost.enabled). When disabled, the accordion is
                 # not created at all : no import, no thread, no network call.
                 _omost_cfg = getattr(modules.config, 'omost_config', {})
                 _omost_enabled = bool(_omost_cfg.get('enabled', False))
@@ -1130,12 +1130,12 @@ with shared.gradio_root:
                                    open=False, elem_id='asset_browser_accordion'):
                     gr.HTML('<div style="font-size:12px;color:#888;margin-bottom:6px;">'
                             'Standalone HTML gallery for outputs + LoRAs/Checkpoints/Embeddings previews. '
-                            'Opens in a new browser tab. <b>OFF by default</b>: when disabled, this feature '
+                            'Opens in a new browser tab. <b>ON by default</b>: when disabled (asset_browser.enabled=false) this feature '
                             'has &lt;1µs overhead and never touches Fooocus generation.'
                             '</div>')
                     ab_enabled = gr.Checkbox(
                         label='Enable Asset Browser',
-                        value=bool(_ab_cfg.get('enabled', False)),
+                        value=bool(_ab_cfg.get('enabled', True)),
                         info='Master switch. Restart UI required for full effect.')
                     with gr.Group():
                         ab_thumbs = gr.Checkbox(

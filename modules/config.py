@@ -597,13 +597,13 @@ default_inpaint_engine_version = get_config_item_or_set_default(
     expected_type=str
 )
 
-# === custom-8: Asset Browser (autonomous module, OFF by default) ===
-# Toggle is non-negotiable — when enabled=False the gallery writer + model
-# indexer must have <1µs overhead so users on old hardware see zero impact.
-# When enabled, the sub-keys below tune the heaviness of each operation so
-# users can dial down further on slower machines.
+# === custom-8: Asset Browser (autonomous module, ON by default) ===
+# When enabled=False the gallery writer + model indexer have <1µs overhead so
+# users on old hardware see zero impact (set asset_browser.enabled=false in
+# config.txt to opt out). When enabled, the sub-keys below tune the heaviness of
+# each operation so users can dial down further on slower machines.
 _asset_browser_defaults = {
-    'enabled': False,
+    'enabled': True,
     'generate_thumbnails': True,        # ~10ms per image when enabled
     'generate_dzi_tiles': 'auto',       # 'auto' (>4MP), 'always', 'never'
     'index_models_on_boot': True,       # ~2-5s in daemon thread when enabled
@@ -639,7 +639,7 @@ def asset_browser_setting(key, default=None):
 def asset_browser_enabled():
     """Single-call hot-path check. Safe even if config_dict is missing."""
     try:
-        return bool(asset_browser_config.get('enabled', False))
+        return bool(asset_browser_config.get('enabled', True))
     except Exception:
         return False
 
@@ -699,13 +699,14 @@ def write_asset_browser_settings(updates: dict) -> tuple:
         return False, f'Could not write config.txt: {_e}'
 
 
-# === Layout / Omost (LLM layout helper, OFF by default) ===
-# Same contract as asset_browser : the master toggle is non-negotiable. When
-# enabled=False the webui hook returns immediately, no import, no thread, no
-# network call. Any invalid value below falls back to its default (timeout is
+# === Layout / Omost (LLM layout helper, ON by default) ===
+# Same contract as asset_browser, but shipped ON so no config edit is needed to
+# see the panel. When enabled=False the webui hook returns immediately, no
+# import, no thread, no network call : set omost.enabled=false in config.txt to
+# hide it. Any invalid value below falls back to its default (timeout is
 # clamped), so a malformed config.txt can never crash the feature.
 _omost_defaults = {
-    'enabled': False,
+    'enabled': True,
     'endpoint': 'http://localhost:11434/v1/chat/completions',
     'model': 'omost-llama3',
     'timeout': 120,                     # seconds, clamped to 10..600 below
@@ -722,7 +723,7 @@ for _k, _v in _omost_defaults.items():
 
 # Sanitize each value : invalid types or empty strings revert to the default,
 # timeout is clamped. This runs once at load so the rest of the app can trust it.
-omost_config['enabled'] = bool(omost_config.get('enabled', False))
+omost_config['enabled'] = bool(omost_config.get('enabled', True))
 
 _omost_ep = omost_config.get('endpoint', _omost_defaults['endpoint'])
 omost_config['endpoint'] = _omost_ep.strip() if isinstance(_omost_ep, str) and _omost_ep.strip() \
@@ -752,7 +753,7 @@ def omost_setting(key, default=None):
 def omost_enabled():
     """Single-call hot-path check. Safe even if config is malformed."""
     try:
-        return bool(omost_config.get('enabled', False))
+        return bool(omost_config.get('enabled', True))
     except Exception:
         return False
 
