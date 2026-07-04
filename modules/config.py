@@ -624,6 +624,48 @@ for _k, _v in _asset_browser_defaults.items():
     asset_browser_config.setdefault(_k, _v)
 
 
+# === custom-12: Tag Autocomplete (booru tags + local assets, OFF by default) ===
+# Suggestions de tags Danbooru/e621 + trigger words LoRA (civitai_cache),
+# embeddings et wildcards dans les textareas de prompt. Purement optionnel :
+# quand enabled=False, rien n'est telecharge, rien n'est injecte, zero cout.
+_tag_autocomplete_defaults = {
+    'enabled': False,
+    'sources': ['danbooru', 'e621'],   # CSVs telecharges au premier lancement dans tags/
+    'min_chars': 2,                    # nb de caracteres avant de suggerer
+    'max_results': 12,                 # taille max du dropdown
+    'replace_underscores': True,       # long_hair -> long hair a l'insertion (False pour Pony)
+    'insert_comma': True,              # ajoute ", " apres le tag insere
+    'suggest_lora_triggers': True,     # trigger words depuis civitai_cache/*.lora.civitai.json
+    'suggest_embeddings': True,        # (embedding:nom:1.0) depuis path_embeddings
+    'suggest_wildcards': True,         # __nom__ en tapant __
+}
+tag_autocomplete_config = get_config_item_or_set_default(
+    key='tag_autocomplete',
+    default_value=dict(_tag_autocomplete_defaults),
+    validator=lambda x: isinstance(x, dict),
+    expected_type=dict
+)
+for _k, _v in _tag_autocomplete_defaults.items():
+    tag_autocomplete_config.setdefault(_k, _v)
+
+
+def tag_autocomplete_setting(key, default=None):
+    """Safe getter pour les sous-cles tag_autocomplete (meme pattern qu'asset_browser)."""
+    if key in _tag_autocomplete_defaults and default is None:
+        default = _tag_autocomplete_defaults[key]
+    try:
+        return tag_autocomplete_config.get(key, default)
+    except Exception:
+        return default
+
+
+def tag_autocomplete_enabled():
+    try:
+        return bool(tag_autocomplete_config.get('enabled', False))
+    except Exception:
+        return False
+
+
 def asset_browser_setting(key, default=None):
     """Safe getter for any asset_browser sub-key. Used everywhere instead of
     direct dict access so a malformed config.txt never crashes the hook.

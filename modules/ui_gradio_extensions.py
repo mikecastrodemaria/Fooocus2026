@@ -48,6 +48,26 @@ def javascript_html():
     ab_icons_js_path = webpath('javascript/ab_icons.js')
     head += f'<script type="text/javascript" src="{ab_icons_js_path}"></script>\n'
 
+    # custom-12: Tag Autocomplete (optionnel, tag_autocomplete.enabled dans config.txt)
+    if modules.config.tag_autocomplete_enabled():
+        import json as _json
+        import modules.tag_autocomplete as _tag_ac
+        _sources = _tag_ac.init()
+        _ta_cfg = {
+            'sources': {s: '/' + webpath(_tag_ac.source_csv_path(s))
+                        for s in _sources if os.path.isfile(_tag_ac.source_csv_path(s))},
+            'localAssets': ('/' + webpath(_tag_ac.local_assets_path()))
+                           if os.path.isfile(_tag_ac.local_assets_path()) else None,
+            'minChars': modules.config.tag_autocomplete_setting('min_chars'),
+            'maxResults': modules.config.tag_autocomplete_setting('max_results'),
+            'replaceUnderscores': bool(modules.config.tag_autocomplete_setting('replace_underscores')),
+            'insertComma': bool(modules.config.tag_autocomplete_setting('insert_comma')),
+        }
+        _ta_json = _json.dumps(_ta_cfg).replace("'", '&#39;')
+        head += f"<meta name=\"ta-config\" content='{_ta_json}'>\n"
+        tag_ac_js_path = webpath('javascript/tag_autocomplete.js')
+        head += f'<script type="text/javascript" src="{tag_ac_js_path}"></script>\n'
+
     if args_manager.args.theme:
         head += f'<script type="text/javascript">set_theme(\"{args_manager.args.theme}\");</script>\n'
 

@@ -107,3 +107,6 @@ MEMORY.md
 ## Backups locaux de config + index runtime des modeles
 config.txt.bak*
 models/models_info.json
+
+## custom-12: tags booru telecharges + index genere
+/tags/

@@ -3,6 +3,37 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-12] — 2026-07-04 — Tag Autocomplete (booru tags + assets locaux)
+
+### Added
+- **Autocomplete de tags dans les prompts** (positif et negatif), optionnel et
+  OFF par defaut (`tag_autocomplete.enabled` dans config.txt). Dropdown sous le
+  caret, navigation fleches, insertion Tab/Entree, fermeture Echap.
+- **Sources booru** : danbooru.csv + e621.csv (projet a1111-sd-webui-tagcomplete),
+  telecharges une seule fois au premier lancement dans `tags/` (~7 Mo). Tri par
+  popularite, alias supportes (`1girls` suggere `1girl`), couleur par categorie
+  (general/artiste/copyright/personnage/meta), compteur formate (4.4M).
+- **Assets locaux fusionnes** : trigger words des LoRAs et embeddings depuis
+  `civitai_cache/*.civitai.json` (inseres tels quels, badge `[nom-du-lora]`),
+  embeddings inseres en `(embedding:nom:1.0)`, wildcards suggeres en tapant
+  `__` et inseres en `__nom__`. Regenere a chaque boot dans
+  `tags/local_assets.json` (scan < 100 ms).
+- Options config : `sources`, `min_chars` (2), `max_results` (12),
+  `replace_underscores` (true : `long_hair` devient `long hair`, mettre false
+  pour les modeles Pony), `insert_comma` (true), `suggest_lora_triggers`,
+  `suggest_embeddings`, `suggest_wildcards`.
+
+### Files
+- `modules/tag_autocomplete.py` (nouveau) : download CSV + build local_assets.json.
+- `javascript/tag_autocomplete.js` (nouveau) : toute l'UX, zero dependance.
+- `modules/config.py` : bloc `tag_autocomplete` (pattern asset_browser).
+- `modules/ui_gradio_extensions.py` : injection conditionnelle meta + script.
+
+### Why
+- Premiere des 3 features de la roadmap 2026 (autocomplete, queue, grille XYZ).
+  Zero cout quand desactive : rien n'est telecharge, rien n'est injecte.
+  Les parentheses sont echappees `\( \)` pour ne pas fausser l'attention.
+
 ## [custom-11.1] — 2026-05-16 — Resilient sha256_from_cache (no more crash on missing LoRA/checkpoint)
 
 ### Fixed
