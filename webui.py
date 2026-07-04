@@ -251,7 +251,7 @@ with shared.gradio_root:
 
                     # custom-14 : ajout a la file d'attente (visible si job_queue.enabled)
                     if modules.config.job_queue_enabled():
-                        queue_add_button = gr.Button(label="+ Queue", value="\U0001F4CB + Queue",
+                        queue_add_button = gr.Button(label="+ Queue", value="+ Queue",
                                                      elem_classes='type_row_half', elem_id='queue_add_button',
                                                      visible=True)
             with gr.Row(elem_classes='advanced_check_row'):
@@ -2726,7 +2726,7 @@ with shared.gradio_root:
 
             def queue_refresh():
                 n = len(jq.queue)
-                btn = '\U0001F4CB + Queue' if n == 0 else f'\U0001F4CB + Queue ({n})'
+                btn = '+ Queue' if n == 0 else f'+ Queue ({n})'
                 return gr.update(choices=jq.queue.labels(), value=None), jq.queue.status_text(), gr.update(value=btn)
 
             def queue_add(*args):
