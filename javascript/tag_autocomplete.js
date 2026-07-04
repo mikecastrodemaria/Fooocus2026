@@ -187,11 +187,15 @@
     #tag-ac-popup .ta-item.ta-sel,
     #tag-ac-popup .ta-item:hover { background: var(--background-fill-secondary, #33333f); }
     `;
-    document.head.appendChild(style);
-
     const popup = document.createElement('div');
     popup.id = 'tag-ac-popup';
-    document.body.appendChild(popup);
+
+    // Le script est injecte dans <head> : document.body n'existe pas encore
+    // au moment du parse. On monte style + popup une fois le DOM pret.
+    function mount() {
+        (document.head || document.documentElement).appendChild(style);
+        document.body.appendChild(popup);
+    }
 
     let state = { ta: null, items: [], sel: 0, tokenStart: 0 };
 
@@ -343,8 +347,17 @@
         return found.length === 2;
     }
 
-    loadAll();
-    const bootTimer = setInterval(() => { if (boot()) clearInterval(bootTimer); }, 500);
-    window.addEventListener('resize', hide);
-    document.addEventListener('scroll', hide, true);
+    function start() {
+        mount();
+        loadAll();
+        const bootTimer = setInterval(() => { if (boot()) clearInterval(bootTimer); }, 500);
+        window.addEventListener('resize', hide);
+        document.addEventListener('scroll', hide, true);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', start);
+    } else {
+        start();
+    }
 })();
