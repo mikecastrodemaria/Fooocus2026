@@ -347,7 +347,7 @@ If you use a different model name or endpoint, set `omost.model` / `omost.endpoi
 ---
 
 ### 15. 📋 Job Queue (batch generations, run overnight)
-**Where:** a **+ Queue** button under Generate + an **📋 Job Queue** accordion in the Advanced tab (master toggle `job_queue.enabled`, **OFF by default**).
+**Where:** a **+ Queue** button under Generate + a **📋 Job Queue** checkbox next to Input Image / Enhance / Advanced that unfolds the queue panel inline (master toggle `job_queue.enabled`, **OFF by default**).
 
 **What it does:** each click on **+ Queue** freezes a full snapshot of the current settings (prompt, negative, model, LoRAs, resolved seed, resolution, everything) and stacks it — even while a generation is running. The queue panel lists pending jobs with a readable label (`prompt | model | perf | seed | count`); select one to **Up / Down / Remove**, or **Clear** all. **▶ Run queue** chains the jobs one by one in the same progress window as Generate. Stack 15 variations, go to bed.
 

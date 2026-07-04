@@ -10,7 +10,8 @@ Only fork-specific changes are listed here — upstream history is available via
   dans config.txt). Bouton **+ Queue** sous Generate : fige un snapshot complet
   des reglages courants (prompt, negatif, modele, LoRAs, seed resolu, tout) et
   l'empile — utilisable meme pendant une generation en cours.
-- **Panneau 📋 Job Queue** (Advanced) : liste des jobs avec etiquette lisible
+- **Panneau 📋 Job Queue** : case a cocher a cote de Input Image / Enhance /
+  Advanced qui deplie le panneau en ligne. Liste des jobs avec etiquette lisible
   (prompt tronque | modele | perf | seed | nb images), selection puis
   Up / Down / Remove, Clear, et **▶ Run queue** qui enchaine les jobs dans la
   meme fenetre de progression que Generate.
