@@ -112,10 +112,28 @@ def run_queue_clicked():
             gr.update(visible=False), gr.update(visible=True)
         return
     jq.queue.paused = False
+    prev_model = None
     while not jq.queue.paused:
         job = jq.queue.pop_next()
         if job is None:
             break
+        # custom-14.2 : purge VRAM quand le checkpoint change entre deux jobs.
+        # Avec --disable-offload-from-vram, l'ancien modele resterait charge a
+        # cote du nouveau -> debordement VRAM -> sysmem fallback -> s/it x50.
+        try:
+            next_model = job.args[12]
+        except Exception:
+            next_model = None
+        if prev_model is not None and next_model and next_model != prev_model:
+            try:
+                import ldm_patched.modules.model_management as _mm
+                print(f'[JobQueue] Changement de checkpoint ({prev_model} -> {next_model}) : purge VRAM.')
+                _mm.unload_all_models()
+                _mm.soft_empty_cache()
+            except Exception as _e:
+                print(f'[JobQueue] WARNING purge VRAM: {_e}')
+        if next_model:
+            prev_model = next_model
         task = worker.AsyncTask(args=list(job.args))
         jq.queue.current_task = task
         print(f'[JobQueue] Job lance : {job.label} ({len(jq.queue)} restant(s))')

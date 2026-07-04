@@ -3,6 +3,21 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-14.2] — 2026-07-04 — Purge VRAM au changement de checkpoint dans la queue
+
+### Fixed
+- Avec `--disable-offload-from-vram` (profil RTX 5090), l'ancien checkpoint
+  restait en VRAM quand un job de la file en chargeait un autre (grille XYZ
+  axe Checkpoint, presets varies) : deux SDXL + clones LoRA + refiner
+  debordaient les 32 Go, le driver NVIDIA basculait en sysmem fallback et
+  les iterations passaient de ~1 s/it a 80+ s/it avec des "Moving model(s)"
+  de 30 s. La queue purge desormais la VRAM (`unload_all_models` +
+  `soft_empty_cache`) uniquement quand le job suivant change de modele :
+  zero cout pour les files mono-checkpoint.
+- Rappel utile hors queue : pour les changements de modele manuels, le
+  reglage NVIDIA "CUDA - Sysmem Fallback Policy = Prefer No Sysmem Fallback"
+  transforme ces lenteurs sournoises en erreurs franches.
+
 ## [custom-13.4] — 2026-07-04 — Progression visible au chargement
 
 ### Changed
