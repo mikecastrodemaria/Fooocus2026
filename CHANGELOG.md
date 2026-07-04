@@ -3,6 +3,16 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-13.4] — 2026-07-04 — Progression visible au chargement
+
+### Changed
+- Telechargement des CSV par blocs de 64 Ko avec progression sur une ligne
+  du terminal (`[TagAC]   danbooru.csv: 1.2/3.4 Mo (35%)`), rafraichie par
+  tranche de 10 % (ou 512 Ko si taille inconnue). Fini le faux freeze au
+  premier boot sur les grosses sources.
+- Console navigateur : `[TagAC] pret en N ms` apres chargement + indexation,
+  en plus du detail par source et de la ligne d'index.
+
 ## [custom-13.3] — 2026-07-04 — Recherche indexee (500k tags sans latence)
 
 ### Changed

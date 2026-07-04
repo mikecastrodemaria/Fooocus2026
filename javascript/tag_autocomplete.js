@@ -65,6 +65,7 @@
     }
 
     async function loadAll() {
+        const t0 = Date.now();
         const jobs = [];
         for (const [name, url] of Object.entries(CFG.sources || {})) {
             jobs.push(loadCsv(url)
@@ -82,6 +83,7 @@
         await Promise.all(jobs);
         buildIndex();
         dataReady = true;
+        console.log(`[TagAC] pret en ${Date.now() - t0} ms`);
     }
 
     // ---------------------------------------------------------------- search

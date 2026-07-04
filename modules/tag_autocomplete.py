@@ -54,11 +54,32 @@ def local_assets_path():
 
 
 def _download(url, dst, timeout=30):
-    """Telechargement atomique (tmp + rename) pour ne jamais servir un CSV tronque."""
+    """Telechargement atomique (tmp + rename) avec progression dans le terminal,
+    pour que le boot ne ressemble jamais a un freeze sur les gros CSV."""
     tmp = dst + '.tmp'
+    name = os.path.basename(dst)
     req = urllib.request.Request(url, headers={'User-Agent': 'Fooocus2026-TagAC/1.0'})
     with urllib.request.urlopen(req, timeout=timeout) as r, open(tmp, 'wb') as f:
-        f.write(r.read())
+        total = int(r.headers.get('Content-Length') or 0)
+        done = 0
+        last_step = -1
+        while True:
+            chunk = r.read(65536)
+            if not chunk:
+                break
+            f.write(chunk)
+            done += len(chunk)
+            # un rafraichissement par tranche de 10 % (ou 512 Ko si taille inconnue)
+            step = (done * 10 // total) if total else (done // (512 * 1024))
+            if step != last_step:
+                last_step = step
+                if total:
+                    print(f'\r[TagAC]   {name}: {done / 1048576:.1f}/{total / 1048576:.1f} Mo '
+                          f'({done * 100 // total}%)', end='', flush=True)
+                else:
+                    print(f'\r[TagAC]   {name}: {done / 1048576:.1f} Mo', end='', flush=True)
+        if done:
+            print(flush=True)
     os.replace(tmp, dst)
 
 
