@@ -178,6 +178,7 @@
         border: 1px solid var(--border-color-primary, #444);
         border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.45);
         font-family: var(--font, sans-serif); font-size: 13px;
+        color: var(--body-text-color, #e6e6eb);
     }
     #tag-ac-popup .ta-item {
         display: flex; justify-content: space-between; gap: 12px;
