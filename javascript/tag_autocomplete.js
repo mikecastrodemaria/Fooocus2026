@@ -332,6 +332,13 @@
     function attach(ta) {
         if (ta.dataset.taAc) return;
         ta.dataset.taAc = '1';
+        // Coupe les suggestions natives du navigateur/OS et le correcteur
+        // orthographique qui parasitent le dropdown dans un champ de prompt.
+        ta.spellcheck = false;
+        ta.setAttribute('autocomplete', 'off');
+        ta.setAttribute('autocorrect', 'off');
+        ta.setAttribute('autocapitalize', 'off');
+        ta.setAttribute('writingsuggestions', 'false');
         ta.addEventListener('input', onInput);
         ta.addEventListener('keydown', onKeyDown, true); // capture: passer avant Gradio
         ta.addEventListener('blur', () => setTimeout(hide, 150));
