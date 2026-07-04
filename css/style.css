@@ -101,13 +101,17 @@ div:has(> #negative_prompt) {
 }
 
 .advanced_check_row {
-  /* custom-14: 330px chez upstream (3 cases) ; pleine largeur pour accueillir Job Queue */
+  /* custom-14: 330px chez upstream (3 cases) ; pleine largeur, une seule ligne */
   width: 100% !important;
+  display: flex !important;
+  flex-flow: row nowrap !important;
   gap: 2em !important;
 }
 
 .min_check {
-  min-width: min(1px, 100%) !important;
+  /* neutralise le width:100% des blocs gradio pour rester cote a cote */
+  width: auto !important;
+  min-width: 0 !important;
   flex: 0 0 auto !important;
   white-space: nowrap !important;
 }
