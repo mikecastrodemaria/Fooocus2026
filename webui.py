@@ -259,7 +259,7 @@ with shared.gradio_root:
                 enhance_checkbox = gr.Checkbox(label='Enhance', value=modules.config.default_enhance_checkbox, container=False, elem_classes='min_check')
                 advanced_checkbox = gr.Checkbox(label='Advanced', value=modules.config.default_advanced_checkbox, container=False, elem_classes='min_check')
                 if modules.config.job_queue_enabled():
-                    queue_checkbox = gr.Checkbox(label='\U0001F4CB Job Queue', value=False, container=False, elem_classes='min_check')
+                    queue_checkbox = gr.Checkbox(label='Job Queue', value=False, container=False, elem_classes='min_check')
             # custom-14: panneau Job Queue, bascule par la case du dessus
             if modules.config.job_queue_enabled():
                 with gr.Row(visible=False) as job_queue_panel:

@@ -101,11 +101,19 @@ div:has(> #negative_prompt) {
 }
 
 .advanced_check_row {
-  width: 330px !important;
+  /* custom-14: 330px chez upstream (3 cases) ; pleine largeur pour accueillir Job Queue */
+  width: 100% !important;
+  gap: 2em !important;
 }
 
 .min_check {
   min-width: min(1px, 100%) !important;
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+}
+
+.min_check label, .min_check span {
+  white-space: nowrap !important;
 }
 
 .resizable_area {
