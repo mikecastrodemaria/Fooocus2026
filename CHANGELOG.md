@@ -3,6 +3,20 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-14.1] — 2026-07-04 — Tag Autocomplete + Job Queue actives par defaut
+
+### Changed
+- `tag_autocomplete.enabled` et `job_queue.enabled` passent a `true` par
+  defaut (meme trajectoire que l'Asset Browser et Omost : livres opt-in,
+  puis actives par defaut une fois valides). Opt-out en une ligne dans
+  config.txt, et le contrat "zero cout quand off" reste inchange.
+
+### Why
+- Une installation fraiche (Pinokio notamment) generait un config.txt neuf
+  sans ces cles : les features etaient invisibles et l'install semblait
+  etre une vieille version. Les nouveautes doivent se voir sans edition
+  manuelle de config.txt.
+
 ## [custom-14] — 2026-07-04 — Job Queue (file d'attente de generations)
 
 ### Added

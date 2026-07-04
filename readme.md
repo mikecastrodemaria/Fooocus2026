@@ -4,7 +4,7 @@
 
 # Fooocus 2026 — Custom Fork
 
-> Version **`2026.2.0`** · A personal fork of **[lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) v2.5.5** with a series of quality-of-life features: a **Save Preset** button, **CivitAI Model Settings** integration (checkpoint triggers, consensus settings, save-as-preset), **LoRA trigger words** from local metadata + CivitAI, **Embeddings panel** with bulk-insert, **Wildcards editor**, **Vary-with-aspect-ratio** override, **Custom Resolution** (any ratio + size, snapped to /64), an **🖼️ Asset Browser** (PhotoSwipe-based standalone gallery for outputs + LoRAs/Checkpoints/Embeddings previews — opt-in, zero impact when disabled), **architecture filtering** (auto-hides Flux/SD3/LLMs from dropdowns — SD/SDXL only), a real **Restart UI** button, and an **🧩 Extra Plugins** tab that runs external upscalers (e.g. **crispz**) installed straight from a GitHub URL, and a **⌨️ Tag Autocomplete** for prompts (Danbooru/e621 tags + your own LoRA triggers, embeddings and wildcards — opt-in, zero impact when disabled), and a **📋 Job Queue** (stack generations with different prompts/settings and run them back-to-back — opt-in).
+> Version **`2026.2.0`** · A personal fork of **[lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) v2.5.5** with a series of quality-of-life features: a **Save Preset** button, **CivitAI Model Settings** integration (checkpoint triggers, consensus settings, save-as-preset), **LoRA trigger words** from local metadata + CivitAI, **Embeddings panel** with bulk-insert, **Wildcards editor**, **Vary-with-aspect-ratio** override, **Custom Resolution** (any ratio + size, snapped to /64), an **🖼️ Asset Browser** (PhotoSwipe-based standalone gallery for outputs + LoRAs/Checkpoints/Embeddings previews — opt-in, zero impact when disabled), **architecture filtering** (auto-hides Flux/SD3/LLMs from dropdowns — SD/SDXL only), a real **Restart UI** button, and an **🧩 Extra Plugins** tab that runs external upscalers (e.g. **crispz**) installed straight from a GitHub URL, and a **⌨️ Tag Autocomplete** for prompts (Danbooru/e621 tags + your own LoRA triggers, embeddings and wildcards — zero impact when disabled), and a **📋 Job Queue** (stack generations with different prompts/settings and run them back-to-back).
 
 ![Fooocus2026 fork — Models tab showing CivitAI / LoRA / Embeddings / Wildcards accordions and Restart UI, with wildcards in the prompt](docs/screenshots/overview.png)
 
@@ -334,7 +334,7 @@ If you use a different model name or endpoint, set `omost.model` / `omost.endpoi
 ---
 
 ### 14. ⌨️ Tag Autocomplete (booru tags + local assets)
-**Where:** the positive & negative prompt textareas (master toggle `tag_autocomplete.enabled`, **OFF by default** — set it to `true` in `config.txt`).
+**Where:** the positive & negative prompt textareas (master toggle `tag_autocomplete.enabled`, **ON by default** — set it to `false` in `config.txt` to opt out).
 
 **What it does:** as you type, a dropdown suggests Danbooru/e621 tags sorted by popularity, aliases included (`1girls` suggests `1girl`), merged with **your own library**: LoRA trigger words (from `civitai_cache`, badge `[lora-name]`), embeddings (inserted as `(embedding:name:1.0)`) and wildcards (type `__`). Arrow keys to navigate, **Tab/Enter** to insert, **Esc** to close. Category colours (general / artist / copyright / character / meta) and formatted post counts (`4.4M`).
 
@@ -347,7 +347,7 @@ If you use a different model name or endpoint, set `omost.model` / `omost.endpoi
 ---
 
 ### 15. 📋 Job Queue (batch generations, run overnight)
-**Where:** a **+ Queue** button under Generate + a **📋 Job Queue** checkbox next to Input Image / Enhance / Advanced that unfolds the queue panel inline (master toggle `job_queue.enabled`, **OFF by default**).
+**Where:** a **+ Queue** button under Generate + a **📋 Job Queue** checkbox next to Input Image / Enhance / Advanced that unfolds the queue panel inline (master toggle `job_queue.enabled`, **ON by default** — set it to `false` to opt out).
 
 **What it does:** each click on **+ Queue** freezes a full snapshot of the current settings (prompt, negative, model, LoRAs, resolved seed, resolution, everything) and stacks it — even while a generation is running. The queue panel lists pending jobs with a readable label (`prompt | model | perf | seed | count`); select one to **Up / Down / Remove**, or **Clear** all. **▶ Run queue** chains the jobs one by one in the same progress window as Generate. Stack 15 variations, go to bed.
 
@@ -442,14 +442,14 @@ All upstream keys still apply. The fork adds a few of its own. Most have a UI co
 | `omost.endpoint` | `"http://localhost:11434/v1/chat/completions"` | URL string | Layout/Omost | OpenAI-compatible chat/completions endpoint (Ollama by default). |
 | `omost.model` | `"omost-llama3"` | string | Layout/Omost | Name of the Omost model served by the endpoint. |
 | `omost.timeout` | `120` | 10..600 (int, seconds) | Layout/Omost | HTTP timeout for the LLM call. Clamped on load. |
-| `tag_autocomplete.enabled` | `false` | bool | custom-13 | Master toggle for **⌨️ Tag Autocomplete**. OFF by default — when off, nothing is downloaded or injected. |
+| `tag_autocomplete.enabled` | `true` | bool | custom-13 | Master toggle for **⌨️ Tag Autocomplete**. ON by default since custom-14.1 — when off, nothing is downloaded or injected. |
 | `tag_autocomplete.sources` | `["danbooru", "e621"]` | list | custom-13 | Tag CSVs downloaded once into `tags/` on first enabled launch. |
 | `tag_autocomplete.min_chars` | `2` | int | custom-13 | Characters typed before suggesting. |
 | `tag_autocomplete.max_results` | `12` | int | custom-13 | Dropdown size. |
 | `tag_autocomplete.replace_underscores` | `true` | bool | custom-13 | `long_hair` → `long hair` on insert. Set `false` for Pony-style raw tags. |
 | `tag_autocomplete.insert_comma` | `true` | bool | custom-13 | Append `", "` after each inserted tag. |
 | `tag_autocomplete.suggest_lora_triggers` / `.suggest_embeddings` / `.suggest_wildcards` | `true` | bool | custom-13 | Per-source toggles for the local library suggestions. |
-| `job_queue.enabled` | `false` | bool | custom-14 | Master toggle for the **📋 Job Queue**. OFF by default — when off, no button, no panel, no import. |
+| `job_queue.enabled` | `true` | bool | custom-14 | Master toggle for the **📋 Job Queue**. ON by default since custom-14.1 — when off, no button, no panel, no import. |
 | `job_queue.max_jobs` | `50` | int | custom-14 | Max pending jobs (snapshots with input images live in RAM). |
 
 Each value is clamped on save — bad values in `config.txt` fall back to the default rather than crashing.

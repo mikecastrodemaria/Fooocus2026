@@ -624,12 +624,12 @@ for _k, _v in _asset_browser_defaults.items():
     asset_browser_config.setdefault(_k, _v)
 
 
-# === custom-13: Tag Autocomplete (booru tags + local assets, OFF by default) ===
+# === custom-13: Tag Autocomplete (booru tags + local assets, ON by default since custom-14.1) ===
 # Suggestions de tags Danbooru/e621 + trigger words LoRA (civitai_cache),
 # embeddings et wildcards dans les textareas de prompt. Purement optionnel :
 # quand enabled=False, rien n'est telecharge, rien n'est injecte, zero cout.
 _tag_autocomplete_defaults = {
-    'enabled': False,
+    'enabled': True,
     'sources': ['danbooru', 'e621'],   # CSVs telecharges au premier lancement dans tags/
     'min_chars': 2,                    # nb de caracteres avant de suggerer
     'max_results': 12,                 # taille max du dropdown
@@ -661,14 +661,14 @@ def tag_autocomplete_setting(key, default=None):
 
 def tag_autocomplete_enabled():
     try:
-        return bool(tag_autocomplete_config.get('enabled', False))
+        return bool(tag_autocomplete_config.get('enabled', True))
     except Exception:
         return False
 
 
-# === custom-14: Job Queue (file d'attente de generations, OFF by default) ===
+# === custom-14: Job Queue (file d'attente de generations, ON by default since custom-14.1) ===
 _job_queue_defaults = {
-    'enabled': False,
+    'enabled': True,
     'max_jobs': 50,
 }
 job_queue_config = get_config_item_or_set_default(
@@ -692,7 +692,7 @@ def job_queue_setting(key, default=None):
 
 def job_queue_enabled():
     try:
-        return bool(job_queue_config.get('enabled', False))
+        return bool(job_queue_config.get('enabled', True))
     except Exception:
         return False
 
