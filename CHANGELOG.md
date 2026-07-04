@@ -3,6 +3,36 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-15] — 2026-07-04 — Grille X/Y/Z (planches de comparaison)
+
+### Added
+- **Grille X/Y/Z** dans le panneau Job Queue : 1 a 3 axes parmi CFG, Steps,
+  Sampler, Scheduler, Sharpness, Checkpoint, LoRA 1 weight. Valeurs en liste
+  separee par virgules. Chaque combo devient un job de la queue (custom-14)
+  avec etiquette `[XYZ i/n] CFG=5 | Steps=30`, image_number force a 1 et
+  seed fige pour une comparaison honnete.
+- **Assemblage automatique** : quand tous les jobs d'un groupe sont finis,
+  la planche annotee (vignettes 512px, libelles X en colonnes, Y en lignes,
+  une planche par valeur de Z) est sauvee dans `outputs/xyz_grids/` et
+  affichee dans la galerie. Les images individuelles restent dans outputs
+  et l'Asset Browser.
+- Stop pendant une grille = pause queue standard (custom-14) : la planche
+  s'assemblera si la serie est relancee et terminee.
+
+### Files
+- `modules/xyz_grid.py` (nouveau) : registre des axes (index dans le
+  snapshot ctrls, cale sur AsyncTask.__init__), expansion des combos,
+  suivi des groupes, assemblage Pillow.
+- `modules/job_queue.py` : champ `meta` sur Job.
+- `webui.py` : section Grille X/Y/Z dans le panneau Job Queue, bouton
+  Construire, hook d'assemblage dans run_queue_clicked.
+
+### Why
+- Troisieme et derniere feature de la roadmap 2026 : outil de calibrage.
+  Batie sur la queue, zero code de generation nouveau : la grille ne fait
+  qu'empiler des jobs et coller des images. Aucune dependance ajoutee
+  (Pillow est deja la).
+
 ## [custom-14.1] — 2026-07-04 — Tag Autocomplete + Job Queue actives par defaut
 
 ### Changed

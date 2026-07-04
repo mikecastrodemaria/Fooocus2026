@@ -121,6 +121,14 @@ def run_queue_clicked():
         print(f'[JobQueue] Job lance : {job.label} ({len(jq.queue)} restant(s))')
         yield from execute_task_streaming(task)
         jq.queue.current_task = None
+        # custom-15 : si ce job appartient a une grille XYZ complete, assembler
+        if getattr(job, 'meta', None):
+            import modules.xyz_grid as xyz
+            first_img = next((r for r in task.results if isinstance(r, str)), None)
+            grids = xyz.on_job_done(job.meta, first_img)
+            if grids:
+                yield gr.update(visible=False), gr.update(visible=False), \
+                    gr.update(visible=False), gr.update(visible=True, value=grids)
         if task.last_stop == 'stop':
             jq.queue.paused = True
             print(f'[JobQueue] Stop : file en pause, {len(jq.queue)} job(s) en attente.')
@@ -270,6 +278,24 @@ with shared.gradio_root:
                                 'Stop interrompt le job courant et met la file en pause.</div>')
                         queue_status = gr.HTML(value='File vide.')
                         queue_display = gr.Radio(label='Jobs en attente', choices=[], value=None, interactive=True)
+                        # custom-15 : grille X/Y/Z, les combos partent dans la queue
+                        with gr.Accordion(label='Grille X/Y/Z', open=False):
+                            import modules.xyz_grid as xyz_mod
+                            gr.HTML('<div style="font-size:12px;color:#888;margin-bottom:4px;">'
+                                    'Valeurs separees par des virgules (ex. CFG : 3, 5, 7). '
+                                    'Chaque combo devient un job (1 image par case, meme seed). '
+                                    'La planche annotee est assemblee en fin de serie dans '
+                                    'outputs/xyz_grids/.</div>')
+                            with gr.Row():
+                                xyz_x_param = gr.Dropdown(label='Axe X', choices=xyz_mod.AXIS_CHOICES, value='CFG', scale=1)
+                                xyz_x_vals = gr.Textbox(label='Valeurs X', placeholder='3, 5, 7', scale=2)
+                            with gr.Row():
+                                xyz_y_param = gr.Dropdown(label='Axe Y', choices=xyz_mod.AXIS_CHOICES, value='(aucun)', scale=1)
+                                xyz_y_vals = gr.Textbox(label='Valeurs Y', placeholder='20, 40', scale=2)
+                            with gr.Row():
+                                xyz_z_param = gr.Dropdown(label='Axe Z (une planche par valeur)', choices=xyz_mod.AXIS_CHOICES, value='(aucun)', scale=1)
+                                xyz_z_vals = gr.Textbox(label='Valeurs Z', placeholder='', scale=2)
+                            xyz_build_button = gr.Button(value='Construire la grille dans la queue')
                         with gr.Row():
                             queue_run_button = gr.Button(value='\u25B6 Run queue', variant='primary', scale=2)
                             queue_up_button = gr.Button(value='\U0001F53C Up', scale=1)
@@ -2766,6 +2792,37 @@ with shared.gradio_root:
                                   outputs=job_queue_panel, queue=False, show_progress=False) \
                 .then(fn=queue_refresh, outputs=[queue_display, queue_status, queue_add_button],
                       queue=False, show_progress=False)
+
+            def xyz_build(*all_args):
+                import traceback
+                import modules.xyz_grid as xyz
+                try:
+                    xp, xv, yp, yv, zp, zv = all_args[-6:]
+                    base = list(all_args[:-6])
+                    base.pop(0)  # currentTask
+                    spec = []
+                    for p, v in ((xp, xv), (yp, yv), (zp, zv)):
+                        if p and p != '(aucun)':
+                            spec.append((p, xyz.parse_values(p, v)))
+                    jobs, group = xyz.expand(base, spec)
+                    room = jq.queue.max_jobs - len(jq.queue)
+                    if len(jobs) > room:
+                        print(f'[XYZ] {len(jobs)} combos > {room} places restantes, abandon.')
+                        return queue_refresh()
+                    xyz.register_group(group)
+                    for args_i, label_i, meta_i in jobs:
+                        jq.queue.add(args_i, label_i, meta_i)
+                    print(f'[XYZ] {len(jobs)} jobs de grille ajoutes ({group["id"]}).')
+                except Exception:
+                    traceback.print_exc()
+                return queue_refresh()
+
+            xyz_build_button.click(fn=refresh_seed, inputs=[seed_random, image_seed], outputs=image_seed,
+                                   queue=False, show_progress=False) \
+                .then(fn=xyz_build,
+                      inputs=ctrls + [xyz_x_param, xyz_x_vals, xyz_y_param, xyz_y_vals, xyz_z_param, xyz_z_vals],
+                      outputs=[queue_display, queue_status, queue_add_button],
+                      show_progress=False)
 
             queue_add_button.click(fn=refresh_seed, inputs=[seed_random, image_seed], outputs=image_seed,
                                    queue=False, show_progress=False) \

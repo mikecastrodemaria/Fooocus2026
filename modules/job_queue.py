@@ -16,12 +16,13 @@ import time
 
 
 class Job:
-    __slots__ = ('args', 'label', 'added_at')
+    __slots__ = ('args', 'label', 'added_at', 'meta')
 
-    def __init__(self, args, label):
+    def __init__(self, args, label, meta=None):
         self.args = list(args)
         self.label = str(label)
         self.added_at = time.time()
+        self.meta = meta  # custom-15 : {'group','x','y','z'} pour les jobs XYZ
 
 
 class JobQueue:
@@ -36,12 +37,12 @@ class JobQueue:
         with self._lock:
             return len(self._jobs)
 
-    def add(self, args, label):
+    def add(self, args, label, meta=None):
         """Ajoute un job. Renvoie sa position (1-based), ou -1 si file pleine."""
         with self._lock:
             if len(self._jobs) >= self.max_jobs:
                 return -1
-            self._jobs.append(Job(args, label))
+            self._jobs.append(Job(args, label, meta))
             return len(self._jobs)
 
     def pop_next(self):
