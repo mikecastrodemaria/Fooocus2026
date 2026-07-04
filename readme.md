@@ -336,7 +336,20 @@ If you use a different model name or endpoint, set `omost.model` / `omost.endpoi
 ### 14. ⌨️ Tag Autocomplete (booru tags + local assets)
 **Where:** the positive & negative prompt textareas (master toggle `tag_autocomplete.enabled`, **ON by default** — set it to `false` in `config.txt` to opt out).
 
-**What it does:** as you type, a dropdown suggests Danbooru/e621 tags sorted by popularity, aliases included (`1girls` suggests `1girl`), merged with **your own library**: LoRA trigger words (from `civitai_cache`, badge `[lora-name]`), embeddings (inserted as `(embedding:name:1.0)`) and wildcards (type `__`). Arrow keys to navigate, **Tab/Enter** to insert, **Esc** to close. Category colours (general / artist / copyright / character / meta) and formatted post counts (`4.4M`).
+**What it does:** as you type, a dropdown suggests Danbooru/e621 tags sorted by popularity, aliases included (`1girls` suggests `1girl`), merged with **your own library**: LoRA trigger words (from `civitai_cache`, badge `[lora-name]`), embeddings (inserted as `(embedding:name:1.0)`) and wildcards (type `__`). Arrow keys to navigate, **Tab/Enter** to insert, **Esc** to close. Formatted post counts (`4.4M`) and colour-coded entries:
+
+| Colour | Meaning |
+|---|---|
+| blue | general tag (danbooru cat. 0) |
+| red | artist |
+| purple | copyright / series |
+| green | character |
+| orange | meta (danbooru) / species (e621) |
+| gold | LoRA trigger word or embedding-related entry from your civitai cache |
+| teal | your embeddings — inserted as `(embedding:name:1.0)` |
+| mauve | your wildcards — inserted as `__name__` |
+
+Local entries also carry a text badge (`[lora-name]`, `[embedding]`, `[wildcard]`) so the colour is never the only cue. Aliases show as `alias → canonical_tag`.
 
 **First launch:** downloads `danbooru.csv` + `e621.csv` (~6 MB total, once) into `tags/` — delete a CSV to force a refresh. Any extra `.csv` you drop into `tags/` (full format or just one word per line) is picked up at boot as an additional source. `tags/local_assets.json` is rebuilt at every boot (<100 ms scan, no thread).
 
