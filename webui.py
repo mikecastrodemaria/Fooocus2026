@@ -2723,7 +2723,9 @@ with shared.gradio_root:
             from modules import job_queue as jq
 
             def queue_refresh():
-                return gr.update(choices=jq.queue.labels(), value=None), jq.queue.status_text()
+                n = len(jq.queue)
+                btn = '\U0001F4CB + Queue' if n == 0 else f'\U0001F4CB + Queue ({n})'
+                return gr.update(choices=jq.queue.labels(), value=None), jq.queue.status_text(), gr.update(value=btn)
 
             def queue_add(*args):
                 import traceback
@@ -2760,19 +2762,19 @@ with shared.gradio_root:
 
             queue_add_button.click(fn=refresh_seed, inputs=[seed_random, image_seed], outputs=image_seed,
                                    queue=False, show_progress=False) \
-                .then(fn=queue_add, inputs=ctrls, outputs=[queue_display, queue_status],
+                .then(fn=queue_add, inputs=ctrls, outputs=[queue_display, queue_status, queue_add_button],
                       show_progress=False)
-            queue_remove_button.click(queue_remove, inputs=queue_display, outputs=[queue_display, queue_status], queue=False, show_progress=False)
-            queue_up_button.click(queue_up, inputs=queue_display, outputs=[queue_display, queue_status], queue=False, show_progress=False)
-            queue_down_button.click(queue_down, inputs=queue_display, outputs=[queue_display, queue_status], queue=False, show_progress=False)
-            queue_clear_button.click(queue_clear, outputs=[queue_display, queue_status], queue=False, show_progress=False)
+            queue_remove_button.click(queue_remove, inputs=queue_display, outputs=[queue_display, queue_status, queue_add_button], queue=False, show_progress=False)
+            queue_up_button.click(queue_up, inputs=queue_display, outputs=[queue_display, queue_status, queue_add_button], queue=False, show_progress=False)
+            queue_down_button.click(queue_down, inputs=queue_display, outputs=[queue_display, queue_status, queue_add_button], queue=False, show_progress=False)
+            queue_clear_button.click(queue_clear, outputs=[queue_display, queue_status, queue_add_button], queue=False, show_progress=False)
 
             queue_run_button.click(lambda: (gr.update(visible=True, interactive=True), gr.update(visible=True, interactive=True), gr.update(visible=False, interactive=False), [], True),
                                    outputs=[stop_button, skip_button, generate_button, gallery, state_is_generating]) \
                 .then(fn=run_queue_clicked, outputs=[progress_html, progress_window, progress_gallery, gallery]) \
                 .then(lambda: (gr.update(visible=True, interactive=True), gr.update(visible=False, interactive=False), gr.update(visible=False, interactive=False), False),
                       outputs=[generate_button, stop_button, skip_button, state_is_generating]) \
-                .then(fn=queue_refresh, outputs=[queue_display, queue_status], queue=False, show_progress=False) \
+                .then(fn=queue_refresh, outputs=[queue_display, queue_status, queue_add_button], queue=False, show_progress=False) \
                 .then(fn=update_history_link, outputs=history_link) \
                 .then(fn=lambda: None, _js='playNotification').then(fn=lambda: None, _js='refresh_grid_delayed')
 
