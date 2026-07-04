@@ -103,3 +103,7 @@ civitai_api_key.txt
 /_versions/
 memory/
 MEMORY.md
+
+## Backups locaux de config + index runtime des modeles
+config.txt.bak*
+models/models_info.json

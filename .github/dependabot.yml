@@ -4,3 +4,21 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
+
+  # Pins critiques du fork : l'UI depend de Gradio 3.41.2 (DOM custom,
+  # injection JS) et de fastapi 0.112.4 / starlette 0.38.6.
+  # Toute montee de version casse l'interface. Voir CHANGELOG custom-11.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    ignore:
+      - dependency-name: "gradio"
+      - dependency-name: "gradio-client"
+      - dependency-name: "fastapi"
+      - dependency-name: "starlette"
+      - dependency-name: "pydantic"
+      - dependency-name: "transformers"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "torch*"
+        update-types: ["version-update:semver-major"]
