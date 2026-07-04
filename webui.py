@@ -2726,11 +2726,18 @@ with shared.gradio_root:
                 return gr.update(choices=jq.queue.labels(), value=None), jq.queue.status_text()
 
             def queue_add(*args):
-                a = list(args)
-                a.pop(0)  # currentTask (meme convention que get_task)
-                pos = jq.queue.add(a, jq.make_label(a))
-                if pos < 0:
-                    print(f'[JobQueue] File pleine ({jq.queue.max_jobs} jobs max), ajout refuse.')
+                import traceback
+                try:
+                    a = list(args)
+                    a.pop(0)  # currentTask (meme convention que get_task)
+                    label = jq.make_label(a)
+                    pos = jq.queue.add(a, label)
+                    if pos < 0:
+                        print(f'[JobQueue] File pleine ({jq.queue.max_jobs} jobs max), ajout refuse.')
+                    else:
+                        print(f'[JobQueue] Ajout #{pos} : {label}')
+                except Exception:
+                    traceback.print_exc()
                 return queue_refresh()
 
             def queue_remove(sel):
@@ -2754,7 +2761,7 @@ with shared.gradio_root:
             queue_add_button.click(fn=refresh_seed, inputs=[seed_random, image_seed], outputs=image_seed,
                                    queue=False, show_progress=False) \
                 .then(fn=queue_add, inputs=ctrls, outputs=[queue_display, queue_status],
-                      queue=False, show_progress=False)
+                      show_progress=False)
             queue_remove_button.click(queue_remove, inputs=queue_display, outputs=[queue_display, queue_status], queue=False, show_progress=False)
             queue_up_button.click(queue_up, inputs=queue_display, outputs=[queue_display, queue_status], queue=False, show_progress=False)
             queue_down_button.click(queue_down, inputs=queue_display, outputs=[queue_display, queue_status], queue=False, show_progress=False)
