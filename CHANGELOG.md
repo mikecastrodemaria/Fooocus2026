@@ -3,6 +3,14 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-13.1] — 2026-07-04 — Sources de tags personnalisees
+
+### Added
+- Tout fichier `.csv` depose dans `tags/` est decouvert au boot et charge
+  comme source d'autocomplete supplementaire. Format complet
+  `nom,categorie,count,"alias1,alias2"` ou simplement un mot par ligne
+  (le parseur JS tolere desormais les lignes a une colonne).
+
 ## [custom-15.1] — 2026-07-04 — Axe Preset + autosuggest contextuel des valeurs XYZ
 
 ### Added

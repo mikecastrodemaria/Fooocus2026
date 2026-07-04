@@ -76,6 +76,17 @@ def ensure_tag_sources():
                      f'L\'autocomplete fonctionnera sans cette source.')
                 continue
         available.append(name)
+
+    # custom-13.1 : tout autre .csv depose dans tags/ devient une source perso.
+    # Format complet nom,categorie,count,"alias" ou simplement un mot par ligne.
+    try:
+        for fn in sorted(os.listdir(tags_root)):
+            stem, ext = os.path.splitext(fn)
+            if ext.lower() == '.csv' and stem not in TAG_SOURCES and stem not in available:
+                available.append(stem)
+                _log(f'Source perso detectee: {fn}')
+    except OSError:
+        pass
     return available
 
 

@@ -338,7 +338,7 @@ If you use a different model name or endpoint, set `omost.model` / `omost.endpoi
 
 **What it does:** as you type, a dropdown suggests Danbooru/e621 tags sorted by popularity, aliases included (`1girls` suggests `1girl`), merged with **your own library**: LoRA trigger words (from `civitai_cache`, badge `[lora-name]`), embeddings (inserted as `(embedding:name:1.0)`) and wildcards (type `__`). Arrow keys to navigate, **Tab/Enter** to insert, **Esc** to close. Category colours (general / artist / copyright / character / meta) and formatted post counts (`4.4M`).
 
-**First launch:** downloads `danbooru.csv` + `e621.csv` (~6 MB total, once) into `tags/` — delete a CSV to force a refresh. `tags/local_assets.json` is rebuilt at every boot (<100 ms scan, no thread).
+**First launch:** downloads `danbooru.csv` + `e621.csv` (~6 MB total, once) into `tags/` — delete a CSV to force a refresh. Any extra `.csv` you drop into `tags/` (full format or just one word per line) is picked up at boot as an additional source. `tags/local_assets.json` is rebuilt at every boot (<100 ms scan, no thread).
 
 **Insertion behaviour:** underscores become spaces (`long_hair` → `long hair`, better for SDXL/Juggernaut) and parentheses are escaped `\( \)` so attention weights are never corrupted. Set `tag_autocomplete.replace_underscores` to `false` for Pony-style raw tags. LoRA triggers are always inserted verbatim (`score_9` stays `score_9`). Native browser spellcheck/writing-suggestions are disabled on the prompt fields to keep the dropdown clean.
 

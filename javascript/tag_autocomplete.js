@@ -53,7 +53,8 @@
         for (const line of text.split('\n')) {
             if (!line || line.length < 3) continue;
             const p = parseCsvLine(line.trim());
-            if (p.length < 3) continue;
+            // custom-13.1 : CSV perso tolere, un mot par ligne suffit
+            if (!p[0]) continue;
             T_NAME.push(p[0]);
             T_CAT.push(parseInt(p[1], 10) || 0);
             T_COUNT.push(parseInt(p[2], 10) || 0);
