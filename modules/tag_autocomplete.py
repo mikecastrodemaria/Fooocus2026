@@ -23,9 +23,16 @@ import urllib.request
 
 import modules.config
 
+_TAGCOMPLETE_RAW = 'https://raw.githubusercontent.com/DominikDoom/a1111-sd-webui-tagcomplete/main/tags'
 TAG_SOURCES = {
-    'danbooru': 'https://raw.githubusercontent.com/DominikDoom/a1111-sd-webui-tagcomplete/main/tags/danbooru.csv',
-    'e621': 'https://raw.githubusercontent.com/DominikDoom/a1111-sd-webui-tagcomplete/main/tags/e621.csv',
+    'danbooru': f'{_TAGCOMPLETE_RAW}/danbooru.csv',
+    'e621': f'{_TAGCOMPLETE_RAW}/e621.csv',
+    # custom-13.2 : sources optionnelles supplementaires (a lister dans
+    # tag_autocomplete.sources). Attention : danbooru_e621_merged REMPLACE
+    # danbooru + e621 (sinon tous les tags sortent en double).
+    'danbooru_e621_merged': f'{_TAGCOMPLETE_RAW}/danbooru_e621_merged.csv',
+    'EnglishDictionary': f'{_TAGCOMPLETE_RAW}/EnglishDictionary.csv',
+    'derpibooru': f'{_TAGCOMPLETE_RAW}/derpibooru.csv',
 }
 
 modules_path = os.path.dirname(os.path.realpath(__file__))

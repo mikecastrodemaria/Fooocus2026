@@ -452,7 +452,7 @@ All upstream keys still apply. The fork adds a few of its own. Most have a UI co
 | `omost.model` | `"omost-llama3"` | string | Layout/Omost | Name of the Omost model served by the endpoint. |
 | `omost.timeout` | `120` | 10..600 (int, seconds) | Layout/Omost | HTTP timeout for the LLM call. Clamped on load. |
 | `tag_autocomplete.enabled` | `true` | bool | custom-13 | Master toggle for **⌨️ Tag Autocomplete**. ON by default since custom-14.1 — when off, nothing is downloaded or injected. |
-| `tag_autocomplete.sources` | `["danbooru", "e621"]` | list | custom-13 | Tag CSVs downloaded once into `tags/` on first enabled launch. |
+| `tag_autocomplete.sources` | `["danbooru", "e621"]` | list | custom-13 | Tag CSVs downloaded once into `tags/`. Also available: `EnglishDictionary`, `derpibooru`, `danbooru_e621_merged` (the merged one replaces danbooru + e621 — do not combine). |
 | `tag_autocomplete.min_chars` | `2` | int | custom-13 | Characters typed before suggesting. |
 | `tag_autocomplete.max_results` | `12` | int | custom-13 | Dropdown size. |
 | `tag_autocomplete.replace_underscores` | `true` | bool | custom-13 | `long_hair` → `long hair` on insert. Set `false` for Pony-style raw tags. |

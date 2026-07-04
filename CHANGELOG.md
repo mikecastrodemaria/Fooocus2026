@@ -3,6 +3,16 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-13.2] — 2026-07-04 — Catalogue de sources etendu
+
+### Added
+- Trois sources telechargeables de plus dans TAG_SOURCES :
+  `EnglishDictionary` (mots anglais avec frequences), `derpibooru`
+  (tags MLP/cartoon) et `danbooru_e621_merged`. A activer via
+  `tag_autocomplete.sources` dans config.txt. Attention :
+  `danbooru_e621_merged` remplace `danbooru` + `e621`, ne pas cumuler
+  sous peine de suggestions en double.
+
 ## [custom-13.1] — 2026-07-04 — Sources de tags personnalisees
 
 ### Added
