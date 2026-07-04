@@ -58,8 +58,27 @@ def parse_values(axis_name, raw):
     return [caster(v) for v in vals]
 
 
+def _resolve_checkpoint(v):
+    """Tolerance de saisie : 'juggernaut' suffit si un seul modele correspond."""
+    import modules.config as _cfg
+    names = list(getattr(_cfg, 'model_filenames', []))
+    v0 = str(v).strip()
+    if v0 in names or not names:
+        return v0
+    low = v0.lower()
+    cands = [n for n in names if low in n.lower()]
+    if len(cands) == 1:
+        return cands[0]
+    if not cands:
+        raise ValueError(f'checkpoint introuvable: "{v0}" (voir dropdown Base Model)')
+    raise ValueError(f'checkpoint ambigu "{v0}": {", ".join(cands[:4])}')
+
+
 def _apply(args, axis_name, value):
-    idx = _indices()[AXES[axis_name][0]]
+    key = AXES[axis_name][0]
+    if key == 'checkpoint':
+        value = _resolve_checkpoint(value)
+    idx = _indices()[key]
     if idx >= len(args):
         raise IndexError(f'{axis_name}: index {idx} hors limites ({len(args)} ctrls)')
     args[idx] = value
