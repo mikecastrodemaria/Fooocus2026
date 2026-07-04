@@ -44,19 +44,39 @@ AXES = {
     'Checkpoint': ('checkpoint', str),
     'LoRA 1 weight': ('lora1_weight', float),
     'Preset': ('preset', str),   # custom-15.1 : applique tout le preset sur la case
+    'Prompt S/R': ('prompt_sr', str),  # custom-15.2 : 1re valeur = terme cherche, suivantes = remplacements
 }
 AXIS_CHOICES = ['(aucun)'] + list(AXES.keys())
 
 
 def parse_values(axis_name, raw):
-    """'4, 6, 8' -> [4.0, 6.0, 8.0] selon le type de l'axe. ValueError si vide/invalide."""
+    """'4, 6, 8' -> [4.0, 6.0, 8.0] selon le type de l'axe. ValueError si vide/invalide.
+    Prompt S/R : decoupage CSV (guillemets acceptes pour proteger une virgule)."""
     if axis_name not in AXES:
         raise ValueError(f'axe inconnu: {axis_name}')
+    if AXES[axis_name][0] == 'prompt_sr':
+        import csv as _csv
+        vals = [v.strip() for v in next(_csv.reader([str(raw)], skipinitialspace=True)) if v.strip()]
+        if len(vals) < 2:
+            raise ValueError('Prompt S/R: au moins 2 valeurs (terme cherche, remplacement, ...)')
+        return vals
     _, caster = AXES[axis_name]
     vals = [v.strip() for v in str(raw).split(',') if v.strip()]
     if not vals:
         raise ValueError(f'{axis_name}: aucune valeur')
     return [caster(v) for v in vals]
+
+
+def _prepare_axis(axis_name, values, base_args):
+    """Pre-traitement par axe avant expansion. Pour Prompt S/R : valide que le
+    terme cherche est bien dans le prompt et transforme en couples (cherche, remplace).
+    La 1re valeur se remplace par elle-meme = case temoin avec le prompt original."""
+    if AXES[axis_name][0] != 'prompt_sr':
+        return values
+    search = str(values[0])
+    if search not in str(base_args[1]):
+        raise ValueError(f'Prompt S/R: "{search}" est absent du prompt')
+    return [(search, str(v)) for v in values]
 
 
 def _load_preset(name):
@@ -130,6 +150,10 @@ def _resolve_checkpoint(v):
 
 def _apply(args, axis_name, value):
     key = AXES[axis_name][0]
+    if key == 'prompt_sr':
+        search, repl = value
+        args[1] = str(args[1]).replace(search, repl)
+        return
     if key == 'preset':
         _apply_preset(args, value)
         return
@@ -142,10 +166,15 @@ def _apply(args, axis_name, value):
 
 
 def _fmt(axis_name, value):
+    if isinstance(value, tuple):          # Prompt S/R : afficher le remplacement
+        value = value[1]
     if isinstance(value, float) and value == int(value):
         value = int(value)
     if axis_name == 'Checkpoint':
         value = os.path.splitext(os.path.basename(str(value)))[0]
+    value = str(value)
+    if len(value) > 28:
+        value = value[:25] + '...'
     return f'{axis_name}={value}'
 
 
@@ -155,9 +184,9 @@ def expand(base_args, spec):
     axes = [(a, v) for a, v in spec if a and a in AXES]
     if not axes:
         raise ValueError('aucun axe sélectionné')
-    xs = axes[0][1]
-    ys = axes[1][1] if len(axes) > 1 else [None]
-    zs = axes[2][1] if len(axes) > 2 else [None]
+    xs = _prepare_axis(axes[0][0], axes[0][1], base_args)
+    ys = _prepare_axis(axes[1][0], axes[1][1], base_args) if len(axes) > 1 else [None]
+    zs = _prepare_axis(axes[2][0], axes[2][1], base_args) if len(axes) > 2 else [None]
     x_name = axes[0][0]
     y_name = axes[1][0] if len(axes) > 1 else None
     z_name = axes[2][0] if len(axes) > 2 else None

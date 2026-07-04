@@ -42,6 +42,16 @@ Only fork-specific changes are listed here — upstream history is available via
   `nom,categorie,count,"alias1,alias2"` ou simplement un mot par ligne
   (le parseur JS tolere desormais les lignes a une colonne).
 
+## [custom-15.2] — 2026-07-04 — Axe Prompt S/R (search & replace)
+
+### Added
+- **Axe Prompt S/R** dans la grille X/Y/Z, comme dans a1111 : la premiere
+  valeur est le terme a chercher dans le prompt, les suivantes sont ses
+  remplacements. `dawn, dusk, "stormy night, lightning"` sur le prompt
+  `a castle at dawn` donne 3 cases : temoin, dusk, stormy night. Guillemets
+  pour proteger une virgule dans un remplacement, validation au build si le
+  terme est absent du prompt, croisable avec n'importe quel autre axe.
+
 ## [custom-15.1] — 2026-07-04 — Axe Preset + autosuggest contextuel des valeurs XYZ
 
 ### Added
