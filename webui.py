@@ -258,6 +258,24 @@ with shared.gradio_root:
                 input_image_checkbox = gr.Checkbox(label='Input Image', value=modules.config.default_image_prompt_checkbox, container=False, elem_classes='min_check')
                 enhance_checkbox = gr.Checkbox(label='Enhance', value=modules.config.default_enhance_checkbox, container=False, elem_classes='min_check')
                 advanced_checkbox = gr.Checkbox(label='Advanced', value=modules.config.default_advanced_checkbox, container=False, elem_classes='min_check')
+                if modules.config.job_queue_enabled():
+                    queue_checkbox = gr.Checkbox(label='\U0001F4CB Job Queue', value=False, container=False, elem_classes='min_check')
+            # custom-14: panneau Job Queue, bascule par la case du dessus
+            if modules.config.job_queue_enabled():
+                with gr.Row(visible=False) as job_queue_panel:
+                    with gr.Column():
+                        gr.HTML('<div style="font-size:12px;color:#888;margin-bottom:6px;">'
+                                'Empilez des generations avec le bouton <b>+ Queue</b> sous Generate '
+                                '(chaque job fige les reglages du moment), puis lancez la serie. '
+                                'Stop interrompt le job courant et met la file en pause.</div>')
+                        queue_status = gr.HTML(value='File vide.')
+                        queue_display = gr.Radio(label='Jobs en attente', choices=[], value=None, interactive=True)
+                        with gr.Row():
+                            queue_run_button = gr.Button(value='\u25B6 Run queue', variant='primary', scale=2)
+                            queue_up_button = gr.Button(value='\U0001F53C Up', scale=1)
+                            queue_down_button = gr.Button(value='\U0001F53D Down', scale=1)
+                            queue_remove_button = gr.Button(value='\u274C Remove', scale=1)
+                            queue_clear_button = gr.Button(value='\U0001F5D1 Clear', scale=1)
             with gr.Row(visible=modules.config.default_image_prompt_checkbox) as image_input_panel:
                 with gr.Tabs(selected=modules.config.default_selected_image_input_tab_id):
                     with gr.Tab(label='Upscale or Variation', id='uov_tab') as uov_tab:
@@ -1166,22 +1184,6 @@ with shared.gradio_root:
                                       value=modules.config.default_sample_sharpness,
                                       info='Higher value means image and texture are sharper.')
                 gr.HTML('<a href="https://github.com/lllyasviel/Fooocus/discussions/117" target="_blank">\U0001F4D4 Documentation</a>')
-
-                # === custom-14: Job Queue (panneau cree seulement si active) ====
-                if modules.config.job_queue_enabled():
-                    with gr.Accordion(label='\U0001F4CB Job Queue', open=False, elem_id='job_queue_accordion'):
-                        gr.HTML('<div style="font-size:12px;color:#888;margin-bottom:6px;">'
-                                'Empilez des generations avec le bouton <b>+ Queue</b> sous Generate '
-                                '(chaque job fige les reglages du moment), puis lancez la serie. '
-                                'Stop interrompt le job courant et met la file en pause.</div>')
-                        queue_status = gr.HTML(value='File vide.')
-                        queue_display = gr.Radio(label='Jobs en attente', choices=[], value=None, interactive=True)
-                        with gr.Row():
-                            queue_run_button = gr.Button(value='\u25B6 Run queue', variant='primary', scale=2)
-                            queue_up_button = gr.Button(value='\U0001F53C Up', scale=1)
-                            queue_down_button = gr.Button(value='\U0001F53D Down', scale=1)
-                            queue_remove_button = gr.Button(value='\u274C Remove', scale=1)
-                            queue_clear_button = gr.Button(value='\U0001F5D1 Clear', scale=1)
 
                 # === custom-8: Asset Browser settings ============================
                 _ab_cfg = modules.config.asset_browser_config
@@ -2759,6 +2761,11 @@ with shared.gradio_root:
                 return queue_refresh()
 
             jq.queue.max_jobs = int(modules.config.job_queue_setting('max_jobs') or 50)
+
+            queue_checkbox.change(lambda x: gr.update(visible=x), inputs=queue_checkbox,
+                                  outputs=job_queue_panel, queue=False, show_progress=False) \
+                .then(fn=queue_refresh, outputs=[queue_display, queue_status, queue_add_button],
+                      queue=False, show_progress=False)
 
             queue_add_button.click(fn=refresh_seed, inputs=[seed_random, image_seed], outputs=image_seed,
                                    queue=False, show_progress=False) \
