@@ -3,6 +3,25 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-15.1] — 2026-07-04 — Axe Preset + autosuggest contextuel des valeurs XYZ
+
+### Added
+- **Axe Preset** dans la grille X/Y/Z : chaque valeur applique le contenu du
+  preset (modele, refiner, LoRAs, CFG, sampler, scheduler, sharpness, steps,
+  styles, negatif, performance) sur la case. Le prompt et l'aspect ratio de
+  l'utilisateur sont conserves : c'est le sujet qui reste constant. Noms
+  partiels acceptes (`pulp` suffit si unique), comme pour Checkpoint.
+- **Autosuggest contextuel** des champs de valeurs (javascript/xyz_autocomplete.js) :
+  la suggestion depend de l'axe choisi. Samplers et schedulers depuis flags,
+  checkpoints et presets installes, valeurs de calibrage classiques pour les
+  axes numeriques. Focus ou frappe = dropdown, fleches + Tab/Entree, valeurs
+  deja saisies exclues.
+
+### Files
+- `javascript/xyz_autocomplete.js` (nouveau), `modules/xyz_grid.py`
+  (_load_preset/_apply_preset), `modules/ui_gradio_extensions.py` (meta
+  xyz-ac + injection), `webui.py` (elem_id des champs XYZ).
+
 ## [custom-15] — 2026-07-04 — Grille X/Y/Z (planches de comparaison)
 
 ### Added

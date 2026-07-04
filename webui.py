@@ -287,14 +287,14 @@ with shared.gradio_root:
                                     'La planche annotee est assemblee en fin de serie dans '
                                     'outputs/xyz_grids/.</div>')
                             with gr.Row():
-                                xyz_x_param = gr.Dropdown(label='Axe X', choices=xyz_mod.AXIS_CHOICES, value='CFG', scale=1)
-                                xyz_x_vals = gr.Textbox(label='Valeurs X', placeholder='3, 5, 7', scale=2)
+                                xyz_x_param = gr.Dropdown(label='Axe X', choices=xyz_mod.AXIS_CHOICES, value='CFG', scale=1, elem_id='xyz_param_x')
+                                xyz_x_vals = gr.Textbox(label='Valeurs X', placeholder='3, 5, 7', scale=2, elem_id='xyz_vals_x')
                             with gr.Row():
-                                xyz_y_param = gr.Dropdown(label='Axe Y', choices=xyz_mod.AXIS_CHOICES, value='(aucun)', scale=1)
-                                xyz_y_vals = gr.Textbox(label='Valeurs Y', placeholder='20, 40', scale=2)
+                                xyz_y_param = gr.Dropdown(label='Axe Y', choices=xyz_mod.AXIS_CHOICES, value='(aucun)', scale=1, elem_id='xyz_param_y')
+                                xyz_y_vals = gr.Textbox(label='Valeurs Y', placeholder='20, 40', scale=2, elem_id='xyz_vals_y')
                             with gr.Row():
-                                xyz_z_param = gr.Dropdown(label='Axe Z (une planche par valeur)', choices=xyz_mod.AXIS_CHOICES, value='(aucun)', scale=1)
-                                xyz_z_vals = gr.Textbox(label='Valeurs Z', placeholder='', scale=2)
+                                xyz_z_param = gr.Dropdown(label='Axe Z (une planche par valeur)', choices=xyz_mod.AXIS_CHOICES, value='(aucun)', scale=1, elem_id='xyz_param_z')
+                                xyz_z_vals = gr.Textbox(label='Valeurs Z', placeholder='', scale=2, elem_id='xyz_vals_z')
                             xyz_build_button = gr.Button(value='Construire la grille dans la queue')
                         with gr.Row():
                             queue_run_button = gr.Button(value='\u25B6 Run queue', variant='primary', scale=2)

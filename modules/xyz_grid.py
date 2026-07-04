@@ -43,6 +43,7 @@ AXES = {
     'Sharpness': ('sharpness', float),
     'Checkpoint': ('checkpoint', str),
     'LoRA 1 weight': ('lora1_weight', float),
+    'Preset': ('preset', str),   # custom-15.1 : applique tout le preset sur la case
 }
 AXIS_CHOICES = ['(aucun)'] + list(AXES.keys())
 
@@ -56,6 +57,59 @@ def parse_values(axis_name, raw):
     if not vals:
         raise ValueError(f'{axis_name}: aucune valeur')
     return [caster(v) for v in vals]
+
+
+def _load_preset(name):
+    """Resout un nom de preset (partiel, insensible a la casse) et charge son JSON."""
+    import modules.config as _cfg
+    presets = [p for p in getattr(_cfg, 'available_presets', []) if p != 'initial']
+    v0 = str(name).strip()
+    exact = [p for p in presets if p.lower() == v0.lower()]
+    cands = exact or [p for p in presets if v0.lower() in p.lower()]
+    if not cands:
+        raise ValueError(f'preset introuvable: "{v0}"')
+    if len(cands) > 1:
+        raise ValueError(f'preset ambigu "{v0}": {", ".join(cands[:4])}')
+    return cands[0], (_cfg.try_get_preset_content(cands[0]) or {})
+
+
+def _apply_preset(args, name):
+    """Applique les champs generatifs du preset sur le snapshot ctrls.
+    Le prompt et l'aspect ratio de l'utilisateur sont volontairement conserves
+    (c'est le sujet de la comparaison qui doit rester constant)."""
+    import modules.config as _cfg
+    pname, p = _load_preset(name)
+    idx = _indices()
+    simple = {
+        'default_styles': 3,
+        'default_performance': 4,
+        'default_sample_sharpness': 10,
+        'default_cfg_scale': 11,
+        'default_model': 12,
+        'default_refiner': 13,
+        'default_refiner_switch': 14,
+        'default_sampler': idx['sampler'],
+        'default_scheduler': idx['scheduler'],
+        'default_overwrite_step': idx['steps'],
+    }
+    for key, i in simple.items():
+        if key in p and p[key] is not None and i < len(args):
+            args[i] = p[key]
+    if p.get('default_prompt_negative'):
+        args[2] = p['default_prompt_negative']
+    loras = p.get('default_loras')
+    if isinstance(loras, list):
+        n = int(getattr(_cfg, 'default_max_lora_number', 5))
+        flat = []
+        for entry in loras[:n]:
+            if isinstance(entry, (list, tuple)) and len(entry) >= 3:
+                flat += [bool(entry[0]), str(entry[1]), float(entry[2])]
+            elif isinstance(entry, (list, tuple)) and len(entry) == 2:
+                flat += [True, str(entry[0]), float(entry[1])]
+        while len(flat) < 3 * n:
+            flat += [False, 'None', 1.0]
+        args[15:15 + 3 * n] = flat
+    return pname
 
 
 def _resolve_checkpoint(v):
@@ -76,6 +130,9 @@ def _resolve_checkpoint(v):
 
 def _apply(args, axis_name, value):
     key = AXES[axis_name][0]
+    if key == 'preset':
+        _apply_preset(args, value)
+        return
     if key == 'checkpoint':
         value = _resolve_checkpoint(value)
     idx = _indices()[key]

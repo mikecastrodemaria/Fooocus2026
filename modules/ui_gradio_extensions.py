@@ -68,6 +68,26 @@ def javascript_html():
         tag_ac_js_path = webpath('javascript/tag_autocomplete.js')
         head += f'<script type="text/javascript" src="{tag_ac_js_path}"></script>\n'
 
+    # custom-15.1 : autosuggest contextuel des champs de valeurs de la grille XYZ
+    if modules.config.job_queue_enabled():
+        import json as _json2
+        import modules.flags as _flags
+        _stems = [os.path.splitext(os.path.basename(m))[0] for m in getattr(modules.config, 'model_filenames', [])]
+        _xyz_sugg = {
+            'CFG': ['2', '3', '4', '5', '6', '7', '8', '10'],
+            'Steps': ['15', '20', '25', '30', '40', '60'],
+            'Sampler': list(_flags.sampler_list),
+            'Scheduler': list(_flags.scheduler_list),
+            'Sharpness': ['0', '2', '4', '6', '8', '10'],
+            'Checkpoint': _stems,
+            'LoRA 1 weight': ['0.2', '0.4', '0.6', '0.8', '1.0', '1.2'],
+            'Preset': [p for p in getattr(modules.config, 'available_presets', []) if p != 'initial'],
+        }
+        _xyz_json = _json2.dumps(_xyz_sugg).replace("'", '&#39;')
+        head += f"<meta name=\"xyz-ac\" content='{_xyz_json}'>\n"
+        xyz_ac_js_path = webpath('javascript/xyz_autocomplete.js')
+        head += f'<script type="text/javascript" src="{xyz_ac_js_path}"></script>\n'
+
     if args_manager.args.theme:
         head += f'<script type="text/javascript">set_theme(\"{args_manager.args.theme}\");</script>\n'
 
