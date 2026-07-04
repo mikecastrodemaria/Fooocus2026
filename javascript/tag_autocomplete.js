@@ -80,6 +80,7 @@
             }).catch(e => console.warn('[TagAC] local_assets.json indisponible', e)));
         }
         await Promise.all(jobs);
+        buildIndex();
         dataReady = true;
     }
 
@@ -93,23 +94,72 @@
         return s.replace(/\(/g, '\\(').replace(/\)/g, '\\)');
     }
 
-    function searchBooru(q, prefixOut, subOut, budget) {
-        for (let i = 0; i < T_NAME.length; i++) {
+    // custom-13.3 — index de recherche : tri global par count (une fois),
+    // dedup par nom entre sources (le meilleur count gagne), buckets par
+    // prefixe de 2 chars pour les noms ET les alias, fallback substring
+    // avec sortie anticipee. ~O(taille du bucket) par frappe au lieu de O(n).
+    let B_NAME = [], B_CAT = [], B_COUNT = [], B_ALIAS = [];
+    const BUCKETS = new Map();
+    const ALIAS_BUCKETS = new Map();
+
+    function buildIndex() {
+        const order = T_NAME.map((_, i) => i).sort((a, b) => T_COUNT[b] - T_COUNT[a]);
+        const seen = new Set();
+        for (const i of order) {
             const name = T_NAME[i];
-            let hit = null;
-            if (name.startsWith(q)) hit = 'p';
-            else if (name.includes(q)) hit = 's';
-            else if (T_ALIAS[i]) {
-                for (const a of T_ALIAS[i]) {
-                    if (a.startsWith(q)) {
-                        prefixOut.push({ label: `${a} → ${name}`, insert: tagToInsertion(name), kind: 'alias', cat: T_CAT[i], count: T_COUNT[i] });
-                        hit = 'done';
-                        break;
-                    }
+            if (seen.has(name)) continue;
+            seen.add(name);
+            const j = B_NAME.length;
+            B_NAME.push(name); B_CAT.push(T_CAT[i]); B_COUNT.push(T_COUNT[i]); B_ALIAS.push(T_ALIAS[i]);
+            if (name.length >= 2) {
+                const k = name.slice(0, 2);
+                let arr = BUCKETS.get(k);
+                if (!arr) BUCKETS.set(k, arr = []);
+                arr.push(j);
+            }
+            if (T_ALIAS[i]) {
+                for (const al of T_ALIAS[i]) {
+                    if (al.length < 2) continue;
+                    const k = al.slice(0, 2);
+                    let arr = ALIAS_BUCKETS.get(k);
+                    if (!arr) ALIAS_BUCKETS.set(k, arr = []);
+                    arr.push([al, j]);
                 }
             }
-            if (hit === 'p') prefixOut.push({ label: name, insert: tagToInsertion(name), kind: 'tag', cat: T_CAT[i], count: T_COUNT[i] });
-            else if (hit === 's' && subOut.length < budget) subOut.push({ label: name, insert: tagToInsertion(name), kind: 'tag', cat: T_CAT[i], count: T_COUNT[i] });
+        }
+        T_NAME.length = T_CAT.length = T_COUNT.length = T_ALIAS.length = 0;
+        console.log(`[TagAC] index: ${B_NAME.length} tags uniques, ${BUCKETS.size} buckets`);
+    }
+
+    function mkItem(j, label, kind) {
+        return { label: label, insert: tagToInsertion(B_NAME[j]), kind: kind, cat: B_CAT[j], count: B_COUNT[j] };
+    }
+
+    function searchBooru(q, out, max) {
+        if (q.length < 2) {
+            for (let j = 0; j < B_NAME.length && out.length < max; j++) {
+                if (B_NAME[j].startsWith(q)) out.push(mkItem(j, B_NAME[j], 'tag'));
+            }
+            return;
+        }
+        const taken = new Set();
+        const key = q.slice(0, 2);
+        for (const j of (BUCKETS.get(key) || [])) {
+            if (out.length >= max) return;
+            if (B_NAME[j].startsWith(q)) { out.push(mkItem(j, B_NAME[j], 'tag')); taken.add(j); }
+        }
+        for (const pair of (ALIAS_BUCKETS.get(key) || [])) {
+            if (out.length >= max) return;
+            const al = pair[0], j = pair[1];
+            if (!taken.has(j) && al.startsWith(q)) {
+                out.push(mkItem(j, `${al} → ${B_NAME[j]}`, 'alias'));
+                taken.add(j);
+            }
+        }
+        for (let j = 0; j < B_NAME.length && out.length < max; j++) {
+            if (!taken.has(j) && !B_NAME[j].startsWith(q) && B_NAME[j].includes(q)) {
+                out.push(mkItem(j, B_NAME[j], 'tag'));
+            }
         }
     }
 
@@ -148,12 +198,7 @@
         const q = raw.toLowerCase().replace(/ /g, '_');
         if (q.length < MIN_CHARS) return results;
         searchLocals(q, results);                       // locaux d'abord: c'est TA bibliotheque
-        const prefix = [], sub = [];
-        searchBooru(q, prefix, sub, 200);
-        prefix.sort((a, b) => b.count - a.count);
-        sub.sort((a, b) => b.count - a.count);
-        for (const r of prefix) { if (results.length >= MAX_RESULTS) break; results.push(r); }
-        for (const r of sub) { if (results.length >= MAX_RESULTS) break; results.push(r); }
+        searchBooru(q, results, MAX_RESULTS);           // deja trie par count via l'index
         return results;
     }
 

@@ -3,6 +3,17 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-13.3] — 2026-07-04 — Recherche indexee (500k tags sans latence)
+
+### Changed
+- L'autocomplete construit desormais un index au chargement : tri global par
+  popularite (une seule fois), deduplication par nom entre sources (le
+  meilleur count gagne, ce qui neutralise aussi le chevauchement
+  danbooru/e621), buckets par prefixe de 2 caracteres pour les noms et les
+  alias, fallback substring avec sortie anticipee des que le dropdown est
+  plein. Mesure : ~0.5 ms par frappe sur 500 000 tags (contre un scan trie
+  complet auparavant). Construction de l'index : ~150 ms, une fois.
+
 ## [custom-13.2] — 2026-07-04 — Catalogue de sources etendu
 
 ### Added
