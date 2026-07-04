@@ -1,4 +1,4 @@
-"""custom-12 — Tag Autocomplete (tags booru + assets locaux).
+"""custom-13 — Tag Autocomplete (tags booru + assets locaux).
 
 Backend minimal, appele une seule fois au boot par
 `modules/ui_gradio_extensions.py::javascript_html()` et uniquement si

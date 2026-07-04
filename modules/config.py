@@ -624,7 +624,7 @@ for _k, _v in _asset_browser_defaults.items():
     asset_browser_config.setdefault(_k, _v)
 
 
-# === custom-12: Tag Autocomplete (booru tags + local assets, OFF by default) ===
+# === custom-13: Tag Autocomplete (booru tags + local assets, OFF by default) ===
 # Suggestions de tags Danbooru/e621 + trigger words LoRA (civitai_cache),
 # embeddings et wildcards dans les textareas de prompt. Purement optionnel :
 # quand enabled=False, rien n'est telecharge, rien n'est injecte, zero cout.

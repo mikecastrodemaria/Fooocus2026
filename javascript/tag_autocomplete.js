@@ -1,4 +1,4 @@
-// custom-12 — Tag Autocomplete (tags booru + assets locaux)
+// custom-13 — Tag Autocomplete (tags booru + assets locaux)
 // Injecte par modules/ui_gradio_extensions.py uniquement si
 // tag_autocomplete.enabled = true dans config.txt.
 //

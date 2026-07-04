@@ -3,7 +3,7 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
-## [custom-12] — 2026-07-04 — Tag Autocomplete (booru tags + assets locaux)
+## [custom-13] — 2026-07-04 — Tag Autocomplete (booru tags + assets locaux)
 
 ### Added
 - **Autocomplete de tags dans les prompts** (positif et negatif), optionnel et

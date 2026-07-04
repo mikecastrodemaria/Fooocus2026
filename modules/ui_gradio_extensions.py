@@ -48,7 +48,7 @@ def javascript_html():
     ab_icons_js_path = webpath('javascript/ab_icons.js')
     head += f'<script type="text/javascript" src="{ab_icons_js_path}"></script>\n'
 
-    # custom-12: Tag Autocomplete (optionnel, tag_autocomplete.enabled dans config.txt)
+    # custom-13: Tag Autocomplete (optionnel, tag_autocomplete.enabled dans config.txt)
     if modules.config.tag_autocomplete_enabled():
         import json as _json
         import modules.tag_autocomplete as _tag_ac
