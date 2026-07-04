@@ -3,6 +3,37 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-14] — 2026-07-04 — Job Queue (file d'attente de generations)
+
+### Added
+- **File d'attente de jobs**, optionnelle et OFF par defaut (`job_queue.enabled`
+  dans config.txt). Bouton **+ Queue** sous Generate : fige un snapshot complet
+  des reglages courants (prompt, negatif, modele, LoRAs, seed resolu, tout) et
+  l'empile — utilisable meme pendant une generation en cours.
+- **Panneau 📋 Job Queue** (Advanced) : liste des jobs avec etiquette lisible
+  (prompt tronque | modele | perf | seed | nb images), selection puis
+  Up / Down / Remove, Clear, et **▶ Run queue** qui enchaine les jobs dans la
+  meme fenetre de progression que Generate.
+- **Stop = pause** : interrompt le job courant et met la file en pause, les
+  jobs restants attendent un nouveau Run queue. Skip saute l'image courante
+  du job en cours, la serie continue. Rien n'est jamais perdu.
+- `job_queue.max_jobs` (50) : garde-fou memoire, les snapshots avec images
+  d'entree (inpaint/upscale) vivent en RAM.
+
+### Files
+- `modules/job_queue.py` (nouveau) : file thread-safe + labels, stdlib pur.
+- `modules/config.py` : bloc `job_queue` (pattern asset_browser).
+- `webui.py` : `generate_clicked` refactore en `execute_task_streaming`
+  (comportement Generate inchange), `run_queue_clicked`, bouton + Queue,
+  accordeon, cablage; `stop_clicked`/`skip_clicked` visent le job de la
+  queue quand elle tourne.
+
+### Why
+- Deuxieme feature de la roadmap 2026. Le worker de Fooocus depile deja
+  `async_tasks` sequentiellement : la queue ne touche pas au moteur, elle
+  ne fait que soumettre les jobs un par un. Zero cout quand desactivee
+  (aucun panneau, aucun import).
+
 ## [custom-13] — 2026-07-04 — Tag Autocomplete (booru tags + assets locaux)
 
 ### Added

@@ -4,7 +4,7 @@
 
 # Fooocus 2026 — Custom Fork
 
-> Version **`2026.2.0`** · A personal fork of **[lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) v2.5.5** with a series of quality-of-life features: a **Save Preset** button, **CivitAI Model Settings** integration (checkpoint triggers, consensus settings, save-as-preset), **LoRA trigger words** from local metadata + CivitAI, **Embeddings panel** with bulk-insert, **Wildcards editor**, **Vary-with-aspect-ratio** override, **Custom Resolution** (any ratio + size, snapped to /64), an **🖼️ Asset Browser** (PhotoSwipe-based standalone gallery for outputs + LoRAs/Checkpoints/Embeddings previews — opt-in, zero impact when disabled), **architecture filtering** (auto-hides Flux/SD3/LLMs from dropdowns — SD/SDXL only), a real **Restart UI** button, and an **🧩 Extra Plugins** tab that runs external upscalers (e.g. **crispz**) installed straight from a GitHub URL, and a **⌨️ Tag Autocomplete** for prompts (Danbooru/e621 tags + your own LoRA triggers, embeddings and wildcards — opt-in, zero impact when disabled).
+> Version **`2026.2.0`** · A personal fork of **[lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) v2.5.5** with a series of quality-of-life features: a **Save Preset** button, **CivitAI Model Settings** integration (checkpoint triggers, consensus settings, save-as-preset), **LoRA trigger words** from local metadata + CivitAI, **Embeddings panel** with bulk-insert, **Wildcards editor**, **Vary-with-aspect-ratio** override, **Custom Resolution** (any ratio + size, snapped to /64), an **🖼️ Asset Browser** (PhotoSwipe-based standalone gallery for outputs + LoRAs/Checkpoints/Embeddings previews — opt-in, zero impact when disabled), **architecture filtering** (auto-hides Flux/SD3/LLMs from dropdowns — SD/SDXL only), a real **Restart UI** button, and an **🧩 Extra Plugins** tab that runs external upscalers (e.g. **crispz**) installed straight from a GitHub URL, and a **⌨️ Tag Autocomplete** for prompts (Danbooru/e621 tags + your own LoRA triggers, embeddings and wildcards — opt-in, zero impact when disabled), and a **📋 Job Queue** (stack generations with different prompts/settings and run them back-to-back — opt-in).
 
 ![Fooocus2026 fork — Models tab showing CivitAI / LoRA / Embeddings / Wildcards accordions and Restart UI, with wildcards in the prompt](docs/screenshots/overview.png)
 
@@ -346,6 +346,19 @@ If you use a different model name or endpoint, set `omost.model` / `omost.endpoi
 
 ---
 
+### 15. 📋 Job Queue (batch generations, run overnight)
+**Where:** a **+ Queue** button under Generate + an **📋 Job Queue** accordion in the Advanced tab (master toggle `job_queue.enabled`, **OFF by default**).
+
+**What it does:** each click on **+ Queue** freezes a full snapshot of the current settings (prompt, negative, model, LoRAs, resolved seed, resolution, everything) and stacks it — even while a generation is running. The queue panel lists pending jobs with a readable label (`prompt | model | perf | seed | count`); select one to **Up / Down / Remove**, or **Clear** all. **▶ Run queue** chains the jobs one by one in the same progress window as Generate. Stack 15 variations, go to bed.
+
+**Stop = pause:** Stop interrupts the current job and pauses the queue — remaining jobs wait for the next Run queue. Skip skips the current image and the series continues. Nothing is ever lost.
+
+**Notes:** the queue lives in memory (a restart clears it — v1 choice, persistence considered for a v2). Snapshots holding input images (inpaint/upscale) stay in RAM, hence the `job_queue.max_jobs` guard (50 by default).
+
+**Zero impact when off:** no button, no panel, no import.
+
+---
+
 ## 🚀 Getting this fork
 
 ### Option A — I already have Fooocus installed
@@ -436,6 +449,8 @@ All upstream keys still apply. The fork adds a few of its own. Most have a UI co
 | `tag_autocomplete.replace_underscores` | `true` | bool | custom-13 | `long_hair` → `long hair` on insert. Set `false` for Pony-style raw tags. |
 | `tag_autocomplete.insert_comma` | `true` | bool | custom-13 | Append `", "` after each inserted tag. |
 | `tag_autocomplete.suggest_lora_triggers` / `.suggest_embeddings` / `.suggest_wildcards` | `true` | bool | custom-13 | Per-source toggles for the local library suggestions. |
+| `job_queue.enabled` | `false` | bool | custom-14 | Master toggle for the **📋 Job Queue**. OFF by default — when off, no button, no panel, no import. |
+| `job_queue.max_jobs` | `50` | int | custom-14 | Max pending jobs (snapshots with input images live in RAM). |
 
 Each value is clamped on save — bad values in `config.txt` fall back to the default rather than crashing.
 
@@ -458,6 +473,9 @@ Example fragment:
     "timeout": 120
   },
   "tag_autocomplete": {
+    "enabled": true
+  },
+  "job_queue": {
     "enabled": true
   }
 }
@@ -482,12 +500,13 @@ Example fragment:
 | `modules/omost_client.py` | **New** — Omost LLM call + `parse_canvas` + `flatten_to_prompt` helpers, Gradio-free (Layout/Omost) |
 | `gallery_template/index.html` + `_assets/` | **New** — Asset Browser SPA + bundled PhotoSwipe v5 / Dynamic Caption / Deep Zoom (custom-8) |
 | `launch.py` | Spawns Asset Browser model indexer in a daemon thread when enabled (custom-8) |
-| `webui.py` | All fork UI: Save Preset, CivitAI / LoRA / Embeddings / Wildcards accordions, Aspect-for-Vary, Custom Resolution panel, Asset Browser accordion + link button, **Layout/Omost** accordion (Layout/Omost), Restart UI button (moved to end of Advanced tab), **Extra Plugins** checkbox + panel + toggle (custom-12) |
+| `webui.py` | All fork UI: Save Preset, CivitAI / LoRA / Embeddings / Wildcards accordions, Aspect-for-Vary, Custom Resolution panel, Asset Browser accordion + link button, **Layout/Omost** accordion (Layout/Omost), Restart UI button (moved to end of Advanced tab), **Extra Plugins** checkbox + panel + toggle (custom-12), **Job Queue** button + accordion + run/pause wiring (custom-14) |
 | `extra_plugins/` | **New** — self-contained Extra Plugins subsystem: GitHub install + isolated venv, manifest parsing, CLI runner, per-plugin UI, settings persistence (custom-12). Runtime dirs (`installed/`, `outputs/`, `settings.json`) gitignored |
 | `run*.bat` / `run*.sh` / `boot_check_rtx5090.*` | **New** — RTX 5090 launch scripts (standard, realistic, anime, quality, boot diagnostic) for Windows + Mac/Linux |
 | `modules/tag_autocomplete.py` | **New** — tag CSV download + `tags/local_assets.json` builder (custom-13) |
 | `javascript/tag_autocomplete.js` | **New** — autocomplete dropdown UX, zero dependency (custom-13) |
 | `modules/ui_gradio_extensions.py` | Conditional injection of the Tag Autocomplete script + config meta (custom-13) |
+| `modules/job_queue.py` | **New** — thread-safe pending-jobs queue + labels, pure stdlib (custom-14) |
 | `CHANGELOG.md` | Per-release fork history |
 | `.gitignore` | Excludes `civitai_cache/`, local presets, assistant artifacts |
 

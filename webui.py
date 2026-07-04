@@ -33,7 +33,8 @@ def get_task(*args):
 
     return worker.AsyncTask(args=args)
 
-def generate_clicked(task: worker.AsyncTask):
+def execute_task_streaming(task: worker.AsyncTask):
+    """custom-14: corps de generation partage par Generate et Run queue."""
     import ldm_patched.modules.model_management as model_management
 
     with model_management.interrupt_processing_mutex:
@@ -94,6 +95,37 @@ def generate_clicked(task: worker.AsyncTask):
     execution_time = time.perf_counter() - execution_start_time
     print(f'Total time: {execution_time:.2f} seconds')
     return
+
+
+def generate_clicked(task: worker.AsyncTask):
+    # inchange : un seul job, comportement historique
+    yield from execute_task_streaming(task)
+
+
+def run_queue_clicked():
+    """custom-14 : depile et execute les jobs sequentiellement.
+    Stop = interrompt le job courant et met la file en pause (rien n'est perdu).
+    """
+    from modules import job_queue as jq
+    if len(jq.queue) == 0:
+        yield gr.update(visible=False), gr.update(visible=False), \
+            gr.update(visible=False), gr.update(visible=True)
+        return
+    jq.queue.paused = False
+    while not jq.queue.paused:
+        job = jq.queue.pop_next()
+        if job is None:
+            break
+        task = worker.AsyncTask(args=list(job.args))
+        jq.queue.current_task = task
+        print(f'[JobQueue] Job lance : {job.label} ({len(jq.queue)} restant(s))')
+        yield from execute_task_streaming(task)
+        jq.queue.current_task = None
+        if task.last_stop == 'stop':
+            jq.queue.paused = True
+            print(f'[JobQueue] Stop : file en pause, {len(jq.queue)} job(s) en attente.')
+            break
+    jq.queue.current_task = None
 
 
 def sort_enhance_images(images, task):
@@ -196,20 +228,32 @@ with shared.gradio_root:
 
                     def stop_clicked(currentTask):
                         import ldm_patched.modules.model_management as model_management
-                        currentTask.last_stop = 'stop'
-                        if (currentTask.processing):
+                        from modules import job_queue as jq
+                        # custom-14 : pendant Run queue, viser le job en cours
+                        task = jq.queue.current_task or currentTask
+                        task.last_stop = 'stop'
+                        jq.queue.paused = True  # pause la file, les jobs restants attendent
+                        if (task.processing):
                             model_management.interrupt_current_processing()
                         return currentTask
 
                     def skip_clicked(currentTask):
                         import ldm_patched.modules.model_management as model_management
-                        currentTask.last_stop = 'skip'
-                        if (currentTask.processing):
+                        from modules import job_queue as jq
+                        task = jq.queue.current_task or currentTask
+                        task.last_stop = 'skip'
+                        if (task.processing):
                             model_management.interrupt_current_processing()
                         return currentTask
 
                     stop_button.click(stop_clicked, inputs=currentTask, outputs=currentTask, queue=False, show_progress=False, _js='cancelGenerateForever')
                     skip_button.click(skip_clicked, inputs=currentTask, outputs=currentTask, queue=False, show_progress=False)
+
+                    # custom-14 : ajout a la file d'attente (visible si job_queue.enabled)
+                    if modules.config.job_queue_enabled():
+                        queue_add_button = gr.Button(label="+ Queue", value="\U0001F4CB + Queue",
+                                                     elem_classes='type_row_half', elem_id='queue_add_button',
+                                                     visible=True)
             with gr.Row(elem_classes='advanced_check_row'):
                 input_image_checkbox = gr.Checkbox(label='Input Image', value=modules.config.default_image_prompt_checkbox, container=False, elem_classes='min_check')
                 enhance_checkbox = gr.Checkbox(label='Enhance', value=modules.config.default_enhance_checkbox, container=False, elem_classes='min_check')
@@ -1122,6 +1166,22 @@ with shared.gradio_root:
                                       value=modules.config.default_sample_sharpness,
                                       info='Higher value means image and texture are sharper.')
                 gr.HTML('<a href="https://github.com/lllyasviel/Fooocus/discussions/117" target="_blank">\U0001F4D4 Documentation</a>')
+
+                # === custom-14: Job Queue (panneau cree seulement si active) ====
+                if modules.config.job_queue_enabled():
+                    with gr.Accordion(label='\U0001F4CB Job Queue', open=False, elem_id='job_queue_accordion'):
+                        gr.HTML('<div style="font-size:12px;color:#888;margin-bottom:6px;">'
+                                'Empilez des generations avec le bouton <b>+ Queue</b> sous Generate '
+                                '(chaque job fige les reglages du moment), puis lancez la serie. '
+                                'Stop interrompt le job courant et met la file en pause.</div>')
+                        queue_status = gr.HTML(value='File vide.')
+                        queue_display = gr.Radio(label='Jobs en attente', choices=[], value=None, interactive=True)
+                        with gr.Row():
+                            queue_run_button = gr.Button(value='\u25B6 Run queue', variant='primary', scale=2)
+                            queue_up_button = gr.Button(value='\U0001F53C Up', scale=1)
+                            queue_down_button = gr.Button(value='\U0001F53D Down', scale=1)
+                            queue_remove_button = gr.Button(value='\u274C Remove', scale=1)
+                            queue_clear_button = gr.Button(value='\U0001F5D1 Clear', scale=1)
 
                 # === custom-8: Asset Browser settings ============================
                 _ab_cfg = modules.config.asset_browser_config
@@ -2657,6 +2717,57 @@ with shared.gradio_root:
 
         metadata_import_button.click(trigger_metadata_import, inputs=[metadata_input_image, state_is_generating], outputs=load_data_outputs, queue=False, show_progress=True) \
             .then(style_sorter.sort_styles, inputs=style_selections, outputs=style_selections, queue=False, show_progress=False)
+
+        # === custom-14: cablage Job Queue =================================
+        if modules.config.job_queue_enabled():
+            from modules import job_queue as jq
+
+            def queue_refresh():
+                return gr.update(choices=jq.queue.labels(), value=None), jq.queue.status_text()
+
+            def queue_add(*args):
+                a = list(args)
+                a.pop(0)  # currentTask (meme convention que get_task)
+                pos = jq.queue.add(a, jq.make_label(a))
+                if pos < 0:
+                    print(f'[JobQueue] File pleine ({jq.queue.max_jobs} jobs max), ajout refuse.')
+                return queue_refresh()
+
+            def queue_remove(sel):
+                jq.queue.remove(jq.parse_index(sel))
+                return queue_refresh()
+
+            def queue_up(sel):
+                jq.queue.move(jq.parse_index(sel), -1)
+                return queue_refresh()
+
+            def queue_down(sel):
+                jq.queue.move(jq.parse_index(sel), +1)
+                return queue_refresh()
+
+            def queue_clear():
+                jq.queue.clear()
+                return queue_refresh()
+
+            jq.queue.max_jobs = int(modules.config.job_queue_setting('max_jobs') or 50)
+
+            queue_add_button.click(fn=refresh_seed, inputs=[seed_random, image_seed], outputs=image_seed,
+                                   queue=False, show_progress=False) \
+                .then(fn=queue_add, inputs=ctrls, outputs=[queue_display, queue_status],
+                      queue=False, show_progress=False)
+            queue_remove_button.click(queue_remove, inputs=queue_display, outputs=[queue_display, queue_status], queue=False, show_progress=False)
+            queue_up_button.click(queue_up, inputs=queue_display, outputs=[queue_display, queue_status], queue=False, show_progress=False)
+            queue_down_button.click(queue_down, inputs=queue_display, outputs=[queue_display, queue_status], queue=False, show_progress=False)
+            queue_clear_button.click(queue_clear, outputs=[queue_display, queue_status], queue=False, show_progress=False)
+
+            queue_run_button.click(lambda: (gr.update(visible=True, interactive=True), gr.update(visible=True, interactive=True), gr.update(visible=False, interactive=False), [], True),
+                                   outputs=[stop_button, skip_button, generate_button, gallery, state_is_generating]) \
+                .then(fn=run_queue_clicked, outputs=[progress_html, progress_window, progress_gallery, gallery]) \
+                .then(lambda: (gr.update(visible=True, interactive=True), gr.update(visible=False, interactive=False), gr.update(visible=False, interactive=False), False),
+                      outputs=[generate_button, stop_button, skip_button, state_is_generating]) \
+                .then(fn=queue_refresh, outputs=[queue_display, queue_status], queue=False, show_progress=False) \
+                .then(fn=update_history_link, outputs=history_link) \
+                .then(fn=lambda: None, _js='playNotification').then(fn=lambda: None, _js='refresh_grid_delayed')
 
         generate_button.click(lambda: (gr.update(visible=True, interactive=True), gr.update(visible=True, interactive=True), gr.update(visible=False, interactive=False), [], True),
                               outputs=[stop_button, skip_button, generate_button, gallery, state_is_generating]) \

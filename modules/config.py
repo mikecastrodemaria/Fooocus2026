@@ -666,6 +666,37 @@ def tag_autocomplete_enabled():
         return False
 
 
+# === custom-14: Job Queue (file d'attente de generations, OFF by default) ===
+_job_queue_defaults = {
+    'enabled': False,
+    'max_jobs': 50,
+}
+job_queue_config = get_config_item_or_set_default(
+    key='job_queue',
+    default_value=dict(_job_queue_defaults),
+    validator=lambda x: isinstance(x, dict),
+    expected_type=dict
+)
+for _k, _v in _job_queue_defaults.items():
+    job_queue_config.setdefault(_k, _v)
+
+
+def job_queue_setting(key, default=None):
+    if key in _job_queue_defaults and default is None:
+        default = _job_queue_defaults[key]
+    try:
+        return job_queue_config.get(key, default)
+    except Exception:
+        return default
+
+
+def job_queue_enabled():
+    try:
+        return bool(job_queue_config.get('enabled', False))
+    except Exception:
+        return False
+
+
 def asset_browser_setting(key, default=None):
     """Safe getter for any asset_browser sub-key. Used everywhere instead of
     direct dict access so a malformed config.txt never crashes the hook.
