@@ -74,6 +74,22 @@ Only fork-specific changes are listed here — upstream history is available via
   croyait Fooocus gele. Chaque etape longue a maintenant un debut, une
   progression et une fin visibles.
 
+## [custom-15.3] — 2026-07-04 — xyz_cli.py : la grille en ligne de commande
+
+### Added
+- **`xyz_cli.py`** a la racine : lance une grille X/Y/Z sans navigateur.
+  `--prompt`, `--x "CFG:3,5,7"`, `--y`/`--z` optionnels, `--preset`,
+  `--seed`, `--performance`, `--aspect`, `--output-format`, et `--dry-run`
+  qui construit et valide tous les jobs sans rien generer. Les flags
+  Fooocus (--always-gpu, etc.) passent a travers. Purge VRAM au changement
+  de checkpoint comme dans la queue UI, Ctrl+C propre, planche dans
+  outputs/xyz_grids/.
+- **Garde-fou anti-derive** : chaque snapshot est valide en construisant un
+  AsyncTask a blanc; si l'ordre des ctrls change dans async_worker.py, le
+  script refuse de demarrer au lieu de generer avec des parametres decales.
+  Teste : builder de 162 ctrls aligne sur la consommation exacte de
+  AsyncTask.__init__ (comptage derive de la source).
+
 ## [custom-15.2] — 2026-07-04 — Axe Prompt S/R (search & replace)
 
 ### Added

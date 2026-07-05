@@ -377,6 +377,8 @@ Local entries also carry a text badge (`[lora-name]`, `[embedding]`, `[wildcard]
 
 **What it does:** pick 1 to 3 axes among CFG, Steps, Sampler, Scheduler, Sharpness, Checkpoint, LoRA 1 weight and **Preset** (applies the whole preset per cell — model, LoRAs, CFG, sampler, styles, negative — while keeping your prompt and aspect ratio constant), plus **Prompt S/R** (a1111-style search & replace: first value is the term to find in your prompt, the rest are its replacements, quotes protect commas), give each a comma-separated value list, hit build. Every combination lands in the job queue as a regular job (1 image per cell, same seed everywhere so the comparison is honest). When the series finishes, an annotated sheet (512px thumbnails, X values as columns, Y as rows, one sheet per Z value) is saved to `outputs/xyz_grids/` and shown in the gallery. Individual full-res images stay in outputs and the Asset Browser as usual.
 
+**CLI:** `xyz_cli.py` runs a grid headless: `python_embeded\Scripts\python.exe -s xyz_cli.py --prompt "..." --x "CFG:3,5,7" --y "Steps:20,40" --dry-run` (drop `--dry-run` to generate). Presets, seed, performance and Fooocus flags are supported; sheets land in `outputs/xyz_grids/` as usual.
+
 **Notes:** value fields have context-aware autosuggest (samplers, schedulers, your checkpoints and presets, classic calibration values for numeric axes; partial names accepted). A 3x2x2 grid is 12 generations, plan accordingly. Stop pauses the queue as usual; the sheet assembles once the series is completed on a later run.
 
 ---
@@ -530,6 +532,7 @@ Example fragment:
 | `modules/ui_gradio_extensions.py` | Conditional injection of the Tag Autocomplete script + config meta (custom-13) |
 | `modules/job_queue.py` | **New** — thread-safe pending-jobs queue + labels, pure stdlib (custom-14) |
 | `modules/xyz_grid.py` | **New** — X/Y/Z grid: axis registry, combo expansion, Pillow sheet assembly (custom-15) |
+| `xyz_cli.py` | **New** — headless X/Y/Z grid runner with ctrl-order validation (custom-15.3) |
 | `CHANGELOG.md` | Per-release fork history |
 | `.gitignore` | Excludes `civitai_cache/`, local presets, assistant artifacts |
 
