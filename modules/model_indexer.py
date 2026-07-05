@@ -447,7 +447,14 @@ def _resolve_full_path(rel_filename: str, paths) -> str:
 
 def scan_loras() -> list:
     items = []
-    for filename in (modules.config.lora_filenames or []):
+    _files = list(modules.config.lora_filenames or [])
+    _total = len(_files)
+    _kind = 'scan_loras'.replace('scan_', '')
+    if _total:
+        print(f'[asset-browser]   {_kind}: {_total} fichiers a indexer...')
+    for _idx, filename in enumerate(_files, 1):
+        if _idx % 25 == 0:
+            print(f'[asset-browser]   {_kind}: {_idx}/{_total}')
         full = _resolve_full_path(filename, modules.config.paths_loras)
         if not full:
             continue
@@ -460,7 +467,14 @@ def scan_loras() -> list:
 
 def scan_checkpoints() -> list:
     items = []
-    for filename in (modules.config.model_filenames or []):
+    _files = list(modules.config.model_filenames or [])
+    _total = len(_files)
+    _kind = 'scan_checkpoints'.replace('scan_', '')
+    if _total:
+        print(f'[asset-browser]   {_kind}: {_total} fichiers a indexer...')
+    for _idx, filename in enumerate(_files, 1):
+        if _idx % 25 == 0:
+            print(f'[asset-browser]   {_kind}: {_idx}/{_total}')
         full = _resolve_full_path(filename, modules.config.paths_checkpoints)
         if not full:
             continue
@@ -473,7 +487,14 @@ def scan_checkpoints() -> list:
 
 def scan_embeddings() -> list:
     items = []
-    for filename in (modules.config.embedding_filenames or []):
+    _files = list(modules.config.embedding_filenames or [])
+    _total = len(_files)
+    _kind = 'scan_embeddings'.replace('scan_', '')
+    if _total:
+        print(f'[asset-browser]   {_kind}: {_total} fichiers a indexer...')
+    for _idx, filename in enumerate(_files, 1):
+        if _idx % 25 == 0:
+            print(f'[asset-browser]   {_kind}: {_idx}/{_total}')
         full = _resolve_full_path(filename, [modules.config.path_embeddings])
         if not full:
             continue

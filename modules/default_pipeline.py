@@ -71,8 +71,16 @@ def refresh_base_model(name, vae_name=None):
     if model_base.filename == filename and model_base.vae_filename == vae_filename:
         return
 
+    try:
+        _sz_gb = os.path.getsize(filename) / (1024 ** 3)
+        print(f'[Boot] Chargement du checkpoint {os.path.basename(filename)} '
+              f'({_sz_gb:.1f} Go) depuis le disque, cela peut prendre un moment...', flush=True)
+    except OSError:
+        pass
+    import time as _time
+    _t0 = _time.perf_counter()
     model_base = core.load_model(filename, vae_filename)
-    print(f'Base model loaded: {model_base.filename}')
+    print(f'Base model loaded in {_time.perf_counter() - _t0:.1f}s: {model_base.filename}')
     print(f'VAE loaded: {model_base.vae_filename}')
     return
 
@@ -93,6 +101,11 @@ def refresh_refiner_model(name):
         print(f'Refiner unloaded.')
         return
 
+    try:
+        print(f'[Boot] Chargement du refiner {os.path.basename(filename)} '
+              f'({os.path.getsize(filename) / (1024 ** 3):.1f} Go)...', flush=True)
+    except OSError:
+        pass
     model_refiner = core.load_model(filename)
     print(f'Refiner model loaded: {model_refiner.filename}')
 

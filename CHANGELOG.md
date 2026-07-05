@@ -57,6 +57,23 @@ Only fork-specific changes are listed here — upstream history is available via
   `nom,categorie,count,"alias1,alias2"` ou simplement un mot par ligne
   (le parseur JS tolere desormais les lignes a une colonne).
 
+## [custom-16] — 2026-07-04 — Boot bavard (fin des silences inquietants)
+
+### Changed
+- **Scan Asset Browser** : chaque categorie annonce son total au demarrage
+  (`[asset-browser]   loras: 58 fichiers a indexer...`) puis loggue tous les
+  25 fichiers. Le thread de boot n'est plus un trou noir.
+- **Chargement des checkpoints** : ligne `[Boot] Chargement du checkpoint
+  X (6.6 Go) depuis le disque, cela peut prendre un moment...` avant la
+  lecture du safetensors (le plus long silence du boot), et duree affichee
+  a la fin (`Base model loaded in 12.3s`). Idem pour le refiner.
+
+### Why
+- Sur un boot a froid (cache disque vide), lire 7 Go + indexer des
+  centaines de modeles prend du temps sans aucune sortie terminal : on
+  croyait Fooocus gele. Chaque etape longue a maintenant un debut, une
+  progression et une fin visibles.
+
 ## [custom-15.2] — 2026-07-04 — Axe Prompt S/R (search & replace)
 
 ### Added
