@@ -247,6 +247,11 @@ def on_job_done(meta, image_path):
             return None
         if image_path:
             g['cells'][(meta['z'], meta['y'], meta['x'])] = image_path
+            print(f"[XYZ] case {len(g['cells'])}/{g['expected']} enregistree "
+                  f"(x={meta['x'] + 1}, y={meta['y'] + 1}, z={meta['z'] + 1})", flush=True)
+        else:
+            print(f"[XYZ] WARNING: aucune image pour la case x={meta['x'] + 1}, "
+                  f"y={meta['y'] + 1}, z={meta['z'] + 1} (elle restera vide)", flush=True)
         done = len(g['cells']) >= g['expected']
         if done:
             del _GROUPS[meta['group']]
