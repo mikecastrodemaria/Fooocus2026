@@ -15,7 +15,7 @@ omegaconf==2.3.0
 # would break every custom-* feature (8, 9, 10). Known Dependabot alerts for
 # gradio 3.41.x (path traversal, SSRF, /file access) are NOT exploitable in
 # the intended local/LAN deployment — see "Security note" in readme.md.
-gradio==3.41.2
+gradio==6.15.1
 # DO NOT BUMP fastapi / starlette. Gradio 3.41.2 uses the legacy
 # TemplateResponse(name, context) signature. starlette 1.0.0 (and fastapi
 # >= 0.115 which transitively pulls it) removed that overload — calling it
