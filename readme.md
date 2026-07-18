@@ -4,7 +4,7 @@
 
 # Fooocus 2026 — Custom Fork
 
-> Version **`2026.2.0`** · A personal fork of **[lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) v2.5.5** with a series of quality-of-life features: a **Save Preset** button, **CivitAI Model Settings** integration (checkpoint triggers, consensus settings, save-as-preset), **LoRA trigger words** from local metadata + CivitAI, **Embeddings panel** with bulk-insert, **Wildcards editor**, **Vary-with-aspect-ratio** override, **Custom Resolution** (any ratio + size, snapped to /64), an **🖼️ Asset Browser** (PhotoSwipe-based standalone gallery for outputs + LoRAs/Checkpoints/Embeddings previews — opt-in, zero impact when disabled), **architecture filtering** (auto-hides Flux/SD3/LLMs from dropdowns — SD/SDXL only), a real **Restart UI** button, and an **🧩 Extra Plugins** tab that runs external upscalers (e.g. **crispz**) installed straight from a GitHub URL, and a **⌨️ Tag Autocomplete** for prompts (Danbooru/e621 tags + your own LoRA triggers, embeddings and wildcards — zero impact when disabled), a **📋 Job Queue** (stack generations with different prompts/settings and run them back-to-back), and an **📊 X/Y/Z Grid** that turns the queue into annotated comparison sheets.
+> Version **`2026.3.0`** · A personal fork of **[lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) v2.5.5** with a series of quality-of-life features: a **Save Preset** button, **CivitAI Model Settings** integration (checkpoint triggers, consensus settings, save-as-preset), **LoRA trigger words** from local metadata + CivitAI, **Embeddings panel** with bulk-insert, **Wildcards editor**, **Vary-with-aspect-ratio** override, **Custom Resolution** (any ratio + size, snapped to /64), an **🖼️ Asset Browser** (PhotoSwipe-based standalone gallery for outputs + LoRAs/Checkpoints/Embeddings previews — opt-in, zero impact when disabled), **architecture filtering** (auto-hides Flux/SD3/LLMs from dropdowns — SD/SDXL only), a real **Restart UI** button, and an **🧩 Extra Plugins** tab that runs external upscalers (e.g. **crispz**) installed straight from a GitHub URL, and a **⌨️ Tag Autocomplete** for prompts (Danbooru/e621 tags + your own LoRA triggers, embeddings and wildcards — zero impact when disabled), a **📋 Job Queue** (stack generations with different prompts/settings and run them back-to-back — Generate stays clickable mid-generation, jobs added on the fly start on their own), and an **📊 X/Y/Z Grid** that turns the queue into annotated comparison sheets.
 
 ![Fooocus2026 fork — Models tab showing CivitAI / LoRA / Embeddings / Wildcards accordions and Restart UI, with wildcards in the prompt](docs/screenshots/overview.png)
 
@@ -362,11 +362,13 @@ Local entries also carry a text badge (`[lora-name]`, `[embedding]`, `[wildcard]
 ### 15. 📋 Job Queue (batch generations, run overnight)
 **Where:** a **+ Queue** button under Generate + a **📋 Job Queue** checkbox next to Input Image / Enhance / Advanced that unfolds the queue panel inline (master toggle `job_queue.enabled`, **ON by default** — set it to `false` to opt out).
 
-**What it does:** each click on **+ Queue** freezes a full snapshot of the current settings (prompt, negative, model, LoRAs, resolved seed, resolution, everything) and stacks it — even while a generation is running. The queue panel lists pending jobs with a readable label (`prompt | model | perf | seed | count`); select one to **Up / Down / Remove**, or **Clear** all. **▶ Run queue** chains the jobs one by one in the same progress window as Generate. Stack 15 variations, go to bed.
+**What it does:** each click on **+ Queue** freezes a full snapshot of the current settings (prompt, negative, model, LoRAs, resolved seed, resolution, everything) and stacks it. The queue panel lists pending jobs with a readable label (`prompt | model | perf | seed | count`); select one to **Up / Down / Remove**, or **Clear** all. **▶ Run queue** chains the jobs one by one in the same progress window as Generate. Stack 15 variations, go to bed.
+
+**Fire-and-forget (custom-17):** **Generate stays clickable while a generation is running** — each click stacks one more job, which starts automatically as soon as the previous one finishes. Tweak the prompt, hit Generate again, repeat; you never wait for the GPU to be free before queuing the next idea. Under the hood Generate and Run queue share a single execution path: the queue is drained by a live runner that idles instead of exiting, so jobs added mid-flight are picked up on their own. Execution stays strictly sequential (one worker thread, one GPU) — what custom-17 removes is the *queuing* lock, not the serialisation.
 
 **Stop = pause:** Stop interrupts the current job and pauses the queue — remaining jobs wait for the next Run queue. Skip skips the current image and the series continues. Nothing is ever lost.
 
-**Notes:** the queue lives in memory (a restart clears it — v1 choice, persistence considered for a v2). Snapshots holding input images (inpaint/upscale) stay in RAM, hence the `job_queue.max_jobs` guard (50 by default).
+**Notes:** the queue lives in memory (a restart clears it — v1 choice, persistence considered for a v2). Snapshots holding input images (inpaint/upscale) stay in RAM, hence the `job_queue.max_jobs` guard (50 by default). The runner goes back to sleep after 60 s with an empty queue; the next Generate wakes it.
 
 **Zero impact when off:** no button, no panel, no import.
 
@@ -510,7 +512,7 @@ Example fragment:
 ## 📁 Files touched by this fork
 | File | Purpose |
 |---|---|
-| `fooocus_version.py` | Version bumped to `2026.2.0` (CalVer) |
+| `fooocus_version.py` | Version bumped to `2026.3.0` (CalVer) |
 | `modules/civitai_api.py` | **New** — CivitAI client, caching, consensus aggregation, model+embedding triggers |
 | `modules/lora_metadata.py` | **New** — local safetensors metadata reader for LoRA/embedding triggers |
 | `modules/util.py` | Adds `compute_custom_wh()` — ratio + size → snapped W×H (custom-7) |

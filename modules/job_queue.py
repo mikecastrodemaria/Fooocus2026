@@ -1,6 +1,6 @@
 """custom-14 — Job Queue (file d'attente de generations).
 
-File en memoire, thread-safe, consommee par run_queue_clicked (webui.py).
+File en memoire, thread-safe, consommee par queue_runner (webui.py).
 Chaque job est un snapshot complet des ctrls au moment de l'ajout, donc
 totalement independant de l'etat de l'UI au moment de l'execution.
 
@@ -9,6 +9,12 @@ stop_clicked puisse l'importer sans cout meme quand la feature est off.
 
 Stop pendant Run queue = interrompt le job courant + met la file en pause
 (les jobs restants attendent un nouveau Run queue). Rien n'est jamais perdu.
+
+custom-17 : la file est desormais drainee par un *runner vivant* (voir
+queue_runner() dans webui.py). Le runner ne sort plus quand la file est vide :
+il idle et ramasse les jobs ajoutes a chaud, ce qui permet de lancer une
+generation pendant qu'une autre tourne. Un seul runner a la fois, garanti par
+try_acquire_runner() / release_runner().
 """
 import re
 import threading
@@ -32,6 +38,24 @@ class JobQueue:
         self.max_jobs = max_jobs
         self.paused = False
         self.current_task = None  # AsyncTask en cours quand Run queue tourne
+        # custom-17 : un seul runner a la fois, sinon deux generateurs se
+        # disputent la GPU et le flag global interrupt_processing.
+        self._runner_lock = threading.Lock()
+        self.runner_active = False
+        self.idle_timeout = 60.0  # secondes de file vide avant que le runner sorte
+
+    def try_acquire_runner(self):
+        """True si l'appelant devient LE runner. False si un runner tourne deja
+        (auquel cas il ramassera les jobs tout seul, rien a faire)."""
+        with self._runner_lock:
+            if self.runner_active:
+                return False
+            self.runner_active = True
+            return True
+
+    def release_runner(self):
+        with self._runner_lock:
+            self.runner_active = False
 
     def __len__(self):
         with self._lock:
@@ -73,11 +97,19 @@ class JobQueue:
             return [f'#{i + 1} | {j.label}' for i, j in enumerate(self._jobs)]
 
     def status_text(self):
+        # custom-17 : refletent aussi l'etat du runner (actif / en cours de job).
         n = len(self)
+        cur = self.current_task
+        running = ''
+        if cur is not None:
+            running = ' Job en cours.'
+        elif self.runner_active:
+            running = ' Runner en attente de jobs.'
         if n == 0:
-            return 'File vide.'
-        state = 'en pause (Stop) — relancez Run queue' if self.paused else 'prete'
-        return f'{n} job(s) en attente, file {state}.'
+            return ('File vide.' + running).strip()
+        if self.paused:
+            return f'{n} job(s) en attente, file en pause (Stop) — relancez Run queue.'
+        return f'{n} job(s) en attente, file en cours de traitement.{running}'.strip()
 
 
 queue = JobQueue()

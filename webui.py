@@ -98,60 +98,112 @@ def execute_task_streaming(task: worker.AsyncTask):
 
 
 def generate_clicked(task: worker.AsyncTask):
-    # inchange : un seul job, comportement historique
+    # chemin historique, utilise seulement quand job_queue.enabled = false
     yield from execute_task_streaming(task)
 
 
-def run_queue_clicked():
-    """custom-14 : depile et execute les jobs sequentiellement.
-    Stop = interrompt le job courant et met la file en pause (rien n'est perdu).
+def queue_state_updates():
+    """custom-17 : les 3 updates du panneau de file (display, status, bouton).
+    Duplique volontairement queue_refresh() qui vit dans le scope gr.Blocks."""
+    from modules import job_queue as jq
+    n = len(jq.queue)
+    btn = '+ Queue' if n == 0 else f'+ Queue ({n})'
+    return (gr.update(choices=jq.queue.labels(), value=None),
+            jq.queue.status_text(),
+            gr.update(value=btn))
+
+
+def purge_vram_if_model_changed(prev_model, next_model):
+    """custom-14.2 : purge VRAM quand le checkpoint change entre deux jobs.
+    Avec --disable-offload-from-vram, l'ancien modele resterait charge a cote
+    du nouveau -> debordement VRAM -> sysmem fallback -> s/it x50."""
+    if prev_model is None or not next_model or next_model == prev_model:
+        return
+    try:
+        import ldm_patched.modules.model_management as _mm
+        print(f'[JobQueue] Changement de checkpoint ({prev_model} -> {next_model}) : purge VRAM.')
+        _mm.unload_all_models()
+        _mm.soft_empty_cache()
+    except Exception as _e:
+        print(f'[JobQueue] WARNING purge VRAM: {_e}')
+
+
+def queue_runner():
+    """custom-17 : runner vivant. Draine la file en continu et, contrairement a
+    l'ancien run_queue_clicked, ne sort PAS quand la file est vide : il idle et
+    ramasse les jobs ajoutes a chaud. C'est ce qui permet de cliquer Generate
+    (ou + Queue) pendant qu'un job tourne deja.
+
+    Un seul runner a la fois : si un autre detient deja le verrou, on rend la
+    main immediatement sans rien yielder (l'appelant ne touche a aucun output).
+
+    Sortie : Stop (pause de la file) ou idle_timeout secondes sans job.
+    outputs = [progress_html, progress_window, progress_gallery, gallery,
+               queue_display, queue_status, queue_add_button]
     """
     from modules import job_queue as jq
-    if len(jq.queue) == 0:
-        yield gr.update(visible=False), gr.update(visible=False), \
-            gr.update(visible=False), gr.update(visible=True)
+
+    if not jq.queue.try_acquire_runner():
+        print('[JobQueue] Runner deja actif, le job vient d\'etre enfile.')
         return
-    jq.queue.paused = False
+
     prev_model = None
-    while not jq.queue.paused:
-        job = jq.queue.pop_next()
-        if job is None:
-            break
-        # custom-14.2 : purge VRAM quand le checkpoint change entre deux jobs.
-        # Avec --disable-offload-from-vram, l'ancien modele resterait charge a
-        # cote du nouveau -> debordement VRAM -> sysmem fallback -> s/it x50.
-        try:
-            next_model = job.args[12]
-        except Exception:
-            next_model = None
-        if prev_model is not None and next_model and next_model != prev_model:
+    try:
+        jq.queue.paused = False
+        idle_since = time.perf_counter()
+
+        while not jq.queue.paused:
+            job = jq.queue.pop_next()
+
+            if job is None:
+                if time.perf_counter() - idle_since > jq.queue.idle_timeout:
+                    print('[JobQueue] File vide depuis '
+                          f'{jq.queue.idle_timeout:.0f}s : runner en veille.')
+                    break
+                time.sleep(0.1)
+                continue
+
             try:
-                import ldm_patched.modules.model_management as _mm
-                print(f'[JobQueue] Changement de checkpoint ({prev_model} -> {next_model}) : purge VRAM.')
-                _mm.unload_all_models()
-                _mm.soft_empty_cache()
-            except Exception as _e:
-                print(f'[JobQueue] WARNING purge VRAM: {_e}')
-        if next_model:
-            prev_model = next_model
-        task = worker.AsyncTask(args=list(job.args))
-        jq.queue.current_task = task
-        print(f'[JobQueue] Job lance : {job.label} ({len(jq.queue)} restant(s))')
-        yield from execute_task_streaming(task)
+                next_model = job.args[12]
+            except Exception:
+                next_model = None
+            purge_vram_if_model_changed(prev_model, next_model)
+            if next_model:
+                prev_model = next_model
+
+            task = worker.AsyncTask(args=list(job.args))
+            jq.queue.current_task = task
+            print(f'[JobQueue] Job lance : {job.label} ({len(jq.queue)} restant(s))')
+
+            for out in execute_task_streaming(task):
+                yield out + queue_state_updates()
+
+            jq.queue.current_task = None
+
+            # custom-15 : si ce job appartient a une grille XYZ complete, assembler
+            if getattr(job, 'meta', None):
+                import modules.xyz_grid as xyz
+                first_img = next((r for r in task.results if isinstance(r, str)), None)
+                grids = xyz.on_job_done(job.meta, first_img)
+                if grids:
+                    yield (gr.update(visible=False), gr.update(visible=False),
+                           gr.update(visible=False), gr.update(visible=True, value=grids)) \
+                        + queue_state_updates()
+
+            if task.last_stop == 'stop':
+                jq.queue.paused = True
+                print(f'[JobQueue] Stop : file en pause, {len(jq.queue)} job(s) en attente.')
+                break
+
+            idle_since = time.perf_counter()
+    finally:
+        # doit tourner meme sur GeneratorExit (onglet ferme, reset) sinon le
+        # verrou reste pris et plus aucun job ne partirait jamais.
         jq.queue.current_task = None
-        # custom-15 : si ce job appartient a une grille XYZ complete, assembler
-        if getattr(job, 'meta', None):
-            import modules.xyz_grid as xyz
-            first_img = next((r for r in task.results if isinstance(r, str)), None)
-            grids = xyz.on_job_done(job.meta, first_img)
-            if grids:
-                yield gr.update(visible=False), gr.update(visible=False), \
-                    gr.update(visible=False), gr.update(visible=True, value=grids)
-        if task.last_stop == 'stop':
-            jq.queue.paused = True
-            print(f'[JobQueue] Stop : file en pause, {len(jq.queue)} job(s) en attente.')
-            break
-    jq.queue.current_task = None
+        jq.queue.release_runner()
+
+    yield (gr.update(visible=False), gr.update(visible=False),
+           gr.update(visible=False), gr.update()) + queue_state_updates()
 
 
 def sort_enhance_images(images, task):
@@ -211,7 +263,10 @@ title = f'Fooocus {fooocus_version.version}'
 if isinstance(args_manager.args.preset, str):
     title += ' ' + args_manager.args.preset
 
-shared.gradio_root = gr.Blocks(title=title).queue()
+# custom-17 : plusieurs slots pour que + Queue / Run queue / Generate passent
+# pendant qu'un generateur de streaming occupe deja la queue Gradio.
+# NB Gradio 3.41 : c'est concurrency_count, pas concurrency_limit (API 4.x).
+shared.gradio_root = gr.Blocks(title=title).queue(concurrency_count=4)
 
 with shared.gradio_root:
     currentTask = gr.State(worker.AsyncTask(args=[]))
@@ -291,9 +346,11 @@ with shared.gradio_root:
                 with gr.Row(visible=False) as job_queue_panel:
                     with gr.Column():
                         gr.HTML('<div style="font-size:12px;color:#888;margin-bottom:6px;">'
-                                'Empilez des generations avec le bouton <b>+ Queue</b> sous Generate '
-                                '(chaque job fige les reglages du moment), puis lancez la serie. '
-                                'Stop interrompt le job courant et met la file en pause.</div>')
+                                '<b>Generate</b> reste cliquable pendant une generation : chaque clic '
+                                'empile un job de plus, qui part automatiquement des que le precedent '
+                                'se termine. <b>+ Queue</b> empile sans lancer (chaque job fige les '
+                                'reglages du moment). <b>Stop</b> interrompt le job courant et met la '
+                                'file en pause — relancez avec Run queue, rien n\'est perdu.</div>')
                         queue_status = gr.HTML(value='File vide.')
                         queue_display = gr.Radio(label='Jobs en attente', choices=[], value=None, interactive=True)
                         # custom-15 : grille X/Y/Z, les combos partent dans la queue
@@ -2788,6 +2845,26 @@ with shared.gradio_root:
                     traceback.print_exc()
                 return queue_refresh()
 
+            # custom-17 : Generate enfile comme + Queue. Chemin d'execution unique,
+            # donc cliquer Generate pendant un job en cours empile au lieu de bloquer.
+            def generate_enqueue(*args):
+                return queue_add(*args)
+
+            # custom-17 : ne restaurer les boutons que si plus aucun runner ne tourne.
+            # Un 2e clic sur Generate pendant un job retombe ici immediatement (son
+            # queue_runner a rendu la main sans yielder) et ne doit rien masquer.
+            # outputs=[generate_button, stop_button, skip_button, state_is_generating]
+            def after_run():
+                if jq.queue.runner_active:
+                    return gr.update(), gr.update(), gr.update(), True
+                return (gr.update(visible=True, interactive=True),
+                        gr.update(visible=False, interactive=False),
+                        gr.update(visible=False, interactive=False), False)
+
+            runner_outputs = [progress_html, progress_window, progress_gallery, gallery,
+                              queue_display, queue_status, queue_add_button]
+            run_state_outputs = [generate_button, stop_button, skip_button, state_is_generating]
+
             def queue_remove(sel):
                 jq.queue.remove(jq.parse_index(sel))
                 return queue_refresh()
@@ -2840,35 +2917,51 @@ with shared.gradio_root:
                 .then(fn=xyz_build,
                       inputs=ctrls + [xyz_x_param, xyz_x_vals, xyz_y_param, xyz_y_vals, xyz_z_param, xyz_z_vals],
                       outputs=[queue_display, queue_status, queue_add_button],
-                      show_progress=False)
+                      queue=False, show_progress=False)
 
             queue_add_button.click(fn=refresh_seed, inputs=[seed_random, image_seed], outputs=image_seed,
                                    queue=False, show_progress=False) \
                 .then(fn=queue_add, inputs=ctrls, outputs=[queue_display, queue_status, queue_add_button],
-                      show_progress=False)
+                      queue=False, show_progress=False)
             queue_remove_button.click(queue_remove, inputs=queue_display, outputs=[queue_display, queue_status, queue_add_button], queue=False, show_progress=False)
             queue_up_button.click(queue_up, inputs=queue_display, outputs=[queue_display, queue_status, queue_add_button], queue=False, show_progress=False)
             queue_down_button.click(queue_down, inputs=queue_display, outputs=[queue_display, queue_status, queue_add_button], queue=False, show_progress=False)
             queue_clear_button.click(queue_clear, outputs=[queue_display, queue_status, queue_add_button], queue=False, show_progress=False)
 
-            queue_run_button.click(lambda: (gr.update(visible=True, interactive=True), gr.update(visible=True, interactive=True), gr.update(visible=False, interactive=False), [], True),
-                                   outputs=[stop_button, skip_button, generate_button, gallery, state_is_generating]) \
-                .then(fn=run_queue_clicked, outputs=[progress_html, progress_window, progress_gallery, gallery]) \
-                .then(lambda: (gr.update(visible=True, interactive=True), gr.update(visible=False, interactive=False), gr.update(visible=False, interactive=False), False),
-                      outputs=[generate_button, stop_button, skip_button, state_is_generating]) \
+            # custom-17 : Run queue reveille le runner. Si un runner tourne deja,
+            # queue_runner rend la main aussitot et after_run ne masque rien.
+            queue_run_button.click(lambda: (gr.update(visible=True, interactive=True), gr.update(visible=True, interactive=True), True),
+                                   outputs=[stop_button, skip_button, state_is_generating], queue=False) \
+                .then(fn=queue_runner, outputs=runner_outputs) \
+                .then(fn=after_run, outputs=run_state_outputs, queue=False) \
                 .then(fn=queue_refresh, outputs=[queue_display, queue_status, queue_add_button], queue=False, show_progress=False) \
                 .then(fn=update_history_link, outputs=history_link) \
-                .then(fn=lambda: None, _js='playNotification').then(fn=lambda: None, _js='refresh_grid_delayed')
+                .then(fn=lambda: None, _js='playNotificationIfIdle').then(fn=lambda: None, _js='refresh_grid_delayed')
 
-        generate_button.click(lambda: (gr.update(visible=True, interactive=True), gr.update(visible=True, interactive=True), gr.update(visible=False, interactive=False), [], True),
-                              outputs=[stop_button, skip_button, generate_button, gallery, state_is_generating]) \
-            .then(fn=refresh_seed, inputs=[seed_random, image_seed], outputs=image_seed) \
-            .then(fn=get_task, inputs=ctrls, outputs=currentTask) \
-            .then(fn=generate_clicked, inputs=currentTask, outputs=[progress_html, progress_window, progress_gallery, gallery]) \
-            .then(lambda: (gr.update(visible=True, interactive=True), gr.update(visible=False, interactive=False), gr.update(visible=False, interactive=False), False),
-                  outputs=[generate_button, stop_button, skip_button, state_is_generating]) \
-            .then(fn=update_history_link, outputs=history_link) \
-            .then(fn=lambda: None, _js='playNotification').then(fn=lambda: None, _js='refresh_grid_delayed')
+            # === custom-17: Generate unifie ==================================
+            # Generate = enfiler + reveiller le runner. Le bouton reste visible et
+            # cliquable pendant une generation : chaque clic empile un job de plus.
+            generate_button.click(lambda: (gr.update(visible=True, interactive=True), gr.update(visible=True, interactive=True), True),
+                                  outputs=[stop_button, skip_button, state_is_generating], queue=False) \
+                .then(fn=refresh_seed, inputs=[seed_random, image_seed], outputs=image_seed, queue=False) \
+                .then(fn=generate_enqueue, inputs=ctrls,
+                      outputs=[queue_display, queue_status, queue_add_button],
+                      queue=False, show_progress=False) \
+                .then(fn=queue_runner, outputs=runner_outputs) \
+                .then(fn=after_run, outputs=run_state_outputs, queue=False) \
+                .then(fn=update_history_link, outputs=history_link) \
+                .then(fn=lambda: None, _js='playNotificationIfIdle').then(fn=lambda: None, _js='refresh_grid_delayed')
+        else:
+            # chemin historique, inchange, quand job_queue.enabled = false
+            generate_button.click(lambda: (gr.update(visible=True, interactive=True), gr.update(visible=True, interactive=True), gr.update(visible=False, interactive=False), [], True),
+                                  outputs=[stop_button, skip_button, generate_button, gallery, state_is_generating]) \
+                .then(fn=refresh_seed, inputs=[seed_random, image_seed], outputs=image_seed) \
+                .then(fn=get_task, inputs=ctrls, outputs=currentTask) \
+                .then(fn=generate_clicked, inputs=currentTask, outputs=[progress_html, progress_window, progress_gallery, gallery]) \
+                .then(lambda: (gr.update(visible=True, interactive=True), gr.update(visible=False, interactive=False), gr.update(visible=False, interactive=False), False),
+                      outputs=[generate_button, stop_button, skip_button, state_is_generating]) \
+                .then(fn=update_history_link, outputs=history_link) \
+                .then(fn=lambda: None, _js='playNotification').then(fn=lambda: None, _js='refresh_grid_delayed')
 
         reset_button.click(lambda: [worker.AsyncTask(args=[]), False, gr.update(visible=True, interactive=True)] +
                                    [gr.update(visible=False)] * 6 +

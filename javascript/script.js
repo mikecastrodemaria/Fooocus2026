@@ -250,6 +250,15 @@ function playNotification() {
     gradioApp().querySelector('#audio_notification audio')?.play();
 }
 
+// custom-17 : avec la file d'attente vivante, un clic sur Generate pendant un
+// job en cours termine sa chaine tout de suite (le job est juste empile).
+// On ne sonne que si plus rien ne tourne, c.-a-d. si Stop est masque.
+function playNotificationIfIdle() {
+    const stop = gradioApp().querySelector('#stop_button');
+    if (stop && stop.offsetParent !== null) return;
+    playNotification();
+}
+
 function set_theme(theme) {
     var gradioURL = window.location.href;
     if (!gradioURL.includes('?__theme=')) {

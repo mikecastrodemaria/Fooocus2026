@@ -3,6 +3,60 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-17] — 2026-07-18 — File d'attente vivante : enfiler pendant qu'un job tourne
+
+### Changed
+- **Generate reste cliquable pendant une generation.** Chaque clic empile un
+  job de plus, qui part automatiquement des que le precedent se termine. Le
+  bouton n'est plus masque au profit de Skip/Stop, il cohabite avec eux.
+- **Chemin d'execution unique** : quand `job_queue.enabled` est vrai, Generate
+  n'appelle plus `execute_task_streaming` en direct — il enfile dans la file
+  puis reveille le runner, exactement comme `+ Queue` + `Run queue`. Une seule
+  logique a maintenir au lieu de deux. Le comportement solo est identique quand
+  la file est vide (le job part immediatement). Le chemin historique
+  (`generate_clicked`) est conserve intact pour `job_queue.enabled = false`.
+- `run_queue_clicked` devient **`queue_runner`** : il ne sort plus quand la file
+  est vide, il idle (poll 10 Hz) et ramasse les jobs ajoutes a chaud. Sortie sur
+  Stop (pause de la file) ou apres `idle_timeout` (60 s) sans job, pour ne pas
+  garder une connexion Gradio ouverte indefiniment. Un nouveau clic Generate le
+  redemarre.
+- Le panneau de file se rafraichit **pendant** l'execution : `queue_runner`
+  yield 7 valeurs au lieu de 4 (les 4 historiques + `queue_display`,
+  `queue_status`, `queue_add_button`). Gradio 3.41 n'a pas `gr.Timer` et `every=`
+  a deja pose souci sur ce fork, les yields du runner sont plus surs.
+- `JobQueue.status_text()` distingue desormais file en pause / en cours de
+  traitement / runner en veille.
+
+### Fixed
+- `+ Queue` et `Construire la grille` restaient **pendus** quand on cliquait
+  pendant une generation : leur callback partait dans la queue Gradio, saturee
+  par le generateur de streaming. Ajout de `queue=False` (meme levier que Stop /
+  Skip et les autres actions de file).
+- `.queue()` passe a `concurrency_count=4` : un seul slot ne suffisait pas pour
+  que les actions de file passent pendant un stream. (Gradio 3.41 : c'est
+  `concurrency_count`, `concurrency_limit` est l'API 4.x.)
+- Un 2e clic sur Generate pendant un job ne joue plus la notification sonore ni
+  ne masque Skip/Stop : `after_run` verifie `runner_active` avant de restaurer
+  l'UI, et le nouveau `playNotificationIfIdle` ne sonne que si Stop est masque.
+
+### Added
+- `JobQueue.try_acquire_runner()` / `release_runner()` : verrou garantissant un
+  seul runner a la fois. Sans lui, deux generateurs se disputeraient la GPU et
+  le flag global `interrupt_processing`. Libere dans un `finally`, donc tenu
+  meme sur `GeneratorExit` (onglet ferme, Reconnect).
+
+### Notes
+- Stop garde sa semantique : interrompt le job courant **et** met la file en
+  pause, les jobs restants attendent un `Run queue`. Rien n'est perdu.
+- L'execution reste **sequentielle** — un seul thread worker, une seule GPU.
+  custom-17 leve la contrainte d'*enfilement*, pas celle d'execution parallele.
+
+### Files
+- `webui.py` : `queue_runner`, `queue_state_updates`, `purge_vram_if_model_changed`,
+  `generate_enqueue`, `after_run`, cablage Generate / Run queue, `concurrency_count`.
+- `modules/job_queue.py` : verrou runner, `idle_timeout`, `status_text`.
+- `javascript/script.js` : `playNotificationIfIdle`.
+
 ## [custom-14.2] — 2026-07-04 — Purge VRAM au changement de checkpoint dans la queue
 
 ### Fixed
