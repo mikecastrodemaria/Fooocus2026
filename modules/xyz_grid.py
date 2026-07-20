@@ -27,7 +27,10 @@ def _indices():
         'sharpness': 10,
         'cfg': 11,
         'checkpoint': 12,
-        'lora1_weight': 17,          # 15 + 2 (enabled, name, weight du slot 1)
+        # slot LoRA 1 : 15 = enabled, 16 = name, 17 = weight
+        'lora1_enabled': 15,
+        'lora1_name': 16,
+        'lora1_weight': 17,
         'sampler': base + 17,
         'scheduler': base + 18,
         'steps': base + 20,          # overwrite_step
@@ -43,9 +46,18 @@ AXES = {
     'Sharpness': ('sharpness', float),
     'Checkpoint': ('checkpoint', str),
     'LoRA 1 weight': ('lora1_weight', float),
+    # custom-18 : comparer plusieurs LoRA dans le slot 1 (epochs d'un meme
+    # entrainement, versions CivitAI...). 'name' garde le poids du panneau,
+    # 'name+weight' fait varier les deux ensemble ('mon_lora:0.8').
+    'LoRA 1 name': ('lora1_name', str),
+    'LoRA 1 name+weight': ('lora1_name_weight', str),
     'Preset': ('preset', str),   # custom-15.1 : applique tout le preset sur la case
     'Prompt S/R': ('prompt_sr', str),  # custom-15.2 : 1re valeur = terme cherche, suivantes = remplacements
 }
+
+# axes dont les valeurs sont des noms de fichiers : decoupage CSV (un nom peut
+# contenir une virgule) et pas de cast numerique.
+_LORA_NAME_KEYS = ('lora1_name', 'lora1_name_weight')
 AXIS_CHOICES = ['(aucun)'] + list(AXES.keys())
 
 
@@ -54,12 +66,33 @@ def parse_values(axis_name, raw):
     Prompt S/R : decoupage CSV (guillemets acceptes pour proteger une virgule)."""
     if axis_name not in AXES:
         raise ValueError(f'axe inconnu: {axis_name}')
-    if AXES[axis_name][0] == 'prompt_sr':
+    key = AXES[axis_name][0]
+    if key == 'prompt_sr':
         import csv as _csv
         vals = [v.strip() for v in next(_csv.reader([str(raw)], skipinitialspace=True)) if v.strip()]
         if len(vals) < 2:
             raise ValueError('Prompt S/R: au moins 2 valeurs (terme cherche, remplacement, ...)')
         return vals
+    if key in _LORA_NAME_KEYS:
+        import csv as _csv
+        vals = [v.strip() for v in next(_csv.reader([str(raw)], skipinitialspace=True)) if v.strip()]
+        if not vals:
+            raise ValueError(f'{axis_name}: aucune valeur')
+        if key == 'lora1_name':
+            # resolution immediate : une faute de frappe est signalee au clic sur
+            # "Construire", pas 40 minutes plus tard au milieu de la serie.
+            return [_resolve_lora(v) for v in vals]
+        out = []
+        for v in vals:
+            name, _, w = str(v).rpartition(':')
+            if not name:
+                raise ValueError(f'{axis_name}: "{v}" doit s\'ecrire nom:poids (ex. mon_lora:0.8)')
+            try:
+                weight = float(w.strip().replace(',', '.'))
+            except ValueError:
+                raise ValueError(f'{axis_name}: poids invalide dans "{v}" (attendu nom:0.8)')
+            out.append((_resolve_lora(name.strip()), weight))
+        return out
     _, caster = AXES[axis_name]
     vals = [v.strip() for v in str(raw).split(',') if v.strip()]
     if not vals:
@@ -148,8 +181,45 @@ def _resolve_checkpoint(v):
     raise ValueError(f'checkpoint ambigu "{v0}": {", ".join(cands[:4])}')
 
 
+def _resolve_lora(v):
+    """custom-18 : tolerance de saisie sur les noms de LoRA. 'ollie_e20' suffit si
+    un seul fichier correspond, ce qui evite de recopier
+    'sub\\dossier\\monLora_v3_e000020.safetensors' dans la case. 'None' = slot
+    desactive (case temoin sans LoRA)."""
+    import modules.config as _cfg
+    names = list(getattr(_cfg, 'lora_filenames', []))
+    v0 = str(v).strip()
+    if v0.lower() in ('none', '(aucun)', '-'):
+        return 'None'
+    if v0 in names or not names:
+        return v0
+    low = v0.lower()
+    cands = [n for n in names if low in n.lower()]
+    if len(cands) == 1:
+        return cands[0]
+    if not cands:
+        # 2e chance sans l'extension ni le dossier, pour coller a l'affichage
+        stems = [n for n in names if low in os.path.splitext(os.path.basename(n))[0].lower()]
+        if len(stems) == 1:
+            return stems[0]
+        raise ValueError(f'LoRA introuvable: "{v0}" (voir les dropdowns LoRA)')
+    raise ValueError(f'LoRA ambigu "{v0}": {", ".join(cands[:4])}')
+
+
 def _apply(args, axis_name, value):
     key = AXES[axis_name][0]
+    if key in _LORA_NAME_KEYS:
+        idx = _indices()
+        if key == 'lora1_name_weight':
+            name, weight = value
+            args[idx['lora1_weight']] = weight
+        else:
+            name = value
+        args[idx['lora1_name']] = name
+        # un slot decoche ne serait pas charge : on l'active, sauf pour la case
+        # temoin 'None' ou on le desactive franchement.
+        args[idx['lora1_enabled']] = (name != 'None')
+        return
     if key == 'prompt_sr':
         search, repl = value
         args[1] = str(args[1]).replace(search, repl)
@@ -166,6 +236,22 @@ def _apply(args, axis_name, value):
 
 
 def _fmt(axis_name, value):
+    key = AXES[axis_name][0] if axis_name in AXES else None
+    if key in _LORA_NAME_KEYS:
+        # custom-18 : on tronque par la GAUCHE. Les LoRA compares ne different
+        # souvent que par leur suffixe (..._e000010 / ..._e000020) : couper la fin
+        # rendrait toutes les colonnes identiques.
+        weight = None
+        if key == 'lora1_name_weight':
+            value, weight = value
+        name = os.path.splitext(os.path.basename(str(value)))[0]
+        if len(name) > 28:
+            name = '...' + name[-25:]
+        if weight is not None:
+            if float(weight) == int(weight):
+                weight = int(weight)
+            name = f'{name} @ {weight}'
+        return f'{axis_name}={name}'
     if isinstance(value, tuple):          # Prompt S/R : afficher le remplacement
         value = value[1]
     if isinstance(value, float) and value == int(value):

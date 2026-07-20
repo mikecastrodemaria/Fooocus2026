@@ -3,6 +3,53 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-18] — 2026-07-20 — Axes LoRA dans la grille X/Y/Z
+
+### Added
+- **Axe `LoRA 1 name`** : fait varier le *fichier* du slot LoRA 1 en gardant le
+  poids regle dans le panneau. Cas d'usage vise : comparer les epochs d'un meme
+  entrainement (`sickOllie_e000010, e000020, e000030`) ou plusieurs versions
+  CivitAI du meme LoRA.
+- **Axe `LoRA 1 name+weight`** : fait varier les deux ensemble, ecrit
+  `nom:poids` (`monLora_e10:0.6, monLora_e20:0.8`), pour quand le poids optimal
+  differe d'un epoch a l'autre.
+- **Resolution floue des noms**, comme pour l'axe Checkpoint : n'importe quel
+  fragment non ambigu suffit (`e000020` au lieu de
+  `sous\dossier\monLora_v3_e000020.safetensors`). 2e passe sur le nom de base
+  si le chemin complet ne donne rien. Un fragment inconnu ou ambigu leve une
+  erreur **au clic sur Construire**, pas au milieu de la serie.
+- Valeur `None` acceptee : desactive le slot, ce qui donne une case temoin sans
+  LoRA dans la planche.
+
+### Fixed
+- Les etiquettes de cases sont tronquees **par la gauche** pour les axes LoRA.
+  La troncature a droite existante (28 car.) aurait coupe le suffixe `_e000020`
+  qui est justement ce qui distingue les LoRA compares : toutes les colonnes
+  auraient porte le meme titre.
+- **`xyz_cli.py` ne scannait jamais les modeles** (bug present depuis
+  custom-15.3) : `import modules.config` laisse `model_filenames` et
+  `lora_filenames` **vides**, c'est `launch.py` qui appelle `update_files()` et
+  le CLI ne passe pas par la. Consequence : l'axe `Checkpoint` acceptait
+  n'importe quelle valeur sans la resoudre, et la serie partait avec un nom de
+  fichier inexistant. Le CLI appelle desormais `update_files()`.
+- CLI : une valeur invalide sortait en traceback Python. Les `ValueError` de
+  `parse_values` et de `expand` (l'axe Checkpoint resout dans `_apply`, donc
+  pendant l'expansion) sont converties en message net `[xyz-cli] ...`.
+
+### Notes
+- Le slot vise est **LoRA 1**, par coherence avec l'axe `LoRA 1 weight` existant.
+- Un slot decoche ne serait pas charge : l'axe active le slot 1 automatiquement
+  (sauf pour `None`, ou il le desactive franchement).
+- Les valeurs passent par un parseur CSV : un nom de fichier contenant une
+  virgule fonctionne s'il est entre guillemets.
+- `xyz_cli.py` fonctionne sans modification : il decoupe l'axe sur le *premier*
+  `:` (`--x "LoRA 1 name+weight:a:0.6, b:0.8"`), le poids est lu sur le dernier.
+
+### Files
+- `modules/xyz_grid.py` : axes `lora1_name` / `lora1_name_weight`, `_resolve_lora`,
+  parsing CSV + couple nom:poids, `_apply` (3 indices du slot), `_fmt`.
+- `xyz_cli.py` : `update_files()` au demarrage, erreurs de valeur en message net.
+
 ## [custom-17] — 2026-07-18 — File d'attente vivante : enfiler pendant qu'un job tourne
 
 ### Changed

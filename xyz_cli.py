@@ -65,7 +65,13 @@ def parse_axis_arg(raw, xyz):
         raise SystemExit(f'[xyz-cli] format attendu "NomAxe:val1,val2" (recu: "{raw}")')
     name, values = raw.split(':', 1)
     axis = resolve_axis(name, xyz)
-    return axis, xyz.parse_values(axis, values)
+    try:
+        return axis, xyz.parse_values(axis, values)
+    except ValueError as e:
+        # custom-18 : valeur invalide (LoRA introuvable, poids illisible) -> message
+        # net, pas une traceback. Le nom de l'axe est deja dans le message quand il
+        # apporte quelque chose, on ne le repete pas.
+        raise SystemExit(f'[xyz-cli] {e}')
 
 
 def build_base_args(a):
@@ -177,6 +183,12 @@ def main():
     import modules.config  # noqa: F401  (charge la config + listes de modeles)
     import modules.xyz_grid as xyz
 
+    # custom-18 : l'import seul laisse model_filenames/lora_filenames VIDES (c'est
+    # launch.py qui scanne, et le CLI ne passe pas par la). Sans ce scan, les axes
+    # Checkpoint et LoRA acceptaient n'importe quelle valeur sans la resoudre :
+    # la serie partait avec un nom de fichier inexistant.
+    modules.config.update_files()
+
     base = build_base_args(a)
     if a.preset:
         xyz._apply_preset(base, a.preset)
@@ -188,7 +200,12 @@ def main():
     if a.z:
         spec.append(parse_axis_arg(a.z, xyz))
 
-    jobs, group = xyz.expand(base, spec)
+    try:
+        jobs, group = xyz.expand(base, spec)
+    except ValueError as e:
+        # custom-18 : l'axe Checkpoint resout ses valeurs ici (dans _apply), pas au
+        # parsing -> sans ce filet, un modele introuvable sortait en traceback.
+        raise SystemExit(f'[xyz-cli] {e}')
     print(f'[xyz-cli] {len(jobs)} cases a generer '
           f'({group["nx"]}x{group["ny"]}x{group["nz"]}), seed {base[8]}.')
 
