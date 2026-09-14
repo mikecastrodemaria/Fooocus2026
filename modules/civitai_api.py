@@ -9,6 +9,7 @@ Strategy:
   4. Analyze the generation metadata (meta) to extract consensus settings
 """
 
+import hashlib
 import json
 import os
 import threading
@@ -737,3 +738,178 @@ def fetch_lora_triggers_combined(lora_filename, paths_loras, api_key=None, force
         filename=lora_filename, paths=paths_loras, kind='lora',
         api_key=api_key, force_refresh=force_refresh,
     )
+
+
+# ---------------------------------------------------------------------------
+# custom-22 : recherche + telechargement de modeles CivitAI (porte de crispz,
+# cz_civitai.search_loras / download_model_file). Jusqu'ici le fork lisait les
+# reglages et les triggers d'un modele deja present, sans pouvoir en recuperer un.
+# ---------------------------------------------------------------------------
+_DOWNLOAD_UA = 'Fooocus2026 (CivitAI-Integration)'
+SEARCH_TYPES = ['LORA', 'Checkpoint', 'TextualInversion']
+SEARCH_BASES = ['SDXL 1.0', 'Pony', 'Illustrious', 'NoobAI', 'SD 1.5', 'Any']
+
+
+def _norm_base(s):
+    return ''.join(ch for ch in str(s or '').lower() if ch.isalnum())
+
+
+def base_model_support(base):
+    """(niveau, note) d'une base CivitAI face au filtre d'architecture du fork (custom-10) :
+    'ok' famille SDXL ; 'sd15' SD 1.x/2.x (refiner, LoRA SD 1.5) ; 'hidden' autre
+    architecture (Flux, SD3...) que Fooocus masque de ses listes ; 'unknown' non precise."""
+    b = ' '.join(str(base or '').lower().replace('.', ' ').split())
+    if not b or b == 'other':
+        return 'unknown', 'base model not stated'
+    if any(k in b for k in ('sdxl', 'pony', 'illustrious', 'noobai')):
+        return 'ok', 'SDXL family'
+    if b.startswith('sd 1') or b.startswith('sd 2'):
+        return 'sd15', 'SD 1.x/2.x: usable as refiner or SD 1.5 LoRA, not as SDXL base model'
+    return 'hidden', 'not SD/SDXL: Fooocus2026 hides this architecture from its lists'
+
+
+def _preview_url(version, nsfw):
+    for img in version.get('images') or []:
+        if not isinstance(img, dict) or not img.get('url') or img.get('type') == 'video':
+            continue
+        if not nsfw and (img.get('nsfwLevel') or 0) > 1:
+            continue
+        return img['url']
+    return ''
+
+
+def search_models(query, types='LORA', base_model=None, limit=20, api_key=None, nsfw=False):
+    """GET /models?query=... Renvoie une liste PLATE, une entree par VERSION (les versions
+    d'une meme page visent souvent des bases differentes). base_model remonte les versions
+    de cette base en tete sans exclure les autres (tri stable). [] sur echec reseau ou
+    aucun resultat, jamais d'exception."""
+    q = str(query or '').strip()
+    if not q:
+        return []
+    params = {'query': q, 'types': types, 'limit': int(limit), 'sort': 'Highest Rated',
+              'nsfw': 'true' if nsfw else 'false'}
+    data = _api_request('/models', params, api_key=api_key)
+    out = []
+    for m in (data or {}).get('items') or []:
+        if not isinstance(m, dict) or m.get('id') is None:
+            continue
+        for v in m.get('modelVersions') or []:
+            if not isinstance(v, dict) or v.get('id') is None:
+                continue
+            files = [f for f in (v.get('files') or []) if isinstance(f, dict)]
+            f = next((x for x in files if x.get('primary')), files[0] if files else {})
+            level, note = base_model_support(v.get('baseModel'))
+            out.append({
+                'modelId': m.get('id'),
+                'modelName': str(m.get('name') or '').strip(),
+                'type': str(m.get('type') or types),
+                'creator': str((m.get('creator') or {}).get('username') or '').strip(),
+                'nsfw': bool(m.get('nsfw')),
+                'versionId': v.get('id'),
+                'versionName': str(v.get('name') or '').strip(),
+                'baseModel': str(v.get('baseModel') or '').strip(),
+                'fileName': str(f.get('name') or '').strip(),
+                'sizeKB': float(f.get('sizeKB') or 0),
+                'downloadUrl': str(f.get('downloadUrl') or v.get('downloadUrl') or '').strip(),
+                'sha256': str((f.get('hashes') or {}).get('SHA256') or '').strip().lower(),
+                'trainedWords': [str(w).strip() for w in (v.get('trainedWords') or []) if str(w).strip()],
+                'previewUrl': _preview_url(v, nsfw),
+                'url': f"https://civitai.com/models/{m.get('id')}?modelVersionId={v.get('id')}",
+                'support': level,
+                'support_note': note,
+            })
+    if base_model and base_model != 'Any':
+        want = _norm_base(base_model)
+        out.sort(key=lambda e: 0 if _norm_base(e['baseModel']) == want else 1)
+    return out
+
+
+def candidate_label(index, cand):
+    """Libelle d'un resultat pour la liste : marque ce que Fooocus ne pourra pas utiliser."""
+    mark = {'hidden': '⛔ ', 'sd15': '⚠ ', 'unknown': '? '}.get(cand.get('support'), '')
+    size = cand.get('sizeKB') or 0
+    size_txt = f'{size / 1024:.0f} MB' if size >= 1024 else f'{size:.0f} KB'
+    by = f" · by {cand['creator']}" if cand.get('creator') else ''
+    return (f"{index + 1}. {mark}{cand.get('modelName')} — {cand.get('versionName')} "
+            f"[{cand.get('baseModel') or '?'}] {size_txt}{by}")
+
+
+def _remove_quietly(path):
+    try:
+        if path and os.path.isfile(path):
+            os.remove(path)
+    except OSError:
+        pass
+
+
+def download_model_file(cand, dest_dir, api_key=None, progress=None):
+    """Telecharge le fichier d'un candidat search_models() dans dest_dir.
+
+    Stream par blocs de 1 Mo vers '<nom>.part', SHA256 calcule PENDANT le telechargement
+    et compare a celui annonce par CivitAI : mismatch = fichier supprime + echec (jamais de
+    modele corrompu silencieux). Renomme a la fin, n'ecrase jamais un fichier existant.
+    progress(frac|None, texte) optionnel. Renvoie {success, message, path}, jamais d'exception.
+    """
+    def _p(frac, text):
+        if progress:
+            try:
+                progress(frac, text)
+            except Exception:
+                pass
+
+    tmp = None
+    try:
+        cand = cand or {}
+        url = str(cand.get('downloadUrl') or '').strip()
+        if not url and cand.get('versionId'):
+            url = f"https://civitai.com/api/download/models/{cand['versionId']}"
+        if not url:
+            return {'success': False, 'message': 'no download URL for this version', 'path': ''}
+        if api_key:
+            url += ('&' if '?' in url else '?') + urlencode({'token': api_key})
+        fname = os.path.basename(str(cand.get('fileName') or '').strip().replace('\\', '/'))
+        if not fname:
+            fname = f"civitai_{cand.get('versionId') or 'model'}.safetensors"
+        os.makedirs(dest_dir, exist_ok=True)
+        dest = os.path.join(dest_dir, fname)
+        if os.path.isfile(dest):
+            return {'success': True, 'message': f'{fname} already exists (not overwritten)', 'path': dest}
+        expected = str(cand.get('sha256') or '').strip().lower()
+        req = Request(url, headers={'User-Agent': _DOWNLOAD_UA})
+        h = hashlib.sha256()
+        done = 0
+        tmp = dest + '.part'
+        try:
+            with urlopen(req, timeout=60) as r:
+                total = int(r.headers.get('Content-Length') or 0) or int(float(cand.get('sizeKB') or 0) * 1024)
+                with open(tmp, 'wb') as f:
+                    for chunk in iter(lambda: r.read(1 << 20), b''):
+                        f.write(chunk)
+                        h.update(chunk)
+                        done += len(chunk)
+                        if total:
+                            frac = min(1.0, done / total)
+                            _p(frac, f'Downloading {fname}... {int(frac * 100)}% ({done / 1024 ** 2:.0f} MB)')
+                        else:
+                            _p(None, f'Downloading {fname}... {done / 1024 ** 2:.0f} MB')
+        except HTTPError as e:
+            _remove_quietly(tmp)
+            hint = (' (this file needs a CivitAI API key: save one in the panel above)'
+                    if e.code in (401, 403) and not api_key else '')
+            return {'success': False, 'message': f'download failed: HTTP {e.code} {e.reason}{hint}', 'path': ''}
+        sha = h.hexdigest().lower()
+        if expected and len(expected) == 64 and sha != expected:
+            _remove_quietly(tmp)
+            return {'success': False,
+                    'message': f'SHA256 mismatch for {fname}: corrupted download, file removed', 'path': ''}
+        os.replace(tmp, dest)
+        _full_hash_cache[dest] = sha  # le fetch de reglages/triggers ne relira pas le fichier
+        print(f'[CivitAI] Downloaded {fname} ({done / 1024 ** 2:.0f} MB) -> {dest_dir}')
+        verified = 'verified' if expected else 'not published by CivitAI, recorded'
+        return {'success': True,
+                'message': f'{fname} downloaded ({done / 1024 ** 2:.0f} MB, SHA256 {verified})',
+                'path': dest}
+    except Exception as e:
+        if tmp:
+            _remove_quietly(tmp)
+        return {'success': False, 'message': f'download failed: {e}', 'path': ''}

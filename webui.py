@@ -1150,6 +1150,27 @@ with shared.gradio_root:
                             variant='primary', scale=2, visible=False)
                     civitai_save_preset_status = gr.HTML(value='', visible=False)
 
+                    # custom-22 : chercher et telecharger un modele CivitAI (verification SHA256)
+                    with gr.Accordion(label='\U0001F50E Search & download from CivitAI', open=False):
+                        gr.HTML('<div style="font-size:12px;color:#888;margin-bottom:4px;">'
+                                'Find a LoRA, checkpoint or embedding by name and download it into your '
+                                'models folder. The file is checked against the SHA256 published by '
+                                'CivitAI and never overwrites an existing one. ⛔ = architecture '
+                                'Fooocus hides (Flux, SD3...), ⚠ = SD 1.x (refiner / SD 1.5 LoRA only). '
+                                'Some files need the API key saved above.</div>')
+                        with gr.Row():
+                            civitai_search_query = gr.Textbox(label='Name', placeholder='e.g. ink style, detail tweaker...', scale=4)
+                            civitai_search_type = gr.Dropdown(label='Type', choices=modules.civitai_api.SEARCH_TYPES, value='LORA', scale=2)
+                            civitai_search_base = gr.Dropdown(label='Base model first', choices=modules.civitai_api.SEARCH_BASES, value='SDXL 1.0', scale=2)
+                        with gr.Row():
+                            civitai_search_nsfw = gr.Checkbox(label='Include NSFW', value=False, scale=1)
+                            civitai_search_btn = gr.Button(value='\U0001F50E Search', variant='secondary', scale=2)
+                        civitai_search_results = gr.Dropdown(label='Results (one entry per version)', choices=[], value=None, interactive=True)
+                        civitai_search_state = gr.State(value=[])
+                        civitai_search_preview = gr.HTML(value='')
+                        civitai_download_btn = gr.Button(value='⬇ Download into the models folder', variant='primary')
+                        civitai_download_status = gr.HTML(value='')
+
                 with gr.Accordion(label='\U0001F9EC LoRA', open=True):
                     lora_ctrls = []
                     lora_model_dropdowns = []
@@ -1809,6 +1830,111 @@ with shared.gradio_root:
                     refresh_files_output += [preset_selection]
                 refresh_files.click(refresh_files_clicked, [], refresh_files_output + lora_ctrls,
                                     queue=False, show_progress=False)
+
+                # === custom-22 : CivitAI search & download ==========================
+                _CIVITAI_KIND = {'LORA': 'loras', 'Checkpoint': 'checkpoints', 'TextualInversion': 'embeddings'}
+
+                def _civitai_dest_dir(model_type):
+                    kind = _CIVITAI_KIND.get(model_type, 'loras')
+                    if kind == 'checkpoints':
+                        return modules.config.paths_checkpoints[0]
+                    if kind == 'embeddings':
+                        return modules.config.path_embeddings
+                    return modules.config.paths_loras[0]
+
+                def _civitai_box(msg, color='#888'):
+                    import html as _html
+                    return (f'<div style="padding:6px 8px;border:1px solid #444;border-radius:6px;'
+                            f'color:{color};font-size:13px;">{_html.escape(msg)}</div>')
+
+                def _civitai_candidate_html(cand, model_type):
+                    if not cand:
+                        return ''
+                    import html as _html
+                    esc = _html.escape
+                    color = {'ok': '#4ecdc4', 'sd15': '#ffa500', 'hidden': '#ff6b6b'}.get(cand.get('support'), '#888')
+                    img = (f'<img src="{esc(cand["previewUrl"])}" style="max-width:180px;max-height:180px;'
+                           f'border-radius:6px;object-fit:contain;" />' if cand.get('previewUrl') else '')
+                    triggers = ', '.join(cand.get('trainedWords') or []) or '—'
+                    sha = 'published' if cand.get('sha256') else 'not published (download cannot be verified)'
+                    return (f'<div style="display:flex;gap:10px;padding:8px;border:1px solid #444;border-radius:8px;">'
+                            f'{img}<div style="font-size:13px;line-height:1.55;">'
+                            f'<b>{esc(cand.get("modelName", ""))}</b> — {esc(cand.get("versionName", ""))}<br>'
+                            f'Base: {esc(cand.get("baseModel") or "?")} — '
+                            f'<span style="color:{color}">{esc(cand.get("support_note", ""))}</span><br>'
+                            f'File: {esc(cand.get("fileName") or "?")} · SHA256 {sha}<br>'
+                            f'Trigger words: {esc(triggers)}<br>'
+                            f'Destination: <code>{esc(_civitai_dest_dir(model_type))}</code><br>'
+                            f'<a href="{esc(cand.get("url", ""))}" target="_blank">Open on CivitAI</a>'
+                            f'</div></div>')
+
+                def _civitai_pick(label, cands):
+                    try:
+                        idx = int(str(label).split('.', 1)[0]) - 1
+                    except (TypeError, ValueError):
+                        return None
+                    return cands[idx] if cands and 0 <= idx < len(cands) else None
+
+                def civitai_search_clicked(query, model_type, base, nsfw):
+                    if not str(query or '').strip():
+                        return gr.update(choices=[], value=None), [], '', _civitai_box('Type a name to search.')
+                    cands = modules.civitai_api.search_models(
+                        query, types=model_type, base_model=base, nsfw=bool(nsfw),
+                        api_key=modules.config.civitai_api_key or None)
+                    if not cands:
+                        return (gr.update(choices=[], value=None), [], '',
+                                _civitai_box('No result (or CivitAI unreachable, see the console).'))
+                    labels = [modules.civitai_api.candidate_label(i, c) for i, c in enumerate(cands)]
+                    return (gr.update(choices=labels, value=labels[0]), cands,
+                            _civitai_candidate_html(cands[0], model_type),
+                            _civitai_box(f'{len(cands)} version(s) found.'))
+
+                def civitai_result_selected(label, cands, model_type):
+                    return _civitai_candidate_html(_civitai_pick(label, cands), model_type)
+
+                def civitai_download_clicked(label, cands, model_type, progress=gr.Progress()):
+                    cand = _civitai_pick(label, cands)
+                    if cand is None:
+                        return _civitai_box('Search, then pick a result first.', '#ffa500')
+                    res = modules.civitai_api.download_model_file(
+                        cand, _civitai_dest_dir(model_type),
+                        api_key=modules.config.civitai_api_key or None,
+                        progress=lambda frac, text: progress(frac if frac is not None else 0, desc=text))
+                    if not res['success']:
+                        return _civitai_box(res['message'], '#ff6b6b')
+                    msg = res['message']
+                    try:
+                        from modules.model_indexer import fetch_civitai_preview_for
+                        prev = fetch_civitai_preview_for(_CIVITAI_KIND.get(model_type, 'loras'),
+                                                         os.path.basename(res['path']))
+                        if prev.get('success'):
+                            msg += ' Preview saved for the Asset Browser.'
+                    except Exception:
+                        pass
+                    if cand.get('support') == 'hidden':
+                        msg += ' Note: Fooocus will hide it from its lists (architecture not SD/SDXL).'
+                    elif cand.get('trainedWords'):
+                        msg += ' Trigger words: ' + ', '.join(cand['trainedWords']) + '.'
+                    if model_type == 'TextualInversion':
+                        msg += ' Refresh the Embeddings panel to see it.'
+                    return _civitai_box(msg, '#4ecdc4')
+
+                _civitai_search_io = dict(
+                    inputs=[civitai_search_query, civitai_search_type, civitai_search_base, civitai_search_nsfw],
+                    outputs=[civitai_search_results, civitai_search_state, civitai_search_preview, civitai_download_status],
+                    queue=False)
+                civitai_search_btn.click(civitai_search_clicked, **_civitai_search_io)
+                civitai_search_query.submit(civitai_search_clicked, **_civitai_search_io)
+                civitai_search_results.change(civitai_result_selected,
+                                              inputs=[civitai_search_results, civitai_search_state, civitai_search_type],
+                                              outputs=civitai_search_preview, queue=False, show_progress=False)
+                # le telechargement passe par la queue Gradio (barre de progression), puis les
+                # listes de modeles se rafraichissent : le fichier est choisissable tout de suite
+                civitai_download_btn.click(civitai_download_clicked,
+                                           inputs=[civitai_search_results, civitai_search_state, civitai_search_type],
+                                           outputs=civitai_download_status) \
+                    .then(refresh_files_clicked, [], refresh_files_output + lora_ctrls,
+                          queue=False, show_progress=False)
 
                 def _restart_ui():
                     """Exit the Python process with code 42, which the launcher .bat

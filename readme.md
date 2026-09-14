@@ -123,6 +123,8 @@ Filenames are sanitised (letters/digits/underscore/dash only). Create rejects co
 }
 ```
 
+**Search & download (custom-22):** the same accordion has a **🔎 Search & download from CivitAI** section. Type a name, pick the type (LoRA, Checkpoint, TextualInversion) and the base model to list first (SDXL 1.0 by default, Pony, Illustrious, NoobAI, SD 1.5), hit **Search**: every *version* is listed, with its base model, size, author, trigger words and a preview (NSFW excluded unless ticked). Results Fooocus cannot use are flagged before you download: ⛔ architectures the fork hides from its lists (Flux, SD3…), ⚠ SD 1.x (refiner / SD 1.5 LoRA only). **Download** streams the file into the first folder of that type (`path_loras`, `path_checkpoints`, `path_embeddings`), checks it against the SHA256 published by CivitAI (a mismatch deletes it), never overwrites an existing file, then refreshes the model and LoRA lists so it is selectable right away. Files restricted to logged-in users need the API key saved above.
+
 ---
 
 ### 6. 📐 Use Aspect Ratio for Vary
@@ -533,7 +535,7 @@ Example fragment:
 | File | Purpose |
 |---|---|
 | `fooocus_version.py` | Version bumped to `2026.3.0` (CalVer) |
-| `modules/civitai_api.py` | **New** — CivitAI client, caching, consensus aggregation, model+embedding triggers |
+| `modules/civitai_api.py` | **New** — CivitAI client, caching, consensus aggregation, model+embedding triggers; search + SHA256-verified download (custom-22) |
 | `modules/lora_metadata.py` | **New** — local safetensors metadata reader for LoRA/embedding triggers |
 | `modules/util.py` | Adds `compute_custom_wh()` — ratio + size → snapped W×H (custom-7) |
 | `modules/config.py` | Save Preset / preset round-trip (LoRAs, embeddings, custom resolution) + API key persistence + `asset_browser` config block (custom-8) + `omost` config block (Layout/Omost) + `tag_autocomplete` config block (custom-13) |

@@ -3,6 +3,43 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-22] — 2026-09-14 — CivitAI : chercher et telecharger un modele
+
+### Added
+- **Recherche CivitAI par nom** (Advanced → CivitAI Model Settings → *Search &
+  download from CivitAI*) : LoRA, checkpoint ou embedding, une entree par
+  **version** (les versions d'une meme page visent souvent des bases
+  differentes). La base choisie (SDXL 1.0 par defaut, Pony, Illustrious, NoobAI,
+  SD 1.5) remonte en tete sans exclure le reste. NSFW exclu par defaut, y compris
+  pour l'apercu.
+- **Compatibilite annoncee avant le telechargement**, calee sur le filtre
+  d'architecture du fork (custom-10) : ⛔ architecture que Fooocus masque de ses
+  listes (Flux, SD3...), ⚠ SD 1.x (refiner ou LoRA SD 1.5 seulement). Sans ce
+  marquage, un LoRA Flux se telechargeait puis n'apparaissait nulle part.
+- **Telechargement verifie** dans le premier dossier de modeles du type
+  (`path_loras`, `path_checkpoints`, `path_embeddings`) : stream vers un `.part`,
+  SHA256 calcule pendant le telechargement et compare a celui publie par CivitAI
+  (mismatch = fichier supprime, jamais de modele corrompu silencieux), renommage
+  final, **jamais d'ecrasement** d'un fichier existant. Barre de progression.
+- Apres le telechargement, les listes de modeles et de LoRA se rafraichissent
+  (meme chemin que *Refresh All Files*), l'apercu est recupere pour l'Asset Browser
+  quand il est actif, et les trigger words sont affiches.
+- Le hash du fichier telecharge est mis en cache : *Fetch CivitAI Settings* ne
+  relit pas plusieurs Go pour le recalculer.
+
+### Notes
+- Porte de crispz (`cz_civitai.search_loras` / `download_model_file`).
+- Fichier reserve aux comptes : HTTP 401/403 sans cle API -> message qui renvoie
+  vers la cle a sauver dans le meme panneau.
+- Un embedding telecharge apparait apres *Refresh* du panneau Embeddings.
+
+### Files
+- `modules/civitai_api.py` : `search_models`, `base_model_support`, `candidate_label`,
+  `download_model_file`.
+- `webui.py` : accordeon *Search & download from CivitAI* et son cablage.
+- `tests/test_civitai_search.py` : **nouveau** (reponse /models factice, vrai serveur
+  HTTP local pour le telechargement).
+
 ## [custom-21] — 2026-09-14 — File d'attente persistante + Pause douce
 
 ### Added
