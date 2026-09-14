@@ -109,6 +109,36 @@ du journal serveur et l'appel passe en CLI. Un serveur déjà actif sur le port
 est réutilisé, jamais tué. Les serveurs lancés par Fooocus sont arrêtés à la
 sortie (`atexit`), au Restart UI et avant la mise à jour du plugin.
 
+## Plusieurs actions par plugin (custom-24)
+
+Un manifeste peut déclarer un bloc `actions`. Sans lui, le plugin a une seule
+action implicite *Upscale* (tous les params, mode serveur autorisé) : les
+manifestes existants ne changent pas.
+
+```json
+"actions": [
+  {"id": "upscale", "label": "Upscale", "server": true},
+  {
+    "id": "faceswap", "label": "Face swap",
+    "args": ["--faceswap-only"],
+    "params": [],
+    "image_params": [{"key": "faceswap_src", "label": "Source face", "arg": "--faceswap-src"}],
+    "note": "texte d'aide affiché sous le bouton"
+  }
+]
+```
+
+- `params` : clés de la section `params` montrées pour cette action (absent = toutes).
+- `args` : flags ajoutés juste après l'image d'entrée.
+- `image_params` : une image chargée dans l'onglet est écrite en temp puis passée
+  en `arg <chemin>`.
+- `server` : l'action peut-elle passer par le serveur (`POST /upscale`) ? Par défaut
+  vrai seulement sans `args` ni `image_params`.
+
+L'onglet du plugin montre un sous-onglet par action. Le dossier ESRGAN n'apparaît
+que si l'action utilise le param qui a un `choices_cmd`. Le contrat de sortie reste
+`print_output` pour toutes les actions.
+
 ## Mettre à jour un plugin (custom-20)
 
 Gestionnaire → **Mises à jour** : **Vérifier** fait un `git fetch` et liste les

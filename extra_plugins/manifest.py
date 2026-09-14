@@ -63,7 +63,61 @@ def validate(data):
             raise ManifestError(f"Param invalide (key et arg requis): {p}")
         if not p.get("type"):
             raise ManifestError(f"Param sans type: {p.get('key')}")
+    _validate_actions(data)
     return True
+
+
+def _validate_actions(data):
+    """custom-24 : bloc optionnel `actions` (plusieurs operations par plugin)."""
+    declared = data.get("actions")
+    if declared is None:
+        return
+    if not isinstance(declared, list) or not declared:
+        raise ManifestError("actions doit etre une liste non vide.")
+    keys = {p.get("key") for p in data.get("params", [])}
+    seen = set()
+    for a in declared:
+        if not isinstance(a, dict) or not a.get("id") or not a.get("label"):
+            raise ManifestError(f"Action invalide (id et label requis): {a}")
+        if a["id"] in seen:
+            raise ManifestError(f"Action en double: {a['id']}")
+        seen.add(a["id"])
+        if not isinstance(a.get("args", []), list):
+            raise ManifestError(f"Action {a['id']}: args doit etre une liste.")
+        for k in a.get("params") or []:
+            if k not in keys:
+                raise ManifestError(f"Action {a['id']}: param inconnu '{k}'.")
+        for ip in a.get("image_params") or []:
+            if not isinstance(ip, dict) or not ip.get("key") or not ip.get("arg"):
+                raise ManifestError(f"Action {a['id']}: image_param invalide (key et arg requis): {ip}")
+
+
+def actions(data):
+    """custom-24 : actions normalisees d'un plugin.
+
+    Sans bloc `actions`, une seule action : l'Upscale historique (tous les params, mode
+    serveur autorise), donc un manifeste v1 existant se comporte exactement comme avant.
+    Une action avec des `args` ou des `image_params` ne passe pas par le serveur par
+    defaut : le serveur de la famille ne sert que /upscale.
+    """
+    all_keys = [p["key"] for p in data.get("params", [])]
+    declared = data.get("actions")
+    if not declared:
+        return [{"id": "upscale", "label": "Upscale", "args": [], "params": all_keys,
+                 "image_params": [], "server": True, "note": ""}]
+    out = []
+    for a in declared:
+        special = bool(a.get("args") or a.get("image_params"))
+        out.append({
+            "id": a["id"],
+            "label": a["label"],
+            "args": list(a.get("args") or []),
+            "params": list(a["params"]) if a.get("params") is not None else all_keys,
+            "image_params": [dict(ip) for ip in (a.get("image_params") or [])],
+            "server": bool(a.get("server", not special)),
+            "note": str(a.get("note") or ""),
+        })
+    return out
 
 
 def default_params(data):

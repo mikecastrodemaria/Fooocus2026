@@ -12,6 +12,10 @@ custom-nodes ComfyUI). L'install elle-meme se fait a chaud.
 custom-20 : mode serveur (modele garde chaud entre deux appels) quand le manifeste
 declare un bloc server, avec repli CLI annonce ; mise a jour d'un plugin installe
 depuis le Gestionnaire.
+
+custom-24 : un plugin peut declarer plusieurs actions (bloc `actions` du manifeste),
+chacune avec ses params, ses flags et ses images supplementaires (ex. le visage
+source d'un face swap). Sans bloc actions, l'onglet est identique a avant.
 """
 import os
 import time
@@ -40,14 +44,18 @@ def save_enabled(value):
     settings.set_enabled(value)
 
 
-def _build_param_controls(m, saved_params=None):
-    """Cree les composants Gradio pour les params d'un manifeste.
+def _build_param_controls(m, saved_params=None, only=None):
+    """Cree les composants Gradio pour les params d'un manifeste (ceux de `only`
+    quand il est donne, dans l'ordre du manifeste).
 
     Renvoie (components, keys) alignes par index.
     """
     components, keys = [], []
     saved_params = saved_params or {}
+    wanted = None if only is None else set(only)
     for p in m.get("params", []):
+        if wanted is not None and p["key"] not in wanted:
+            continue
         t = p["type"]
         label = p.get("label", p["key"])
         # valeur sauvee prioritaire sur le defaut du manifeste
@@ -73,27 +81,43 @@ def _build_param_controls(m, saved_params=None):
     return components, keys
 
 
-def _make_run_handler(plugin, keys):
-    """Closure : recoit (image, esrgan_dir, server_mode, *param_values) et lance le plugin."""
+def _make_run_handler(plugin, action, keys, show_models):
+    """Closure : recoit (image, esrgan_dir, server_mode, *param_values, *images_action)."""
     pdir = plugin["dir"]
+    pid = plugin["id"]
     m = plugin["manifest"]
-    has_server = server_mod.server_spec(m) is not None
+    has_server = action["server"] and server_mod.server_spec(m) is not None
+    image_params = action["image_params"]
 
     def _run(image, esrgan_dir, server_mode, *vals):
         if image is None:
             return None, "Load an image first."
+        param_vals, extra_images = vals[:len(keys)], vals[len(keys):]
+        missing = [ip.get("label") or ip["key"]
+                   for ip, img in zip(image_params, extra_images) if img is None]
+        if missing:
+            return None, "Load an image in: " + ", ".join(missing) + "."
         os.makedirs(OUTPUT_DIR, exist_ok=True)
-        # write the current image to a temp file
-        in_path = os.path.join(tempfile.mkdtemp(), "extra_input.png")
+        # write the current image(s) to temp files
+        tmp_dir = tempfile.mkdtemp()
+        in_path = os.path.join(tmp_dir, "extra_input.png")
         image.save(in_path)
-        out_dir = os.path.join(OUTPUT_DIR, plugin["id"])
+        image_args = []
+        for ip, img in zip(image_params, extra_images):
+            p = os.path.join(tmp_dir, "%s.png" % ip["key"])
+            img.save(p)
+            image_args.append((ip["arg"], p))
+        out_dir = os.path.join(OUTPUT_DIR, pid)
         os.makedirs(out_dir, exist_ok=True)
 
-        param_values = dict(zip(keys, vals))
+        param_values = dict(zip(keys, param_vals))
         use_server = has_server and bool(server_mode)
-        # persist the chosen config (ESRGAN folder + params + mode) for next launches
-        settings.set_plugin(plugin["id"], esrgan_dir=esrgan_dir or "",
-                            params=param_values,
+        # persist the chosen config for next launches ; params fusionnes : chaque action
+        # ne voit que les siens, elle ne doit pas effacer ceux des autres
+        previous = settings.get_plugin(pid).get("params") or {}
+        settings.set_plugin(pid,
+                            esrgan_dir=(esrgan_dir or "") if show_models else None,
+                            params={**previous, **param_values},
                             server_mode=bool(server_mode) if has_server else None)
 
         # offload the host model before the heavy call
@@ -106,7 +130,7 @@ def _make_run_handler(plugin, keys):
             try:
                 url = server_mod.ensure(plugin, esrgan_dir=esrgan_dir or None, log_dir=out_dir)
                 payload = runner.build_server_payload(m, in_path, out_dir, param_values)
-                res = server_mod.upscale(plugin["id"], url, payload)
+                res = server_mod.upscale(pid, url, payload)
                 dt = time.time() - t0
                 state = "warm model" if res.get("was_warm") else "model loaded on this call"
                 timing = ""
@@ -123,7 +147,8 @@ def _make_run_handler(plugin, keys):
         cmd = runner.build_upscale_command(
             m, pdir, input_path=in_path, output_dir=out_dir,
             param_values=param_values,
-            esrgan_dir=esrgan_dir or None, report_vram=True)
+            esrgan_dir=(esrgan_dir or None) if show_models else None, report_vram=True,
+            extra_args=action["args"], image_args=image_args)
         try:
             res = runner.run_upscale(cmd, pdir)
         except Exception as e:
@@ -188,67 +213,86 @@ def _load_grabbed(picked):
         return None
 
 
+def _build_action(plugin, action, saved, picked_state):
+    """Controles d'une action : image(s) a gauche, reglages a droite."""
+    m = plugin["manifest"]
+    model_param = next((p for p in m.get("params", [])
+                        if p.get("choices_cmd") and p["key"] in action["params"]), None)
+    show_models = model_param is not None
+    with gr.Row():
+        with gr.Column():
+            # Images on the left: input + extra images of the action + result
+            in_image = gr.Image(label="Input image", type="pil")
+            grab_btn = gr.Button(
+                "⬇ Get a generated image (gallery selection, else the latest)",
+                size="sm")
+            extra_images = [gr.Image(label=ip.get("label") or ip["key"], type="pil")
+                            for ip in action["image_params"]]
+            out_image = gr.Image(label="Result", type="filepath")
+        with gr.Column():
+            # Settings on the right, run button on top
+            run_btn = gr.Button(action["label"], variant="primary")
+            if action.get("note"):
+                gr.Markdown("*%s*" % action["note"])
+            # custom-20 : mode serveur, seulement si l'action et le manifeste le permettent
+            server_mode = gr.State(False)
+            stop_srv_btn = None
+            if action["server"] and server_mod.server_spec(m) is not None:
+                with gr.Row():
+                    server_mode = gr.Checkbox(
+                        label="Server mode (keep the model warm between runs)",
+                        value=bool(saved.get("server_mode", True)),
+                        info="Loads the model once and reuses it. Its VRAM is released "
+                             "as soon as Fooocus starts a generation.")
+                    stop_srv_btn = gr.Button("⏹ Stop server", size="sm")
+            esrgan_dir = gr.State("")
+            refresh = None
+            if show_models:
+                esrgan_dir = gr.Textbox(
+                    label="ESRGAN folder (optional, plugin default otherwise)",
+                    value=saved.get("esrgan_dir", ""))
+                # Refresh button placed right after the ESRGAN folder field
+                refresh = gr.Button("Refresh models", size="sm")
+            comps, keys = _build_param_controls(m, saved.get("params"), only=action["params"])
+            if refresh is not None:
+                model_idx = keys.index(model_param["key"])
+
+                def _refresh(edir, _pid=plugin["id"], _pdir=plugin["dir"], _m=m):
+                    settings.set_plugin(_pid, esrgan_dir=edir or "")
+                    models = runner.list_models(_m, _pdir, esrgan_dir=edir or None)
+                    return gr.update(choices=models,
+                                     value=models[0] if models else None)
+                refresh.click(_refresh, inputs=[esrgan_dir], outputs=[comps[model_idx]])
+            status = gr.Textbox(label="Status", lines=4, interactive=False)
+
+    run_btn.click(_make_run_handler(plugin, action, keys, show_models),
+                  inputs=[in_image, esrgan_dir, server_mode] + comps + extra_images,
+                  outputs=[out_image, status])
+
+    if stop_srv_btn is not None:
+        def _stop_server(_pid=plugin["id"]):
+            return "Server stopped." if server_mod.stop(_pid) else "No server was running."
+        stop_srv_btn.click(_stop_server, outputs=[status], queue=False)
+
+    _pstate = picked_state if picked_state is not None else gr.State(None)
+    grab_btn.click(_load_grabbed, inputs=[_pstate], outputs=[in_image])
+
+
 def _build_plugin_tab(plugin, picked_state=None):
     m = plugin["manifest"]
+    acts = manifest_mod.actions(m)
     with gr.Tab(label=plugin["name"]):
         saved = settings.get_plugin(plugin["id"])
         gr.Markdown("**%s** v%s — %s" % (
             plugin["name"], plugin.get("version", "?"),
             m.get("description", "")))
-        with gr.Row():
-            with gr.Column():
-                # Images on the left: input + result
-                in_image = gr.Image(label="Input image", type="pil")
-                grab_btn = gr.Button(
-                    "⬇ Get a generated image (gallery selection, else the latest)",
-                    size="sm")
-                out_image = gr.Image(label="Result", type="filepath")
-            with gr.Column():
-                # Settings on the right, Upscale button on top
-                run_btn = gr.Button("Upscale", variant="primary")
-                # custom-20 : mode serveur, seulement si le manifeste le declare
-                server_mode = gr.State(False)
-                stop_srv_btn = None
-                if server_mod.server_spec(m) is not None:
-                    with gr.Row():
-                        server_mode = gr.Checkbox(
-                            label="Server mode (keep the model warm between runs)",
-                            value=bool(saved.get("server_mode", True)),
-                            info="Loads the model once and reuses it. Its VRAM is released "
-                                 "as soon as Fooocus starts a generation.")
-                        stop_srv_btn = gr.Button("⏹ Stop server", size="sm")
-                esrgan_dir = gr.Textbox(
-                    label="ESRGAN folder (optional, plugin default otherwise)",
-                    value=saved.get("esrgan_dir", ""))
-                # Refresh button placed right after the ESRGAN folder field
-                model_param_idx = next(
-                    (i for i, p in enumerate(m.get("params", []))
-                     if p.get("choices_cmd")), None)
-                refresh = None
-                if model_param_idx is not None:
-                    refresh = gr.Button("Refresh models", size="sm")
-                comps, keys = _build_param_controls(m, saved.get("params"))
-                if refresh is not None:
-                    def _refresh(edir, _pid=plugin["id"], _pdir=plugin["dir"], _m=m):
-                        settings.set_plugin(_pid, esrgan_dir=edir or "")
-                        models = runner.list_models(_m, _pdir, esrgan_dir=edir or None)
-                        return gr.update(choices=models,
-                                         value=models[0] if models else None)
-                    refresh.click(_refresh, inputs=[esrgan_dir],
-                                  outputs=[comps[model_param_idx]])
-                status = gr.Textbox(label="Status", lines=4, interactive=False)
-
-        run_btn.click(_make_run_handler(plugin, keys),
-                      inputs=[in_image, esrgan_dir, server_mode] + comps,
-                      outputs=[out_image, status])
-
-        if stop_srv_btn is not None:
-            def _stop_server(_pid=plugin["id"]):
-                return "Server stopped." if server_mod.stop(_pid) else "No server was running."
-            stop_srv_btn.click(_stop_server, outputs=[status], queue=False)
-
-        _pstate = picked_state if picked_state is not None else gr.State(None)
-        grab_btn.click(_load_grabbed, inputs=[_pstate], outputs=[in_image])
+        if len(acts) == 1:
+            _build_action(plugin, acts[0], saved, picked_state)
+        else:
+            with gr.Tabs():
+                for act in acts:
+                    with gr.Tab(label=act["label"]):
+                        _build_action(plugin, act, saved, picked_state)
 
 
 def _plugin_ids():

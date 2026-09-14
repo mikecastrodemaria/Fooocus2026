@@ -3,6 +3,50 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-24] — 2026-09-14 — Plugins Extra : plusieurs actions par plugin (Face swap exact)
+
+### Added
+- **Bloc `actions` optionnel dans `fooocus_extra.json`** : un plugin peut exposer
+  plusieurs operations. Chaque action a son libelle, ses `params` (sous-ensemble de
+  ceux du manifeste), ses flags CLI (`args`) et ses **images supplementaires**
+  (`image_params` : une image chargee dans l'onglet devient `--flag <chemin>`).
+  L'onglet du plugin montre alors un sous-onglet par action.
+- **Premier usage : Face swap exact** avec crispz-studio installe comme plugin.
+  Action *Face swap* avec une entree *Source face*, qui appelle
+  `app.py --faceswap-only --faceswap-src ...` : masque d'occlusion (XSeg), masque de
+  regions du visage (BiSeNet), harmonisation couleur, restauration CodeFormer.
+  C'est le **complement** du FaceSwap natif de Fooocus : l'IP-Adapter face injecte une
+  identite *approximative* pendant la diffusion et ne s'applique pas a une image
+  existante ; le swap exact reprend le *vrai* visage sur n'importe quelle image.
+
+### Changed
+- Le dossier ESRGAN et *Refresh models* n'apparaissent que pour une action qui
+  utilise le parametre modele ; le mode serveur seulement pour une action qu'il sait
+  servir (`/upscale`).
+- Les reglages memorises sont fusionnes entre actions : lancer un Face swap n'efface
+  plus les parametres d'Upscale sauvegardes.
+
+### Notes
+- **Retrocompatible** : un manifeste sans `actions` donne exactement l'onglet
+  d'avant (une action Upscale, tous les params, mode serveur autorise).
+- Une action avec `args` ou `image_params` ne passe pas par le serveur par defaut
+  (`server: true` pour forcer).
+- Validation a l'enregistrement du plugin : id unique, label, params connus,
+  `image_params` avec `key` et `arg`.
+- Le Face swap exige insightface + onnxruntime-gpu dans le venv du plugin et
+  `faceswap/inswapper_128.onnx` ; sinon crispz-studio sort en code 1 avec la cause,
+  affichee dans le statut.
+
+### Files
+- `extra_plugins/manifest.py` : `actions()`, validation du bloc.
+- `extra_plugins/runner.py` : `build_upscale_command(extra_args=, image_args=)`.
+- `extra_plugins/ui.py` : `_build_action` (un sous-onglet par action, images
+  supplementaires, params filtres), reglages fusionnes.
+- `extra_plugins/INTEGRATION.md` : schema des actions.
+- `tests/test_extra_plugins_actions.py` : **nouveau** (normalisation, refus, commande,
+  manifeste reel de crispz-studio, construction de l'onglet sous Gradio 3.41).
+- Depot crispz-studio : `--faceswap-only` et le bloc `actions` de son manifeste.
+
 ## [custom-23] — 2026-09-14 — Provenance IA des images (EU AI Act, article 50)
 
 ### Added

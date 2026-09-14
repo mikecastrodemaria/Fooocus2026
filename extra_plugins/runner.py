@@ -60,16 +60,22 @@ def _base_command(manifest, plugin_dir):
 
 
 def build_upscale_command(manifest, plugin_dir, input_path, output_dir,
-                          param_values, esrgan_dir=None, report_vram=False):
-    """Construit la commande CLI complete pour un upscale.
+                          param_values, esrgan_dir=None, report_vram=False,
+                          extra_args=None, image_args=None):
+    """Construit la commande CLI complete pour un upscale (ou une autre action).
 
     param_values : dict key -> valeur (cf params du manifeste).
+    extra_args   : custom-24, flags propres a l'action (ex. ["--faceswap-only"]).
+    image_args   : custom-24, [(flag, chemin)] des images supplementaires de l'action.
     """
     entry = manifest["entry"]
     cmd = _base_command(manifest, plugin_dir)
 
     # Entree
     cmd += [entry["input_arg"], input_path]
+    cmd += [str(a) for a in (extra_args or [])]
+    for flag, path in (image_args or []):
+        cmd += [flag, path]
 
     # Sortie (contrat print_output)
     out = entry["output"]
