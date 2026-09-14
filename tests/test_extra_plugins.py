@@ -275,6 +275,26 @@ class TestPluginUpdate(unittest.TestCase):
         with open(os.path.join(self.w.plugin, 'deps_ran.txt')) as f:
             self.assertEqual(f.read(), 'x', "l'etape torch n'est jamais rejouee, deps une fois")
 
+    def push_manifest_with_post_deps_step(self):
+        m = plugin_manifest()
+        m['env']['strategies']['fresh_venv']['steps'].append(
+            {'name': 'pin', 'cmd': [sys.executable, '-c', "open('deps_ran.txt','a').write('p')"],
+             'rerun_with_deps': True})
+        self.w.push('fooocus_extra.json', json.dumps(m, indent=1), 'add a post-deps pin')
+
+    def test_a_rerun_with_deps_step_follows_every_deps_reinstall(self):
+        self.push_manifest_with_post_deps_step()
+        self.w.push('requirements.txt', 'pkg==2\n', 'bump pkg')
+        self.assertTrue(self.update()['deps'])
+        with open(os.path.join(self.w.plugin, 'deps_ran.txt')) as f:
+            self.assertEqual(f.read(), 'xp', 'deps first, then the pin step, once each')
+
+    def test_a_rerun_with_deps_step_is_skipped_when_deps_are_unchanged(self):
+        self.push_manifest_with_post_deps_step()
+        res = self.update()
+        self.assertEqual((res['updated'], res['deps']), (True, False))
+        self.assertFalse(self.w.deps_ran())
+
     def test_force_deps_reinstalls_even_when_up_to_date(self):
         res = self.update(force_deps=True)
         self.assertEqual((res['updated'], res['deps']), (False, True))

@@ -146,7 +146,11 @@ commits, **Mettre à jour** applique `git merge --ff-only`. Refus, sans rien
 toucher, si un commit touche un fichier modifié dans le plugin, s'il ajoute un
 chemin présent hors de git, ou si la branche a divergé. Seules les étapes
 `... -r <fichier>` de la stratégie d'environnement sont rejouées, et seulement
-si ce fichier a changé (jamais la création du venv ni torch). La stratégie
+si ce fichier a changé (jamais la création du venv ni torch). Une étape marquée
+`"rerun_with_deps": true` est rejouée juste après, chaque fois que les deps l'ont
+été : c'est la place d'un correctif posé après `pip -r`, que la résolution des
+deps défait à chaque fois (ex. crispz : `pillow==12.3.0` en `--no-deps`, que la
+borne `pillow<12` de gradio redescend). La stratégie
 choisie à l'install est mémorisée dans `settings.json`. Si le manifeste a
 changé, un Restart UI reconstruit l'onglet.
 

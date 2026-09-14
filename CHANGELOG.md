@@ -346,6 +346,12 @@ Only fork-specific changes are listed here — upstream history is available via
   etapes `... -r <fichier>` de la strategie d'environnement sont rejouees (ni
   creation de venv, ni torch), et seulement quand le fichier a bouge. Case
   *Reinstaller les dependances* pour forcer.
+- **Post-deps steps replayed on update**: a manifest step marked
+  `"rerun_with_deps": true` runs right after the `-r` steps whenever they were
+  replayed. It is the place for a fix applied after `pip -r` that dependency
+  resolution undoes every time: crispz pins `pillow==12.3.0` with `--no-deps`,
+  which gradio's `pillow<12` bound pulled back down to 10.4 on the first real
+  plugin update.
 - La strategie choisie a l'install (`fresh_venv` / `reuse_python` + Python de
   base) est memorisee pour etre rejouee a l'identique.
 - **Mode serveur** : quand le manifeste declare un bloc `server` (crispz et toute

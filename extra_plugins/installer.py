@@ -243,6 +243,15 @@ def _dep_steps(manifest, strategy):
     return out
 
 
+def _rerun_steps(manifest, strategy):
+    """Etapes marquees `"rerun_with_deps": true` : un correctif pose APRES les deps (ex.
+    une version de Pillow installee en --no-deps, que `pip -r` redescend a chaque fois).
+    La mise a jour les rejoue, dans l'ordre du manifeste, des qu'une etape -r a tourne."""
+    strategies = (manifest.get("env") or {}).get("strategies") or {}
+    strat = strategies.get(strategy) or strategies.get("fresh_venv") or {}
+    return [s for s in strat.get("steps", []) if s.get("rerun_with_deps") and s.get("cmd")]
+
+
 def _file_hash(path):
     try:
         with open(path, "rb") as f:
@@ -293,7 +302,11 @@ def update_plugin(plugin_dir, strategy="fresh_venv", base_python=None, log=None,
             log(f"== {step.get('name', 'deps')} ({why}) ==")
             _run(_expand_cmd(step["cmd"], plugin_dir, base_python), cwd=plugin_dir, log=log)
             ran = True
-    if not ran:
+    if ran:
+        for step in _rerun_steps(new_manifest, strategy):
+            log(f"== {step.get('name', 'post-deps')} (after the deps) ==")
+            _run(_expand_cmd(step["cmd"], plugin_dir, base_python), cwd=plugin_dir, log=log)
+    else:
         log("Dependencies unchanged: nothing to reinstall.")
     changed = manifest_before != _file_hash(mpath)
     log(f"== Plugin up to date: {current_commit(plugin_dir)} ==")
