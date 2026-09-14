@@ -592,7 +592,7 @@ Example fragment:
 ## 📁 Files touched by this fork
 | File | Purpose |
 |---|---|
-| `fooocus_version.py` | Version bumped to `2026.3.0` (CalVer) |
+| `fooocus_version.py` | Version bumped to `2026.4.0` (CalVer): custom-19 to custom-26 |
 | `modules/civitai_api.py` | **New** — CivitAI client, caching, consensus aggregation, model+embedding triggers; search + SHA256-verified download (custom-22) |
 | `modules/lora_metadata.py` | **New** — local safetensors metadata reader for LoRA/embedding triggers |
 | `modules/util.py` | Adds `compute_custom_wh()` — ratio + size → snapped W×H (custom-7) |
