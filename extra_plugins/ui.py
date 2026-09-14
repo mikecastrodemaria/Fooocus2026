@@ -1,13 +1,17 @@
 """UI Gradio de l'onglet Extra (cible Gradio 3.41).
 
 Structure :
-  - sous-onglet "Gestionnaire" : install depuis URL GitHub, liste, suppression.
+  - sous-onglet "Gestionnaire" : install depuis URL GitHub, liste, mises a jour.
   - un sous-onglet par plugin installe : controles generes depuis le manifeste,
     image d'entree, bouton Run, image de sortie, statut + VRAM.
 
 Les plugins installes sont enumeres au demarrage de Fooocus. Apres une nouvelle
 install, relancer Fooocus pour voir apparaitre son onglet (comportement type
 custom-nodes ComfyUI). L'install elle-meme se fait a chaud.
+
+custom-20 : mode serveur (modele garde chaud entre deux appels) quand le manifeste
+declare un bloc server, avec repli CLI annonce ; mise a jour d'un plugin installe
+depuis le Gestionnaire.
 """
 import os
 import time
@@ -17,7 +21,14 @@ import threading
 import gradio as gr
 
 from . import registry, runner, installer, manifest as manifest_mod, settings
+from . import server as server_mod
 from . import INSTALL_ROOT, OUTPUT_DIR, offload_host_models
+
+
+_RESTART_NOTICE = ('<div style="padding:8px;border:1px solid #4ecdc4;'
+                   'border-radius:6px;color:#4ecdc4;">✅ {msg} '
+                   'Un redemarrage de l\'UI est requis pour reconstruire l\'onglet. '
+                   'Clique <b>⚠ Restart UI</b> ci-dessus.</div>')
 
 
 # Helpers exposes a webui.py pour l'etat persiste de la case "Extra Plugins".
@@ -63,11 +74,12 @@ def _build_param_controls(m, saved_params=None):
 
 
 def _make_run_handler(plugin, keys):
-    """Closure : recoit (image, esrgan_dir, *param_values) et lance crispz."""
+    """Closure : recoit (image, esrgan_dir, server_mode, *param_values) et lance le plugin."""
     pdir = plugin["dir"]
     m = plugin["manifest"]
+    has_server = server_mod.server_spec(m) is not None
 
-    def _run(image, esrgan_dir, *vals):
+    def _run(image, esrgan_dir, server_mode, *vals):
         if image is None:
             return None, "Load an image first."
         os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -78,32 +90,55 @@ def _make_run_handler(plugin, keys):
         os.makedirs(out_dir, exist_ok=True)
 
         param_values = dict(zip(keys, vals))
-        # persist the chosen config (ESRGAN folder + params) for next launches
+        use_server = has_server and bool(server_mode)
+        # persist the chosen config (ESRGAN folder + params + mode) for next launches
         settings.set_plugin(plugin["id"], esrgan_dir=esrgan_dir or "",
-                            params=param_values)
+                            params=param_values,
+                            server_mode=bool(server_mode) if has_server else None)
+
+        # offload the host model before the heavy call
+        offloaded = offload_host_models()
+        host_note = " | host offloaded" if offloaded else ""
+        fallback_note = ""
+        t0 = time.time()
+
+        if use_server:
+            try:
+                url = server_mod.ensure(plugin, esrgan_dir=esrgan_dir or None, log_dir=out_dir)
+                payload = runner.build_server_payload(m, in_path, out_dir, param_values)
+                res = server_mod.upscale(plugin["id"], url, payload)
+                dt = time.time() - t0
+                state = "warm model" if res.get("was_warm") else "model loaded on this call"
+                timing = ""
+                if res.get("esrgan_s") is not None or res.get("refine_s") is not None:
+                    timing = " (esrgan %.1fs + refine %.1fs)" % (
+                        float(res.get("esrgan_s") or 0), float(res.get("refine_s") or 0))
+                status = "OK in %.1fs via server %s, %s%s%s" % (dt, url, state, timing, host_note)
+                return res["output"], status + "\n" + res["output"]
+            except server_mod.ServerError as e:
+                # degradation annoncee, jamais silencieuse : on le dit et on passe en CLI
+                fallback_note = "Server mode unavailable, CLI fallback: %s\n" % e
+                t0 = time.time()
+
         cmd = runner.build_upscale_command(
             m, pdir, input_path=in_path, output_dir=out_dir,
             param_values=param_values,
             esrgan_dir=esrgan_dir or None, report_vram=True)
-
-        # offload the host model before the heavy call
-        offloaded = offload_host_models()
-        t0 = time.time()
         try:
             res = runner.run_upscale(cmd, pdir)
         except Exception as e:
-            return None, f"Launch error: {e}"
+            return None, fallback_note + f"Launch error: {e}"
         dt = time.time() - t0
 
         if not res["ok"]:
             tail = (res["stderr"] or "").strip().splitlines()[-8:]
-            return None, "Failed (code %s)\n%s" % (res["returncode"], "\n".join(tail))
+            return None, fallback_note + "Failed (code %s)\n%s" % (res["returncode"], "\n".join(tail))
 
-        status = "OK in %.1fs%s" % (dt, " | host offloaded" if offloaded else "")
+        status = "OK in %.1fs%s" % (dt, host_note)
         if res["vram"]:
             status += " | " + res["vram"]
         out_img = res["outputs"][-1]
-        return out_img, status + "\n" + out_img
+        return out_img, fallback_note + status + "\n" + out_img
 
     return _run
 
@@ -171,6 +206,17 @@ def _build_plugin_tab(plugin, picked_state=None):
             with gr.Column():
                 # Settings on the right, Upscale button on top
                 run_btn = gr.Button("Upscale", variant="primary")
+                # custom-20 : mode serveur, seulement si le manifeste le declare
+                server_mode = gr.State(False)
+                stop_srv_btn = None
+                if server_mod.server_spec(m) is not None:
+                    with gr.Row():
+                        server_mode = gr.Checkbox(
+                            label="Server mode (keep the model warm between runs)",
+                            value=bool(saved.get("server_mode", True)),
+                            info="Loads the model once and reuses it. Its VRAM is released "
+                                 "as soon as Fooocus starts a generation.")
+                        stop_srv_btn = gr.Button("⏹ Stop server", size="sm")
                 esrgan_dir = gr.Textbox(
                     label="ESRGAN folder (optional, plugin default otherwise)",
                     value=saved.get("esrgan_dir", ""))
@@ -193,11 +239,20 @@ def _build_plugin_tab(plugin, picked_state=None):
                 status = gr.Textbox(label="Status", lines=4, interactive=False)
 
         run_btn.click(_make_run_handler(plugin, keys),
-                      inputs=[in_image, esrgan_dir] + comps,
+                      inputs=[in_image, esrgan_dir, server_mode] + comps,
                       outputs=[out_image, status])
+
+        if stop_srv_btn is not None:
+            def _stop_server(_pid=plugin["id"]):
+                return "Server stopped." if server_mod.stop(_pid) else "No server was running."
+            stop_srv_btn.click(_stop_server, outputs=[status], queue=False)
 
         _pstate = picked_state if picked_state is not None else gr.State(None)
         grab_btn.click(_load_grabbed, inputs=[_pstate], outputs=[in_image])
+
+
+def _plugin_ids():
+    return [p["id"] for p in registry.list_plugins(INSTALL_ROOT)]
 
 
 def _build_manager_tab():
@@ -237,9 +292,16 @@ def _build_manager_tab():
                         gr.update(visible=False))
             ok = True
             try:
-                installer.install_from_github(
+                pdir = installer.install_from_github(
                     u.strip(), INSTALL_ROOT, strategy=strat,
                     base_python=bp.strip() or None, log=_log, force=frc)
+                # custom-20 : la mise a jour rejouera la meme strategie d'environnement
+                try:
+                    data = manifest_mod.load(pdir)
+                    settings.set_plugin(data["id"], install={
+                        "strategy": strat, "base_python": bp.strip()})
+                except Exception:
+                    pass
             except Exception as e:
                 ok = False
                 lines.append("ERREUR: %s" % e)
@@ -247,10 +309,7 @@ def _build_manager_tab():
                 lines.append("")
                 lines.append(">>> Installe. Clique '⚠ Restart UI' pour charger "
                              "le plugin : son onglet apparaitra apres le redemarrage.")
-                notice = ('<div style="padding:8px;border:1px solid #4ecdc4;'
-                          'border-radius:6px;color:#4ecdc4;">✅ Plugin installe. '
-                          'Un redemarrage de l\'UI est requis pour afficher son onglet. '
-                          'Clique <b>⚠ Restart UI</b> ci-dessus.</div>')
+                notice = _RESTART_NOTICE.format(msg="Plugin installe.")
                 return "\n".join(lines), _installed_md(), gr.update(value=notice, visible=True)
             return "\n".join(lines), _installed_md(), gr.update(visible=False)
 
@@ -261,6 +320,7 @@ def _build_manager_tab():
             # Sortie code 42 : la boucle de run.bat / run.sh relance le process.
             def _do_exit():
                 time.sleep(0.4)  # laisse la reponse Gradio partir avant de tuer
+                server_mod.stop_all()
                 os._exit(42)
             threading.Thread(target=_do_exit, daemon=True).start()
             return gr.update(
@@ -273,6 +333,58 @@ def _build_manager_tab():
 
         restart_btn.click(_restart_ui, outputs=[restart_notice])
 
+        # --- custom-20 : mises a jour ------------------------------------------
+        gr.Markdown(
+            "### Mises a jour\n"
+            "Verifie le depot du plugin et applique ses nouveaux commits en avance "
+            "rapide, jamais par-dessus un fichier modifie dans le plugin. Les "
+            "dependances ne sont reinstallees que si leur fichier `requirements` a change. "
+            "Le serveur du plugin est arrete avant la mise a jour.")
+        ids = _plugin_ids()
+        with gr.Row():
+            upd_plugin = gr.Dropdown(label="Plugin installe", choices=ids,
+                                     value=ids[0] if ids else None)
+            upd_check_btn = gr.Button("\U0001F50D Verifier")
+            upd_btn = gr.Button("⬆ Mettre a jour", variant="primary")
+        upd_force = gr.Checkbox(
+            label="Reinstaller les dependances meme si requirements n'a pas change",
+            value=False)
+        upd_log = gr.Textbox(label="Journal de mise a jour", lines=12, interactive=False)
+
+        def _check_update(pid):
+            p = registry.get_plugin(INSTALL_ROOT, pid) if pid else None
+            if not p:
+                return "Choisis un plugin installe."
+            return "\n".join(installer.format_status(installer.update_status(p["dir"])))
+
+        def _apply_update(pid, force_deps):
+            p = registry.get_plugin(INSTALL_ROOT, pid) if pid else None
+            if not p:
+                return "Choisis un plugin installe.", _installed_md(), gr.update()
+            lines = []
+            if server_mod.stop(pid):
+                lines.append("Serveur du plugin arrete avant la mise a jour.")
+            inst = settings.get_plugin(pid).get("install") or {}
+            try:
+                res = installer.update_plugin(
+                    p["dir"], strategy=inst.get("strategy") or "fresh_venv",
+                    base_python=inst.get("base_python") or None,
+                    log=lambda s: lines.append(str(s)), force_deps=bool(force_deps))
+            except Exception as e:
+                lines.append("ERREUR : %s" % e)
+                return "\n".join(lines), _installed_md(), gr.update()
+            if res["manifest_changed"]:
+                lines.append("")
+                lines.append(">>> Le manifeste a change : clique '⚠ Restart UI' pour "
+                             "reconstruire l'onglet du plugin.")
+                notice = _RESTART_NOTICE.format(msg="Plugin mis a jour, manifeste modifie.")
+                return "\n".join(lines), _installed_md(), gr.update(value=notice, visible=True)
+            return "\n".join(lines), _installed_md(), gr.update()
+
+        upd_check_btn.click(_check_update, inputs=[upd_plugin], outputs=[upd_log])
+        upd_btn.click(_apply_update, inputs=[upd_plugin, upd_force],
+                      outputs=[upd_log, installed, restart_notice])
+
 
 def _installed_md():
     plugins = registry.list_plugins(INSTALL_ROOT)
@@ -280,7 +392,9 @@ def _installed_md():
         return "_Aucun plugin installe._"
     rows = ["Plugins installes :"]
     for p in plugins:
-        rows.append("- **%s** v%s (`%s`)" % (p["name"], p["version"], p["id"]))
+        commit = installer.current_commit(p["dir"])
+        rows.append("- **%s** v%s (`%s`%s)" % (
+            p["name"], p["version"], p["id"], (" @ `%s`" % commit) if commit else ""))
     return "\n".join(rows)
 
 

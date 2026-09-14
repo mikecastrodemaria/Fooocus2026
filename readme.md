@@ -287,7 +287,10 @@ Without this loop, the restart button still works — it just becomes a clean ex
 - **VRAM coordination:** before each call the host SDXL model is unloaded (`model_management.unload_all_models()`), giving the plugin the whole card; Fooocus reloads its model on the next generation.
 - **Plugin tab:** images on the left (input + result), settings on the right (built dynamically from the manifest). A **⬇ Get a generated image** button pulls your selected gallery image (or the latest output) straight into the plugin input. The ESRGAN folder, chosen model and settings are **remembered** between launches; the **🧩 Extra Plugins** toggle stays on after reboot.
 
-**Files:** the whole feature lives in a self-contained `extra_plugins/` package; `webui.py` only adds the checkbox + panel + toggle. See [`extra_plugins/INTEGRATION.md`](extra_plugins/INTEGRATION.md) to port it.
+- **Update a plugin (custom-20):** Manager tab → *Mises a jour* → **Verifier** lists the new commits of the plugin repo, **Mettre a jour** fast-forwards to them — never over a file you modified inside the plugin (same guard as the boot update). Dependencies are reinstalled only when their `requirements` file changed (the torch step is never replayed); tick the box to force it. The install strategy is remembered and replayed. The Manager shows the installed commit of each plugin.
+- **Server mode (custom-20):** when the manifest declares a `server` block (crispz and the whole crispz family ship `app.py --serve`), the plugin tab offers **Server mode** (on by default). The server starts on the first run and keeps the model loaded — no model reload per call (66 s cold vs 46 s warm measured in 2K on an RTX 5090). As soon as Fooocus starts a generation, every warm server receives `POST /unload`: the process stays, the VRAM goes back to SDXL. If the server cannot start (fastapi missing, port taken), the status says so with the end of its log and the run falls back to the CLI. **Stop server** per plugin; servers stop with Fooocus, on Restart UI and before a plugin update. A server you started by hand on the same port is reused, never killed. Log: `extra_plugins/outputs/<id>/<id>_server.log`.
+
+**Files:** the whole feature lives in a self-contained `extra_plugins/` package; `webui.py` only adds the checkbox + panel + toggle, and one call to release plugin VRAM when a generation starts. See [`extra_plugins/INTEGRATION.md`](extra_plugins/INTEGRATION.md) to port it.
 
 ---
 
@@ -540,7 +543,7 @@ Example fragment:
 | `gallery_template/index.html` + `_assets/` | **New** — Asset Browser SPA + bundled PhotoSwipe v5 / Dynamic Caption / Deep Zoom (custom-8) |
 | `launch.py` | Spawns Asset Browser model indexer in a daemon thread when enabled (custom-8) |
 | `webui.py` | All fork UI: Save Preset, CivitAI / LoRA / Embeddings / Wildcards accordions, Aspect-for-Vary, Custom Resolution panel, Asset Browser accordion + link button, **Layout/Omost** accordion (Layout/Omost), Restart UI button (moved to end of Advanced tab), **Extra Plugins** checkbox + panel + toggle (custom-12), **Job Queue** button + accordion + run/pause wiring (custom-14) |
-| `extra_plugins/` | **New** — self-contained Extra Plugins subsystem: GitHub install + isolated venv, manifest parsing, CLI runner, per-plugin UI, settings persistence (custom-12). Runtime dirs (`installed/`, `outputs/`, `settings.json`) gitignored |
+| `extra_plugins/` | **New** — self-contained Extra Plugins subsystem: GitHub install + isolated venv, manifest parsing, CLI runner, per-plugin UI, settings persistence (custom-12); plugin update + server mode with VRAM release (custom-20). Runtime dirs (`installed/`, `outputs/`, `settings.json`) gitignored |
 | `run*.bat` / `run*.sh` / `boot_check_rtx5090.*` | **New** — RTX 5090 launch scripts (standard, realistic, anime, quality, boot diagnostic) for Windows + Mac/Linux |
 | `modules/tag_autocomplete.py` | **New** — tag CSV download + `tags/local_assets.json` builder (custom-13) |
 | `javascript/tag_autocomplete.js` | **New** — autocomplete dropdown UX, zero dependency (custom-13) |

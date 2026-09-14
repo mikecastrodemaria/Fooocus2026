@@ -84,6 +84,42 @@ l'appel, crispz récupère le GPU. Fooocus rechargera son modèle à la généra
 suivante. En complément, l'UI expose `cpu_offload` (mettre `sequential` ~9 Go) et
 `refine_tile` (1024 pour le 4K) côté plugin.
 
+## Mode serveur et libération VRAM (custom-20)
+
+Quand le manifeste d'un plugin déclare un bloc `server` (commande `launch` avec
+`--port`), l'onglet du plugin propose **Server mode**. `extra_plugins/server.py`
+lance le serveur au premier appel, attend `GET /health`, puis envoie
+`POST /upscale` avec le chemin d'entrée et les params du manifeste **par clé**
+(`runner.build_server_payload`). Le modèle reste chargé entre deux appels.
+
+Pour que le modèle chaud du plugin ne dispute pas la carte à SDXL, ajoute ce
+hook au début de la génération Fooocus (dans `execute_task_streaming`, juste
+après le test `len(task.args) == 0`) :
+
+```python
+    try:
+        from extra_plugins import server as extra_server
+        extra_server.release_vram_all()   # POST /unload aux serveurs chauds, no-op sinon
+    except Exception:
+        pass
+```
+
+Serveur introuvable, fastapi absent, port pris : le statut l'annonce avec la fin
+du journal serveur et l'appel passe en CLI. Un serveur déjà actif sur le port
+est réutilisé, jamais tué. Les serveurs lancés par Fooocus sont arrêtés à la
+sortie (`atexit`), au Restart UI et avant la mise à jour du plugin.
+
+## Mettre à jour un plugin (custom-20)
+
+Gestionnaire → **Mises à jour** : **Vérifier** fait un `git fetch` et liste les
+commits, **Mettre à jour** applique `git merge --ff-only`. Refus, sans rien
+toucher, si un commit touche un fichier modifié dans le plugin, s'il ajoute un
+chemin présent hors de git, ou si la branche a divergé. Seules les étapes
+`... -r <fichier>` de la stratégie d'environnement sont rejouées, et seulement
+si ce fichier a changé (jamais la création du venv ni torch). La stratégie
+choisie à l'install est mémorisée dans `settings.json`. Si le manifeste a
+changé, un Restart UI reconstruit l'onglet.
+
 ## Prérequis
 
 - `git` accessible sur le PATH (pour le clone). Sur Windows, installer Git for Windows.

@@ -45,7 +45,9 @@ def get_plugin(plugin_id):
     return (_load().get("plugins", {}) or {}).get(plugin_id, {}) or {}
 
 
-def set_plugin(plugin_id, esrgan_dir=None, params=None):
+def set_plugin(plugin_id, esrgan_dir=None, params=None, **extra):
+    """Memorise des reglages d'un plugin. extra (custom-20) : server_mode (bool),
+    install ({strategy, base_python}, rejoue par la mise a jour). None = inchange."""
     d = _load()
     plugins = d.setdefault("plugins", {})
     entry = plugins.setdefault(plugin_id, {})
@@ -53,4 +55,7 @@ def set_plugin(plugin_id, esrgan_dir=None, params=None):
         entry["esrgan_dir"] = esrgan_dir
     if params is not None:
         entry["params"] = params
+    for key, value in extra.items():
+        if value is not None:
+            entry[key] = value
     _save(d)

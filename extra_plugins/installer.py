@@ -7,6 +7,7 @@ reuse_python avec --system-site-packages).
 L'isolation par venv est ce qui permet a crispz (torch 2.7 cu128) de ne jamais
 polluer l'environnement Fooocus.
 """
+import hashlib
 import os
 import re
 import shlex
@@ -133,3 +134,168 @@ def install_from_github(url, install_root, strategy="fresh_venv",
 
     log(f"== Installe : {name} ==")
     return plugin_dir
+
+
+# ---------------------------------------------------------------------------
+# custom-20 : mise a jour d'un plugin installe.
+# Meme garde que la mise a jour de Fooocus (update_check.py, custom-19), en local
+# pour garder le sous-systeme autonome : avance rapide seulement, jamais par-dessus
+# une modification locale, et deps reinstallees seulement si leur fichier change.
+# ---------------------------------------------------------------------------
+SHOW = 8
+
+
+def _git(plugin_dir, *args, timeout=60):
+    try:
+        p = subprocess.run(["git", *args], cwd=plugin_dir, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=timeout)
+        return p.returncode, ((p.stdout or "") + ((p.stderr or "") if p.returncode else "")).strip()
+    except FileNotFoundError:
+        return None, "git introuvable"
+    except subprocess.TimeoutExpired:
+        return None, f"pas de reponse en {timeout} s"
+
+
+def _lines(out):
+    return [ln.strip() for ln in (out or "").splitlines() if ln.strip()]
+
+
+def current_commit(plugin_dir):
+    code, out = _git(plugin_dir, "rev-parse", "--short", "HEAD", timeout=10)
+    return out if code == 0 else ""
+
+
+def update_status(plugin_dir, fetch=True):
+    """Etat de mise a jour d'un plugin : status 'skip' / 'uptodate' / 'safe' / 'blocked'
+    (+ behind, log, overlap, clobber, why), sur le modele de update_check.assess."""
+    code, out = _git(plugin_dir, "rev-parse", "--is-inside-work-tree", timeout=10)
+    if code is None:
+        return {"status": "skip", "why": out}
+    if code != 0 or out != "true":
+        return {"status": "skip", "why": "le plugin n'est pas un clone git (reinstaller pour le mettre a jour)"}
+    code, up = _git(plugin_dir, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}", timeout=10)
+    if code != 0 or not up:
+        return {"status": "skip", "why": "la branche du plugin ne suit aucune branche distante"}
+    if fetch:
+        code, out = _git(plugin_dir, "fetch", "--quiet", up.split("/", 1)[0], timeout=120)
+        if code != 0:
+            last = _lines(out)[-1][:120] if _lines(out) else "fetch en echec"
+            return {"status": "skip", "why": f"GitHub injoignable ({last})"}
+    _, behind = _git(plugin_dir, "rev-list", "--count", "HEAD..@{u}")
+    _, ahead = _git(plugin_dir, "rev-list", "--count", "@{u}..HEAD")
+    behind = int(behind) if str(behind).isdigit() else 0
+    ahead = int(ahead) if str(ahead).isdigit() else 0
+    commit = current_commit(plugin_dir)
+    if behind == 0:
+        return {"status": "uptodate", "upstream": up, "ahead": ahead, "commit": commit}
+    _, log = _git(plugin_dir, "log", "--oneline", "--no-decorate", f"-{SHOW}", "HEAD..@{u}")
+    info = {"upstream": up, "behind": behind, "ahead": ahead, "log": _lines(log), "commit": commit}
+    if ahead:
+        return {**info, "status": "blocked",
+                "why": f"branche divergente : {ahead} commit(s) local(aux) absent(s) du depot"}
+    _, changed = _git(plugin_dir, "diff", "--name-only", "--no-renames", "HEAD", "@{u}")
+    _, added = _git(plugin_dir, "diff", "--name-only", "--no-renames", "--diff-filter=A", "HEAD", "@{u}")
+    _, local = _git(plugin_dir, "diff", "--name-only", "HEAD")
+    changed, added, local = set(_lines(changed)), set(_lines(added)), set(_lines(local))
+    overlap = sorted(changed & local)
+    clobber = sorted(p for p in added if os.path.lexists(os.path.join(plugin_dir, p)))
+    if overlap or clobber:
+        return {**info, "status": "blocked", "overlap": overlap, "clobber": clobber,
+                "why": "la mise a jour toucherait des fichiers modifies dans le plugin"}
+    return {**info, "status": "safe", "local": sorted(local)}
+
+
+def format_status(st):
+    """Lignes lisibles pour le journal du Gestionnaire."""
+    s = st["status"]
+    head = f"Commit installe : {st['commit']}" if st.get("commit") else None
+    lines = [head] if head else []
+    if s == "skip":
+        return lines + [f"Pas de verification : {st['why']}."]
+    if s == "uptodate":
+        extra = f" ({st['ahead']} commit(s) local(aux) non pousse(s))" if st.get("ahead") else ""
+        return lines + [f"A jour{extra}."]
+    lines.append(f"{st['behind']} commit(s) disponible(s) sur {st['upstream']} :")
+    lines += [f"  {ln[:110]}" for ln in st["log"]]
+    if st["behind"] > len(st["log"]):
+        lines.append(f"  ... et {st['behind'] - len(st['log'])} autre(s)")
+    if s == "blocked":
+        lines.append(f"BLOQUEE : {st['why']}.")
+        lines += [f"  modifie dans le plugin ET par la mise a jour : {p}" for p in st.get("overlap", [])]
+        lines += [f"  present hors de git, ajoute par la mise a jour : {p}" for p in st.get("clobber", [])]
+    else:
+        lines.append("Mise a jour sure : clique 'Mettre a jour'.")
+    return lines
+
+
+def _dep_steps(manifest, strategy):
+    """Etapes d'env qui installent un fichier de dependances (`... -r <fichier>`) :
+    les seules rejouees par une mise a jour (ni creation de venv, ni torch)."""
+    strategies = (manifest.get("env") or {}).get("strategies") or {}
+    strat = strategies.get(strategy) or strategies.get("fresh_venv") or {}
+    out = []
+    for step in strat.get("steps", []):
+        cmd = step.get("cmd") or []
+        if "-r" in cmd:
+            i = cmd.index("-r")
+            if i + 1 < len(cmd):
+                out.append((step, cmd[i + 1]))
+    return out
+
+
+def _file_hash(path):
+    try:
+        with open(path, "rb") as f:
+            return hashlib.sha1(f.read()).hexdigest()
+    except OSError:
+        return None
+
+
+def update_plugin(plugin_dir, strategy="fresh_venv", base_python=None, log=None, force_deps=False):
+    """Met a jour un plugin installe. Leve RuntimeError si la mise a jour est bloquee
+    ou echoue (rien n'est touche dans le cas bloque). Renvoie
+    {updated, deps, manifest_changed, behind}."""
+    log = log or print
+    st = update_status(plugin_dir, fetch=True)
+    for ln in format_status(st):
+        log(ln)
+    if st["status"] == "skip":
+        raise RuntimeError(st["why"])
+    if st["status"] == "blocked":
+        raise RuntimeError("mise a jour bloquee, rien n'a ete touche")
+    if st["status"] == "uptodate" and not force_deps:
+        return {"updated": False, "deps": False, "manifest_changed": False, "behind": 0}
+
+    mpath = manifest_mod.manifest_path(plugin_dir)
+    old_manifest = manifest_mod.load(plugin_dir)
+    before = {req: _file_hash(os.path.join(plugin_dir, req))
+              for _, req in _dep_steps(old_manifest, strategy)}
+    manifest_before = _file_hash(mpath)
+
+    updated = False
+    if st["status"] == "safe":
+        log("== Avance rapide (git merge --ff-only) ==")
+        code, out = _git(plugin_dir, "merge", "--ff-only", "@{u}", timeout=300)
+        if out:
+            log(out)
+        if code != 0:
+            raise RuntimeError("git a refuse l'avance rapide, rien n'a change")
+        updated = True
+
+    new_manifest = manifest_mod.load(plugin_dir)  # leve ManifestError si le nouveau est casse
+    ran = False
+    for step, req in _dep_steps(new_manifest, strategy):
+        req_path = os.path.join(plugin_dir, req)
+        if not os.path.isfile(req_path):
+            continue
+        if force_deps or before.get(req) != _file_hash(req_path):
+            why = "force" if force_deps else f"{req} a change"
+            log(f"== {step.get('name', 'deps')} ({why}) ==")
+            _run(_expand_cmd(step["cmd"], plugin_dir, base_python), cwd=plugin_dir, log=log)
+            ran = True
+    if not ran:
+        log("Dependances inchangees : rien a reinstaller.")
+    changed = manifest_before != _file_hash(mpath)
+    log(f"== Plugin a jour : {current_commit(plugin_dir)} ==")
+    return {"updated": updated, "deps": ran, "manifest_changed": changed,
+            "behind": st.get("behind", 0)}

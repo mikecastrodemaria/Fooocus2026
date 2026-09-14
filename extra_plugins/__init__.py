@@ -8,7 +8,7 @@ Integration cote Fooocus : voir INTEGRATION.md (patch de ~10 lignes sur webui.py
 """
 import os
 
-from . import manifest, runner, installer, registry
+from . import manifest, runner, installer, registry, server
 
 PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 INSTALL_ROOT = os.path.join(PACKAGE_DIR, "installed")
@@ -30,6 +30,6 @@ def offload_host_models():
 
 
 __all__ = [
-    "manifest", "runner", "installer", "registry",
+    "manifest", "runner", "installer", "registry", "server",
     "PACKAGE_DIR", "INSTALL_ROOT", "OUTPUT_DIR", "offload_host_models",
 ]

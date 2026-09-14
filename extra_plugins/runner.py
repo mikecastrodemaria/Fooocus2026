@@ -100,6 +100,41 @@ def build_upscale_command(manifest, plugin_dir, input_path, output_dir,
     return cmd
 
 
+def _json_value(v):
+    """Valeur native pour le JSON du mode serveur : meme regle que _fmt_value
+    (un float entier redevient int), sans passer par une chaine."""
+    if isinstance(v, float) and v.is_integer():
+        return int(v)
+    return v
+
+
+def build_server_payload(manifest, input_path, output_dir, param_values):
+    """custom-20 : corps JSON de POST /upscale pour le mode serveur.
+
+    Les params du manifeste sont envoyes par CLE (factor, denoise, refine_tile...),
+    les noms de champs des serveurs de la famille crispz. Le mode et le format de
+    sortie reprennent ceux de la CLI (entry.output) pour un resultat identique.
+    """
+    out = (manifest.get("entry") or {}).get("output") or {}
+    save_mode = list(out.get("save_mode_flag", []))
+    fmt = list(out.get("format_flag", []))
+    payload = {
+        "input": input_path,
+        "save_mode": save_mode[1] if len(save_mode) > 1 else "custom",
+        "output_dir": output_dir,
+        "output_format": fmt[1] if len(fmt) > 1 else "png",
+    }
+    by_key = {p["key"]: p for p in manifest.get("params", [])}
+    for key, val in param_values.items():
+        spec = by_key.get(key)
+        if not spec or val is None:
+            continue
+        if isinstance(val, str) and val == "" and spec.get("type") != "text":
+            continue
+        payload[key] = _json_value(val)
+    return payload
+
+
 def list_models(manifest, plugin_dir, esrgan_dir=None, timeout=120):
     """Renvoie la liste des modeles ESRGAN via la commande choices_cmd du param model."""
     model_param = next((p for p in manifest.get("params", [])

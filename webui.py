@@ -44,6 +44,16 @@ def execute_task_streaming(task: worker.AsyncTask):
     if len(task.args) == 0:
         return
 
+    # custom-20 : un serveur de plugin Extra garde son modele chaud entre deux appels ;
+    # il rend sa VRAM avant que Fooocus ne recharge SDXL (no-op sans serveur actif).
+    try:
+        from extra_plugins import server as extra_server
+        freed = extra_server.release_vram_all()
+        if freed:
+            print(f'[Extra] VRAM rendue par le(s) serveur(s) plugin : {", ".join(freed)}')
+    except Exception as _e:
+        print(f'[Extra] WARNING liberation VRAM plugins : {_e}')
+
     execution_start_time = time.perf_counter()
     finished = False
 

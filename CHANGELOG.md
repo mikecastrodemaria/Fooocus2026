@@ -3,6 +3,68 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-20] — 2026-09-14 — Plugins Extra : mise a jour et mode serveur
+
+### Added
+- **Mettre a jour un plugin installe** depuis le Gestionnaire (section *Mises a
+  jour*) : **Verifier** liste les commits disponibles, **Mettre a jour** les
+  applique en avance rapide. Jusqu'ici le Manager savait cloner, pas mettre a
+  jour : le crispz installe etait reste a `d0f89f8`, 4 commits derriere
+  `origin` (dont le correctif de lenteur Blackwell, VAE garde en bf16, et
+  l'auto-tile du refine 4K).
+- Meme garde que la mise a jour de Fooocus (custom-19) : refus si un commit
+  touche un fichier modifie dans le plugin, s'il ajoute un chemin present hors
+  de git, ou si la branche a diverge. Rien n'est touche dans ces cas.
+- Les **dependances ne sont reinstallees que si leur fichier change** : seules les
+  etapes `... -r <fichier>` de la strategie d'environnement sont rejouees (ni
+  creation de venv, ni torch), et seulement quand le fichier a bouge. Case
+  *Reinstaller les dependances* pour forcer.
+- La strategie choisie a l'install (`fresh_venv` / `reuse_python` + Python de
+  base) est memorisee pour etre rejouee a l'identique.
+- **Mode serveur** : quand le manifeste declare un bloc `server` (crispz et toute
+  la famille : `app.py --serve`), l'onglet du plugin propose *Server mode* (actif
+  par defaut). Le serveur est lance au premier Upscale et garde le modele charge :
+  plus de rechargement a chaque appel (66 s a froid contre 46 s a chaud mesures en
+  2K sur RTX 5090, brief crispz tache D, jamais branchee jusqu'ici).
+- **Liberation VRAM** : au debut de chaque generation Fooocus, les serveurs qui
+  tiennent un modele recoivent `POST /unload`. Le process reste, la VRAM revient a
+  SDXL. No-op instantane sans serveur.
+- Bouton **Stop server** par plugin ; les serveurs sont arretes a la sortie de
+  Fooocus, au Restart UI et avant la mise a jour du plugin.
+
+### Changed
+- Le statut d'un Upscale dit la voie prise : `via server ..., warm model` ou
+  `model loaded on this call`, avec les temps ESRGAN / refine du serveur.
+- Le Gestionnaire affiche le commit installe de chaque plugin.
+
+### Notes
+- **Degradation annoncee, jamais silencieuse** : si le serveur ne demarre pas
+  (fastapi absent du venv, port pris, crash), le statut commence par
+  `Server mode unavailable, CLI fallback: ...` avec la fin du journal serveur, et
+  l'Upscale passe en CLI comme avant.
+- Un serveur deja actif sur le port (lance a la main) est reutilise, jamais tue.
+- Le `--esrgan-dir` est fige au lancement du serveur : changer de dossier ESRGAN
+  relance le serveur.
+- Journal serveur : `extra_plugins/outputs/<id>/<id>_server.log`.
+- Famille crispz : les manifestes de crispz-studio, crispz-klein, crispz-krea,
+  crispz-krea2 et crispz-qwen-edit portaient tous `id: "crispz"` et
+  `repo: .../crispz` (copie non adaptee). Installes cote a cote, ils se seraient
+  ecrases dans le registre et les reglages. Corriges dans chaque depot (id, nom,
+  version, description, repo).
+
+### Files
+- `extra_plugins/server.py` : **nouveau** (ensure / upscale / release_vram_all / stop).
+- `extra_plugins/installer.py` : `update_status`, `format_status`, `update_plugin`,
+  `current_commit`.
+- `extra_plugins/runner.py` : `build_server_payload`.
+- `extra_plugins/settings.py` : `set_plugin(**extra)` (server_mode, install).
+- `extra_plugins/ui.py` : case Server mode + Stop server, section Mises a jour,
+  commit dans la liste des plugins, strategie d'install memorisee.
+- `webui.py` : `execute_task_streaming` appelle `release_vram_all()`.
+- `extra_plugins/INTEGRATION.md` : mise a jour, mode serveur, hook VRAM.
+- `tests/test_extra_plugins.py` : **nouveau**, 14 tests (faux serveur HTTP ; vrais
+  depots git en clone `--depth 1` comme a l'install).
+
 ## [custom-19] — 2026-09-14 — Mise a jour au demarrage : proposee, jamais par-dessus le travail local
 
 ### Fixed
