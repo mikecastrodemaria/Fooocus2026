@@ -86,13 +86,13 @@ def _http(method, url, payload=None, timeout=10):
             pass
         raise ServerError(f'HTTP {e.code} {e.reason}: {str(detail)[:300]}')
     except (urllib.error.URLError, OSError) as e:
-        raise ServerError(f'injoignable ({getattr(e, "reason", e)})')
+        raise ServerError(f'unreachable ({getattr(e, "reason", e)})')
     if not body.strip():
         return {}
     try:
         return json.loads(body)
     except ValueError:
-        raise ServerError(f'reponse non JSON : {body[:200]}')
+        raise ServerError(f'non-JSON response: {body[:200]}')
 
 
 def health(url, timeout=3):
@@ -109,7 +109,7 @@ def log_tail(path, n=12):
         with open(path, encoding='utf-8', errors='replace') as f:
             return '\n'.join(f.read().splitlines()[-n:])
     except Exception:
-        return '(journal illisible)'
+        return '(log unreadable)'
 
 
 class _Server:
@@ -161,7 +161,7 @@ def ensure(plugin, esrgan_dir=None, log_dir=None, start_timeout=None):
     pid = plugin['id']
     url = server_url(plugin['manifest'])
     if not url:
-        raise ServerError('le manifeste ne declare pas de serveur utilisable (bloc server + --port)')
+        raise ServerError('the manifest declares no usable server (server block + --port)')
     esrgan_dir = esrgan_dir or None
     with _LOCK:
         srv = _SERVERS.get(pid)
@@ -174,11 +174,11 @@ def ensure(plugin, esrgan_dir=None, log_dir=None, start_timeout=None):
             if health(url) is not None:
                 return url
             _SERVERS.pop(pid, None)
-            raise ServerError(f'le serveur externe {url} ne repond plus')
+            raise ServerError(f'the external server {url} no longer responds')
         if srv is None:
             if health(url) is not None:
                 _SERVERS[pid] = _Server(pid, url, esrgan_dir=esrgan_dir)
-                print(f'[Extra] Serveur deja actif sur {url} : reutilise pour {pid}.')
+                print(f'[Extra] Server already running on {url}: reused for {pid}.')
                 return url
             cmd = _launch_command(plugin, esrgan_dir)
             log_dir = log_dir or plugin['dir']
@@ -193,10 +193,10 @@ def ensure(plugin, esrgan_dir=None, log_dir=None, start_timeout=None):
                                         stderr=subprocess.STDOUT, **kwargs)
             except OSError as e:
                 log_file.close()
-                raise ServerError(f'lancement impossible ({e})')
+                raise ServerError(f'could not launch ({e})')
             srv = _Server(pid, url, proc, log_path, esrgan_dir, log_file)
             _SERVERS[pid] = srv
-            print(f'[Extra] Serveur {pid} lance sur {url} (journal : {log_path}).')
+            print(f'[Extra] Server {pid} started on {url} (log: {log_path}).')
     timeout = start_timeout or START_TIMEOUT
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -205,20 +205,20 @@ def ensure(plugin, esrgan_dir=None, log_dir=None, start_timeout=None):
                 if _SERVERS.get(pid) is srv:
                     _SERVERS.pop(pid, None)
             _terminate(srv)
-            raise ServerError(f"le serveur s'est arrete au demarrage (code {srv.proc.returncode}) :\n"
+            raise ServerError(f"the server stopped during startup (code {srv.proc.returncode}):\n"
                               f'{log_tail(srv.log_path)}')
         if health(url) is not None:
             return url
         time.sleep(0.5)
     stop(pid)
-    raise ServerError(f'pas de reponse de {url}/health en {int(timeout)} s :\n{log_tail(srv.log_path)}')
+    raise ServerError(f'no response from {url}/health within {int(timeout)} s:\n{log_tail(srv.log_path)}')
 
 
 def upscale(plugin_id, url, payload, timeout=1800):
     """POST /upscale. Renvoie la reponse du serveur + 'was_warm' (modele deja charge)."""
     res = _http('POST', url.rstrip('/') + '/upscale', payload=payload, timeout=timeout)
     if not isinstance(res, dict) or not res.get('output'):
-        raise ServerError(f'aucun fichier dans la reponse : {str(res)[:200]}')
+        raise ServerError(f'no file in the response: {str(res)[:200]}')
     srv = _SERVERS.get(plugin_id)
     res['was_warm'] = bool(srv and srv.warm)
     if srv is not None:

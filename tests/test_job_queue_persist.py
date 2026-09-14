@@ -81,9 +81,9 @@ class TestPersistence(unittest.TestCase):
         q2 = self.queue(expected_len=18)
         self.assertEqual(q2.load(), 2)
         self.assertEqual(q2.labels(), ['#1 | first', '#2 | second'])
-        self.assertIn('restaure', q2.status_text())
+        self.assertIn('restored', q2.status_text())
         job = q2.start_next()
-        self.assertNotIn('restaure', q2.status_text(), 'le message disparait a la reprise')
+        self.assertNotIn('restored', q2.status_text(), 'le message disparait a la reprise')
         np.testing.assert_array_equal(job.args[13], img)
         self.assertEqual(q2._jobs[1].args[14]['mask'].shape, (8, 8, 3))
         self.assertEqual(q2._jobs[1].meta['group'], 'g1')
@@ -132,7 +132,7 @@ class TestPersistence(unittest.TestCase):
         backups = [f for f in os.listdir(self.dir) if '.rejected-' in f]
         self.assertEqual(len(backups), 1)
         with open(os.path.join(self.dir, backups[0]), encoding='utf-8') as f:
-            self.assertIn('au lieu de 18', json.load(f)['rejected'][0]['reason'])
+            self.assertIn('instead of 18', json.load(f)['rejected'][0]['reason'])
 
     def test_a_corrupted_file_is_set_aside_not_crashing(self):
         with open(os.path.join(self.dir, QUEUE_FILE), 'w') as f:
@@ -200,7 +200,7 @@ class TestSoftPause(unittest.TestCase):
         self.assertFalse(q.request_pause(), 'rien a suspendre sans runner')
         self.assertTrue(q.try_acquire_runner())
         self.assertTrue(q.request_pause())
-        self.assertIn('Pause demandee', q.status_text())
+        self.assertIn('Pause requested', q.status_text())
         self.assertTrue(q.consume_pause_request())
         self.assertTrue(q.paused)
         self.assertFalse(q.consume_pause_request())

@@ -3,6 +3,26 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-27] — 2026-09-14 — English UI strings
+
+### Changed
+- **Job Queue & X/Y/Z Grid panel**: help text, queue status ("Queue empty.",
+  "N job(s) pending, queue processing. Job running."), "Pending jobs", the
+  "X/Y/Z Grid" accordion ("X axis", "X values", "Z axis (one sheet per value)",
+  "Build grid in queue") and the `[JobQueue]` / `[XYZ]` / `[xyz-cli]` console
+  messages are now in English, as are the grid validation errors.
+- **X/Y/Z axis choice**: the empty axis is now shown as `(none)`. `(aucun)` is
+  still accepted as input (older saved values, LoRA name axis).
+- **Extra plugins**: the Manager tab (Install, Environment, Base Python, Force,
+  Install log, Updates, Check, Update, Update log), install / update logs,
+  plugin update status, server and manifest error messages are in English.
+- **Boot update check** (`[Update]` console): status report and the question,
+  now `[Update] Update now? [y/N] (N in 20 s)`. `o` / `oui` are still accepted.
+- Preset save messages, `[Boot]`, `[TagAC]` and `[Provenance]` console messages are in English.
+
+### Notes
+- Code comments, docstrings and older CHANGELOG entries remain in French for now.
+
 ## [custom-26] — 2026-09-14 — Protocole CLI de la famille crispz : Fooocus2026 moteur SDXL
 
 ### Added

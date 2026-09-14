@@ -14,7 +14,7 @@ try:
     import update_check
     update_check.boot()
 except Exception as e:
-    print('[Update] Verification impossible, demarrage tel quel.')
+    print('[Update] Update check failed, starting as is.')
     print(str(e))
 
 from launch import *

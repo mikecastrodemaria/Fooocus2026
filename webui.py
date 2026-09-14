@@ -50,9 +50,9 @@ def execute_task_streaming(task: worker.AsyncTask):
         from extra_plugins import server as extra_server
         freed = extra_server.release_vram_all()
         if freed:
-            print(f'[Extra] VRAM rendue par le(s) serveur(s) plugin : {", ".join(freed)}')
+            print(f'[Extra] VRAM released by plugin server(s): {", ".join(freed)}')
     except Exception as _e:
-        print(f'[Extra] WARNING liberation VRAM plugins : {_e}')
+        print(f'[Extra] WARNING plugin VRAM release: {_e}')
 
     execution_start_time = time.perf_counter()
     finished = False
@@ -131,11 +131,11 @@ def purge_vram_if_model_changed(prev_model, next_model):
         return
     try:
         import ldm_patched.modules.model_management as _mm
-        print(f'[JobQueue] Changement de checkpoint ({prev_model} -> {next_model}) : purge VRAM.')
+        print(f'[JobQueue] Checkpoint change ({prev_model} -> {next_model}): purging VRAM.')
         _mm.unload_all_models()
         _mm.soft_empty_cache()
     except Exception as _e:
-        print(f'[JobQueue] WARNING purge VRAM: {_e}')
+        print(f'[JobQueue] WARNING VRAM purge: {_e}')
 
 
 def queue_runner():
@@ -154,7 +154,7 @@ def queue_runner():
     from modules import job_queue as jq
 
     if not jq.queue.try_acquire_runner():
-        print('[JobQueue] Runner deja actif, le job vient d\'etre enfile.')
+        print('[JobQueue] Runner already active, the job has been queued.')
         return
 
     prev_model = None
@@ -169,8 +169,8 @@ def queue_runner():
 
             if job is None:
                 if time.perf_counter() - idle_since > jq.queue.idle_timeout:
-                    print('[JobQueue] File vide depuis '
-                          f'{jq.queue.idle_timeout:.0f}s : runner en veille.')
+                    print('[JobQueue] Queue empty for '
+                          f'{jq.queue.idle_timeout:.0f}s: runner going idle.')
                     break
                 time.sleep(0.1)
                 continue
@@ -185,7 +185,7 @@ def queue_runner():
 
             task = worker.AsyncTask(args=list(job.args))
             jq.queue.current_task = task
-            print(f'[JobQueue] Job lance : {job.label} ({len(jq.queue) - 1} autre(s) en file)')
+            print(f'[JobQueue] Job started: {job.label} ({len(jq.queue) - 1} more in queue)')
 
             for out in execute_task_streaming(task):
                 yield out + queue_state_updates()
@@ -216,12 +216,12 @@ def queue_runner():
 
             if stopped:
                 jq.queue.paused = True
-                print(f'[JobQueue] Stop : file en pause, le job interrompu reste en tete '
-                      f'({len(jq.queue)} job(s) en file).')
+                print(f'[JobQueue] Stop: queue paused, the interrupted job stays first '
+                      f'({len(jq.queue)} job(s) in queue).')
                 break
 
             if jq.queue.consume_pause_request():
-                print(f'[JobQueue] Pause : job termine, file suspendue ({len(jq.queue)} job(s) en file).')
+                print(f'[JobQueue] Pause: job finished, queue suspended ({len(jq.queue)} job(s) in queue).')
                 break
 
             idle_since = time.perf_counter()
@@ -379,33 +379,33 @@ with shared.gradio_root:
                 with gr.Row(visible=False) as job_queue_panel:
                     with gr.Column():
                         gr.HTML('<div style="font-size:12px;color:#888;margin-bottom:6px;">'
-                                '<b>Generate</b> reste cliquable pendant une generation : chaque clic '
-                                'empile un job de plus, qui part automatiquement des que le precedent '
-                                'se termine. <b>+ Queue</b> empile sans lancer (chaque job fige les '
-                                'reglages du moment). <b>Pause</b> finit le job en cours puis suspend. '
-                                '<b>Stop</b> interrompt le job courant, qui reste en tete de file et '
-                                'repartira entier — relancez avec Run queue, rien n\'est perdu. '
-                                'La file survit a un redemarrage de Fooocus.</div>')
-                        queue_status = gr.HTML(value='File vide.')
-                        queue_display = gr.Radio(label='Jobs en attente', choices=[], value=None, interactive=True)
+                                '<b>Generate</b> stays clickable during a generation: each click '
+                                'stacks one more job, which starts automatically as soon as the previous '
+                                'one ends. <b>+ Queue</b> stacks without starting (each job freezes the '
+                                'current settings). <b>Pause</b> finishes the current job, then suspends. '
+                                '<b>Stop</b> interrupts the current job, which stays first in the queue and '
+                                'will run again in full — resume with Run queue, nothing is lost. '
+                                'The queue survives a Fooocus restart.</div>')
+                        queue_status = gr.HTML(value='Queue empty.')
+                        queue_display = gr.Radio(label='Pending jobs', choices=[], value=None, interactive=True)
                         # custom-15 : grille X/Y/Z, les combos partent dans la queue
-                        with gr.Accordion(label='Grille X/Y/Z', open=False):
+                        with gr.Accordion(label='X/Y/Z Grid', open=False):
                             import modules.xyz_grid as xyz_mod
                             gr.HTML('<div style="font-size:12px;color:#888;margin-bottom:4px;">'
-                                    'Valeurs separees par des virgules (ex. CFG : 3, 5, 7). '
-                                    'Chaque combo devient un job (1 image par case, meme seed). '
-                                    'La planche annotee est assemblee en fin de serie dans '
+                                    'Comma-separated values (e.g. CFG: 3, 5, 7). '
+                                    'Each combination becomes a job (1 image per cell, same seed). '
+                                    'The annotated sheet is assembled at the end of the series in '
                                     'outputs/xyz_grids/.</div>')
                             with gr.Row():
-                                xyz_x_param = gr.Dropdown(label='Axe X', choices=xyz_mod.AXIS_CHOICES, value='CFG', scale=1, elem_id='xyz_param_x')
-                                xyz_x_vals = gr.Textbox(label='Valeurs X', placeholder='3, 5, 7', scale=2, elem_id='xyz_vals_x')
+                                xyz_x_param = gr.Dropdown(label='X axis', choices=xyz_mod.AXIS_CHOICES, value='CFG', scale=1, elem_id='xyz_param_x')
+                                xyz_x_vals = gr.Textbox(label='X values', placeholder='3, 5, 7', scale=2, elem_id='xyz_vals_x')
                             with gr.Row():
-                                xyz_y_param = gr.Dropdown(label='Axe Y', choices=xyz_mod.AXIS_CHOICES, value='(aucun)', scale=1, elem_id='xyz_param_y')
-                                xyz_y_vals = gr.Textbox(label='Valeurs Y', placeholder='20, 40', scale=2, elem_id='xyz_vals_y')
+                                xyz_y_param = gr.Dropdown(label='Y axis', choices=xyz_mod.AXIS_CHOICES, value='(none)', scale=1, elem_id='xyz_param_y')
+                                xyz_y_vals = gr.Textbox(label='Y values', placeholder='20, 40', scale=2, elem_id='xyz_vals_y')
                             with gr.Row():
-                                xyz_z_param = gr.Dropdown(label='Axe Z (une planche par valeur)', choices=xyz_mod.AXIS_CHOICES, value='(aucun)', scale=1, elem_id='xyz_param_z')
-                                xyz_z_vals = gr.Textbox(label='Valeurs Z', placeholder='', scale=2, elem_id='xyz_vals_z')
-                            xyz_build_button = gr.Button(value='Construire la grille dans la queue')
+                                xyz_z_param = gr.Dropdown(label='Z axis (one sheet per value)', choices=xyz_mod.AXIS_CHOICES, value='(none)', scale=1, elem_id='xyz_param_z')
+                                xyz_z_vals = gr.Textbox(label='Z values', placeholder='', scale=2, elem_id='xyz_vals_z')
+                            xyz_build_button = gr.Button(value='Build grid in queue')
                         with gr.Row():
                             queue_run_button = gr.Button(value='\u25B6 Run queue', variant='primary', scale=2)
                             queue_pause_button = gr.Button(value='\u23F8 Pause', scale=1)  # custom-21
@@ -2125,7 +2125,7 @@ with shared.gradio_root:
                         name, _, current = _collect_current_values(preset_name, overwrite_target, *args)
                         if not name or not name.strip():
                             return _build_result(
-                                gr.update(value='<span style="color: #ff6b6b;">Saisis un nom de preset.</span>'),
+                                gr.update(value='<span style="color: #ff6b6b;">Enter a preset name.</span>'),
                                 gr.update())
                         success, msg = modules.config.save_preset_to_file(name, current, overwrite=False)
                         color = '#4ecdc4' if success else '#ff6b6b'
@@ -2142,7 +2142,7 @@ with shared.gradio_root:
                         _, target, current = _collect_current_values(preset_name, overwrite_target, *args)
                         if not target:
                             return _build_result(
-                                gr.update(value='<span style="color: #ff6b6b;">Selectionne un preset a ecraser.</span>'),
+                                gr.update(value='<span style="color: #ff6b6b;">Select a preset to overwrite.</span>'),
                                 gr.update())
                         success, msg = modules.config.save_preset_to_file(target, current, overwrite=True)
                         color = '#4ecdc4' if success else '#ff6b6b'
@@ -3087,9 +3087,9 @@ with shared.gradio_root:
                     label = jq.make_label(a)
                     pos = jq.queue.add(a, label)
                     if pos < 0:
-                        print(f'[JobQueue] File pleine ({jq.queue.max_jobs} jobs max), ajout refuse.')
+                        print(f'[JobQueue] Queue full ({jq.queue.max_jobs} jobs max), job refused.')
                     else:
-                        print(f'[JobQueue] Ajout #{pos} : {label}')
+                        print(f'[JobQueue] Added #{pos}: {label}')
                 except Exception:
                     traceback.print_exc()
                 return queue_refresh()
@@ -3133,7 +3133,7 @@ with shared.gradio_root:
             def queue_pause():
                 # custom-21 : pause douce, le job en cours se termine d'abord
                 if jq.queue.request_pause():
-                    print('[JobQueue] Pause demandee : la file s\'arretera apres le job en cours.')
+                    print('[JobQueue] Pause requested: the queue will stop after the current job.')
                 return queue_refresh()
 
             jq.queue.max_jobs = int(modules.config.job_queue_setting('max_jobs') or 50)
@@ -3164,17 +3164,17 @@ with shared.gradio_root:
                     base.pop(0)  # currentTask
                     spec = []
                     for p, v in ((xp, xv), (yp, yv), (zp, zv)):
-                        if p and p != '(aucun)':
+                        if p and p not in ('(none)', '(aucun)'):
                             spec.append((p, xyz.parse_values(p, v)))
                     jobs, group = xyz.expand(base, spec)
                     room = jq.queue.max_jobs - len(jq.queue)
                     if len(jobs) > room:
-                        print(f'[XYZ] {len(jobs)} combos > {room} places restantes, abandon.')
+                        print(f'[XYZ] {len(jobs)} combos > {room} free slots left, aborted.')
                         return queue_refresh()
                     xyz.register_group(group)
                     for args_i, label_i, meta_i in jobs:
                         jq.queue.add(args_i, label_i, meta_i)
-                    print(f'[XYZ] {len(jobs)} jobs de grille ajoutes ({group["id"]}).')
+                    print(f'[XYZ] {len(jobs)} grid jobs added ({group["id"]}).')
                 except Exception:
                     traceback.print_exc()
                 return queue_refresh()

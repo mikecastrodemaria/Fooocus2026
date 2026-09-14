@@ -134,7 +134,7 @@ def inject_jpeg_xmp(path, generator=None):
         os.replace(tmp, path)
         return True
     except Exception as e:
-        _warn_once('jpeg', f'[Provenance] WARNING declaration JPEG non ecrite : {e}')
+        _warn_once('jpeg', f'[Provenance] WARNING JPEG declaration not written: {e}')
         return False
 
 
@@ -167,9 +167,9 @@ def maybe_watermark(image):
     if not watermark_wanted():
         return image
     if not trustmark_available():
-        _warn_once('tm-missing', '[Provenance] provenance.watermark est actif mais le paquet '
-                                 'trustmark est absent (pip install trustmark) : images '
-                                 'enregistrees sans filigrane, avec la declaration XMP.')
+        _warn_once('tm-missing', '[Provenance] provenance.watermark is on but the trustmark '
+                                 'package is missing (pip install trustmark): images '
+                                 'saved without a watermark, with the XMP declaration.')
         return image
     try:
         alpha = image.getchannel('A') if image.mode == 'RGBA' else None
@@ -178,7 +178,7 @@ def maybe_watermark(image):
             out.putalpha(alpha)
         return out
     except Exception as e:
-        _warn_once('tm-error', f'[Provenance] WARNING filigrane non applique : {e}')
+        _warn_once('tm-error', f'[Provenance] WARNING watermark not applied: {e}')
         return image
 
 

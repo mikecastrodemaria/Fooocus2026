@@ -31,8 +31,8 @@ from . import INSTALL_ROOT, OUTPUT_DIR, offload_host_models
 
 _RESTART_NOTICE = ('<div style="padding:8px;border:1px solid #4ecdc4;'
                    'border-radius:6px;color:#4ecdc4;">✅ {msg} '
-                   'Un redemarrage de l\'UI est requis pour reconstruire l\'onglet. '
-                   'Clique <b>⚠ Restart UI</b> ci-dessus.</div>')
+                   'A UI restart is required to rebuild the tab. '
+                   'Click <b>⚠ Restart UI</b> above.</div>')
 
 
 # Helpers exposes a webui.py pour l'etat persiste de la case "Extra Plugins".
@@ -300,39 +300,39 @@ def _plugin_ids():
 
 
 def _build_manager_tab():
-    with gr.Tab(label="Gestionnaire"):
+    with gr.Tab(label="Manager"):
         gr.Markdown(
-            "Installe un plugin Extra depuis un depot GitHub (avec un "
-            "`fooocus_extra.json`). Le plugin tourne dans son propre venv. "
-            "Apres une install, relance Fooocus pour voir son onglet.")
+            "Install an Extra plugin from a GitHub repository (with a "
+            "`fooocus_extra.json`). The plugin runs in its own venv. "
+            "After an install, restart Fooocus to see its tab.")
         with gr.Row():
-            url = gr.Textbox(label="URL GitHub",
-                             placeholder="https://github.com/utilisateur/plugin")
+            url = gr.Textbox(label="GitHub URL",
+                             placeholder="https://github.com/user/plugin")
             strategy = gr.Dropdown(
-                label="Environnement",
+                label="Environment",
                 choices=["fresh_venv", "reuse_python"], value="fresh_venv")
         base_python = gr.Textbox(
-            label="Python de base (pour reuse_python, ex: py -3.10 ou chemin)",
+            label="Base Python (for reuse_python, e.g. py -3.10 or a path)",
             value="")
         with gr.Row():
-            install_btn = gr.Button("Installer", variant="primary")
-            force = gr.Checkbox(label="Forcer (reinstaller si present)", value=False)
-        log = gr.Textbox(label="Journal d'installation", lines=14, interactive=False)
+            install_btn = gr.Button("Install", variant="primary")
+            force = gr.Checkbox(label="Force (reinstall if present)", value=False)
+        log = gr.Textbox(label="Install log", lines=14, interactive=False)
         installed = gr.Markdown(_installed_md())
 
         restart_notice = gr.HTML(value="", visible=False)
         with gr.Row():
             restart_btn = gr.Button(value="\U000026A0 Restart UI", variant="stop",
                                     min_width=130, scale=1)
-            gr.Markdown("L'onglet d'un plugin n'apparait qu'au demarrage. Apres une "
-                        "install, clique Restart UI (relance via run.bat / run.sh).")
+            gr.Markdown("A plugin tab only appears at startup. After an "
+                        "install, click Restart UI (relaunches via run.bat / run.sh).")
 
         def _install(u, strat, bp, frc):
             lines = []
             def _log(s):
                 lines.append(str(s))
             if not u.strip():
-                return ("Donne une URL GitHub.", _installed_md(),
+                return ("Enter a GitHub URL.", _installed_md(),
                         gr.update(visible=False))
             ok = True
             try:
@@ -348,12 +348,12 @@ def _build_manager_tab():
                     pass
             except Exception as e:
                 ok = False
-                lines.append("ERREUR: %s" % e)
+                lines.append("ERROR: %s" % e)
             if ok:
                 lines.append("")
-                lines.append(">>> Installe. Clique '⚠ Restart UI' pour charger "
-                             "le plugin : son onglet apparaitra apres le redemarrage.")
-                notice = _RESTART_NOTICE.format(msg="Plugin installe.")
+                lines.append(">>> Installed. Click '⚠ Restart UI' to load "
+                             "the plugin: its tab will appear after the restart.")
+                notice = _RESTART_NOTICE.format(msg="Plugin installed.")
                 return "\n".join(lines), _installed_md(), gr.update(value=notice, visible=True)
             return "\n".join(lines), _installed_md(), gr.update(visible=False)
 
@@ -369,45 +369,45 @@ def _build_manager_tab():
             threading.Thread(target=_do_exit, daemon=True).start()
             return gr.update(
                 value='<div style="padding:8px;border:1px solid #ffa500;'
-                      'border-radius:6px;color:#ffa500;">⚠ Redemarrage… '
-                      'attends ~30 s puis rafraichis la page. Si elle ne revient pas, '
-                      'ton lanceur n\'implemente pas la boucle de restart : relance '
-                      'le .bat / .sh a la main.</div>',
+                      'border-radius:6px;color:#ffa500;">⚠ Restarting… '
+                      'wait ~30 s, then refresh the page. If it does not come back, '
+                      'your launcher does not implement the restart loop: relaunch '
+                      'the .bat / .sh by hand.</div>',
                 visible=True)
 
         restart_btn.click(_restart_ui, outputs=[restart_notice])
 
         # --- custom-20 : mises a jour ------------------------------------------
         gr.Markdown(
-            "### Mises a jour\n"
-            "Verifie le depot du plugin et applique ses nouveaux commits en avance "
-            "rapide, jamais par-dessus un fichier modifie dans le plugin. Les "
-            "dependances ne sont reinstallees que si leur fichier `requirements` a change. "
-            "Le serveur du plugin est arrete avant la mise a jour.")
+            "### Updates\n"
+            "Checks the plugin repository and applies its new commits as a "
+            "fast-forward, never over a file modified inside the plugin. "
+            "Dependencies are reinstalled only if their `requirements` file changed. "
+            "The plugin server is stopped before the update.")
         ids = _plugin_ids()
         with gr.Row():
-            upd_plugin = gr.Dropdown(label="Plugin installe", choices=ids,
+            upd_plugin = gr.Dropdown(label="Installed plugin", choices=ids,
                                      value=ids[0] if ids else None)
-            upd_check_btn = gr.Button("\U0001F50D Verifier")
-            upd_btn = gr.Button("⬆ Mettre a jour", variant="primary")
+            upd_check_btn = gr.Button("\U0001F50D Check")
+            upd_btn = gr.Button("⬆ Update", variant="primary")
         upd_force = gr.Checkbox(
-            label="Reinstaller les dependances meme si requirements n'a pas change",
+            label="Reinstall dependencies even if requirements did not change",
             value=False)
-        upd_log = gr.Textbox(label="Journal de mise a jour", lines=12, interactive=False)
+        upd_log = gr.Textbox(label="Update log", lines=12, interactive=False)
 
         def _check_update(pid):
             p = registry.get_plugin(INSTALL_ROOT, pid) if pid else None
             if not p:
-                return "Choisis un plugin installe."
+                return "Pick an installed plugin."
             return "\n".join(installer.format_status(installer.update_status(p["dir"])))
 
         def _apply_update(pid, force_deps):
             p = registry.get_plugin(INSTALL_ROOT, pid) if pid else None
             if not p:
-                return "Choisis un plugin installe.", _installed_md(), gr.update()
+                return "Pick an installed plugin.", _installed_md(), gr.update()
             lines = []
             if server_mod.stop(pid):
-                lines.append("Serveur du plugin arrete avant la mise a jour.")
+                lines.append("Plugin server stopped before the update.")
             inst = settings.get_plugin(pid).get("install") or {}
             try:
                 res = installer.update_plugin(
@@ -415,13 +415,13 @@ def _build_manager_tab():
                     base_python=inst.get("base_python") or None,
                     log=lambda s: lines.append(str(s)), force_deps=bool(force_deps))
             except Exception as e:
-                lines.append("ERREUR : %s" % e)
+                lines.append("ERROR: %s" % e)
                 return "\n".join(lines), _installed_md(), gr.update()
             if res["manifest_changed"]:
                 lines.append("")
-                lines.append(">>> Le manifeste a change : clique '⚠ Restart UI' pour "
-                             "reconstruire l'onglet du plugin.")
-                notice = _RESTART_NOTICE.format(msg="Plugin mis a jour, manifeste modifie.")
+                lines.append(">>> The manifest changed: click '⚠ Restart UI' to "
+                             "rebuild the plugin tab.")
+                notice = _RESTART_NOTICE.format(msg="Plugin updated, manifest changed.")
                 return "\n".join(lines), _installed_md(), gr.update(value=notice, visible=True)
             return "\n".join(lines), _installed_md(), gr.update()
 
@@ -433,8 +433,8 @@ def _build_manager_tab():
 def _installed_md():
     plugins = registry.list_plugins(INSTALL_ROOT)
     if not plugins:
-        return "_Aucun plugin installe._"
-    rows = ["Plugins installes :"]
+        return "_No plugin installed._"
+    rows = ["Installed plugins:"]
     for p in plugins:
         commit = installer.current_commit(p["dir"])
         rows.append("- **%s** v%s (`%s`%s)" % (
@@ -459,6 +459,6 @@ def build_extra_panel(output_gallery=None):
             try:
                 _build_plugin_tab(plugin, picked_state=picked_state)
             except Exception as e:
-                with gr.Tab(label="%s (erreur)" % plugin.get("id", "?")):
-                    gr.Markdown("Erreur de construction: %s" % e)
+                with gr.Tab(label="%s (error)" % plugin.get("id", "?")):
+                    gr.Markdown("Build error: %s" % e)
         _build_manager_tab()

@@ -74,10 +74,10 @@ def _download(url, dst, timeout=30):
             if step != last_step:
                 last_step = step
                 if total:
-                    print(f'\r[TagAC]   {name}: {done / 1048576:.1f}/{total / 1048576:.1f} Mo '
+                    print(f'\r[TagAC]   {name}: {done / 1048576:.1f}/{total / 1048576:.1f} MB '
                           f'({done * 100 // total}%)', end='', flush=True)
                 else:
-                    print(f'\r[TagAC]   {name}: {done / 1048576:.1f} Mo', end='', flush=True)
+                    print(f'\r[TagAC]   {name}: {done / 1048576:.1f} MB', end='', flush=True)
         if done:
             print(flush=True)
     os.replace(tmp, dst)
@@ -91,17 +91,17 @@ def ensure_tag_sources():
     available = []
     for name in wanted:
         if name not in TAG_SOURCES:
-            _log(f'WARNING: source inconnue "{name}" ignoree (choix: {sorted(TAG_SOURCES)})')
+            _log(f'WARNING: unknown source "{name}" ignored (choices: {sorted(TAG_SOURCES)})')
             continue
         dst = source_csv_path(name)
         if not os.path.isfile(dst):
-            _log(f'Telechargement des tags {name} (premier lancement)...')
+            _log(f'Downloading {name} tags (first launch)...')
             try:
                 _download(TAG_SOURCES[name], dst)
-                _log(f'OK: {os.path.basename(dst)} ({os.path.getsize(dst) // 1024} Ko)')
+                _log(f'OK: {os.path.basename(dst)} ({os.path.getsize(dst) // 1024} KB)')
             except Exception as e:
-                _log(f'WARNING: telechargement {name} impossible ({e}). '
-                     f'L\'autocomplete fonctionnera sans cette source.')
+                _log(f'WARNING: could not download {name} ({e}). '
+                     f'Autocomplete will work without this source.')
                 continue
         available.append(name)
 
@@ -112,7 +112,7 @@ def ensure_tag_sources():
             stem, ext = os.path.splitext(fn)
             if ext.lower() == '.csv' and stem not in TAG_SOURCES and stem not in available:
                 available.append(stem)
-                _log(f'Source perso detectee: {fn}')
+                _log(f'Custom source detected: {fn}')
     except OSError:
         pass
     return available
@@ -170,7 +170,7 @@ def build_local_assets():
     with open(tmp, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False)
     os.replace(tmp, local_assets_path())
-    _log(f"Assets locaux indexes: {len(data['loras'])} LoRAs, "
+    _log(f"Local assets indexed: {len(data['loras'])} LoRAs, "
          f"{len(data['embeddings'])} embeddings, {len(data['wildcards'])} wildcards")
     return data
 
@@ -181,9 +181,9 @@ def init():
     try:
         sources = ensure_tag_sources()
     except Exception as e:
-        _log(f'WARNING: ensure_tag_sources a echoue: {e}')
+        _log(f'WARNING: ensure_tag_sources failed: {e}')
     try:
         build_local_assets()
     except Exception as e:
-        _log(f'WARNING: build_local_assets a echoue: {e}')
+        _log(f'WARNING: build_local_assets failed: {e}')
     return sources

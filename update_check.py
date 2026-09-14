@@ -51,9 +51,9 @@ def _git(*args, timeout=15):
                            encoding='utf-8', errors='replace', timeout=timeout)
         return p.returncode, ((p.stdout or '') + ((p.stderr or '') if p.returncode else '')).strip()
     except FileNotFoundError:
-        return None, 'git introuvable'
+        return None, 'git not found'
     except subprocess.TimeoutExpired:
-        return None, f'pas de reponse en {timeout} s'
+        return None, f'no response within {timeout} s'
 
 
 def _lines(out):
@@ -67,15 +67,15 @@ def assess(fetch=True):
     if code is None:
         return {'status': 'skip', 'why': out}
     if code != 0 or out != 'true':
-        return {'status': 'skip', 'why': "ce dossier n'est pas un depot git"}
+        return {'status': 'skip', 'why': 'this folder is not a git repository'}
     code, up = _git('rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}')
     if code != 0 or not up:
-        return {'status': 'skip', 'why': 'la branche courante ne suit aucune branche distante'}
+        return {'status': 'skip', 'why': 'the current branch does not track a remote branch'}
     if fetch:
         code, out = _git('fetch', '--quiet', up.split('/', 1)[0], timeout=TIMEOUT)
         if code != 0:
-            last = _lines(out)[-1][:90] if _lines(out) else 'fetch en echec'
-            return {'status': 'skip', 'why': f'GitHub injoignable ({last})'}
+            last = _lines(out)[-1][:90] if _lines(out) else 'fetch failed'
+            return {'status': 'skip', 'why': f'GitHub unreachable ({last})'}
     _, behind = _git('rev-list', '--count', 'HEAD..@{u}')
     _, ahead = _git('rev-list', '--count', '@{u}..HEAD')
     behind = int(behind) if str(behind).isdigit() else 0
@@ -86,7 +86,7 @@ def assess(fetch=True):
     info = {'upstream': up, 'behind': behind, 'ahead': ahead, 'log': _lines(log)}
     if ahead:
         return {**info, 'status': 'blocked',
-                'why': f'branche divergente : {ahead} commit(s) local(aux) absent(s) de GitHub'}
+                'why': f'diverged branch: {ahead} local commit(s) not on GitHub'}
     # Ce que les commits a recuperer touchent (un renommage = suppression + ajout).
     _, changed = _git('diff', '--name-only', '--no-renames', 'HEAD', '@{u}')
     _, added = _git('diff', '--name-only', '--no-renames', '--diff-filter=A', 'HEAD', '@{u}')
@@ -99,7 +99,7 @@ def assess(fetch=True):
     info['local'] = sorted(local)
     if overlap or clobber:
         return {**info, 'status': 'blocked', 'overlap': overlap, 'clobber': clobber,
-                'why': 'la mise a jour toucherait du travail local'}
+                'why': 'the update would touch local work'}
     return {**info, 'status': 'safe'}
 
 
@@ -119,7 +119,7 @@ def ask(question, timeout):
             return None
     except Exception:
         return None
-    print(f'{question} [o/N] (N dans {timeout} s) ', end='', flush=True)
+    print(f'{question} [y/N] (N in {timeout} s) ', end='', flush=True)
     if os.name == 'nt':
         import msvcrt
         end = time.time() + timeout
@@ -147,38 +147,38 @@ def report(st):
     """Affiche l'etat pour la console de run.bat."""
     s = st['status']
     if s == 'skip':
-        print(f"[Update] Pas de verification : {st['why']}.")
+        print(f"[Update] Not checked: {st['why']}.")
         return
     if s == 'uptodate':
-        extra = f" ({_plural(st['ahead'], 'commit')} local non pousse)" if st.get('ahead') else ''
-        print(f'[Update] A jour{extra}.')
+        extra = f" ({_plural(st['ahead'], 'local commit')} not pushed)" if st.get('ahead') else ''
+        print(f'[Update] Up to date{extra}.')
         return
     n = st['behind']
-    word = 'nouveaux commits' if n > 1 else 'nouveau commit'
-    print(f"[Update] {n} {word} sur GitHub ({st['upstream']}) :")
+    word = 'new commits' if n > 1 else 'new commit'
+    print(f"[Update] {n} {word} on GitHub ({st['upstream']}):")
     for ln in st['log']:
         print(f'           {ln[:100]}')
     if n > len(st['log']):
-        print(f"           ... et {n - len(st['log'])} autre(s)")
+        print(f"           ... and {n - len(st['log'])} more")
     if s == 'blocked':
-        print(f"[Update] BLOQUEE : {st['why']}.")
+        print(f"[Update] BLOCKED: {st['why']}.")
         for p in st.get('overlap', []):
-            print(f'           modifie ici ET par la mise a jour : {p}')
+            print(f'           modified here AND by the update: {p}')
         for p in st.get('clobber', []):
-            print(f'           present ici hors de git, ajoute par la mise a jour : {p}')
-        print("[Update] Rien n'a ete touche. Commit / stash ces fichiers pour mettre a jour.")
+            print(f'           present here outside git, added by the update: {p}')
+        print("[Update] Nothing was touched. Commit / stash these files to update.")
         return
     kept = st.get('local') or []
     if kept:
-        print(f"[Update] {_plural(len(kept), 'fichier')} modifie(s) ici, que la mise a jour "
-              f'ne touche pas : conserve(s) tel(s) quel(s).')
+        print(f"[Update] {_plural(len(kept), 'file')} modified here that the update "
+              f'does not touch: kept as is.')
 
 
 def boot():
     """Point d'entree de entry_with_update.py. Ne leve jamais : au pire, on demarre
     sans mise a jour. Renvoie le statut final (pour les tests et les logs)."""
     if os.environ.get('FOOOCUS_NO_UPDATE_CHECK', '') == '1':
-        print('[Update] Verification desactivee (FOOOCUS_NO_UPDATE_CHECK=1).')
+        print('[Update] Check disabled (FOOOCUS_NO_UPDATE_CHECK=1).')
         return 'disabled'
     st = assess(fetch=True)
     report(st)
@@ -187,17 +187,17 @@ def boot():
     if os.environ.get('FOOOCUS_AUTO_UPDATE', '') == '1':
         yes = True
     else:
-        yes = ask('[Update] Mettre a jour maintenant ?', TIMEOUT)
+        yes = ask('[Update] Update now?', TIMEOUT)
     if not yes:
-        hint = (' Console non interactive : FOOOCUS_AUTO_UPDATE=1 pour appliquer.'
+        hint = (' Non-interactive console: set FOOOCUS_AUTO_UPDATE=1 to apply.'
                 if yes is None else '')
-        print('[Update] Demarrage sans mise a jour.' + hint)
+        print('[Update] Starting without updating.' + hint)
         return 'declined'
     ok, out = apply()
     if ok:
-        print(f"[Update] Mise a jour appliquee ({_plural(st['behind'], 'commit')}).")
+        print(f"[Update] Update applied ({_plural(st['behind'], 'commit')}).")
         return 'updated'
-    print('[Update] ECHEC de l\'avance rapide, rien n\'a change :')
+    print('[Update] Fast-forward FAILED, nothing changed:')
     for ln in _lines(out)[-6:]:
         print(f'           {ln}')
     return 'failed'
@@ -210,7 +210,7 @@ def main(argv):
         pass
     guard = '--guard' in argv
     if not guard and os.environ.get('FOOOCUS_NO_UPDATE_CHECK', '') == '1':
-        print('[Update] Verification desactivee (FOOOCUS_NO_UPDATE_CHECK=1).')
+        print('[Update] Check disabled (FOOOCUS_NO_UPDATE_CHECK=1).')
         return 0
     st = assess(fetch=True)
     report(st)

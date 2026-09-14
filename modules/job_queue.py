@@ -119,7 +119,7 @@ def encode_value(v, assets_dir, used):
     if mod.startswith('PIL.'):
         import numpy as np
         return {'__pil__': _save_array(np.asarray(v), assets_dir, used)}
-    raise UnserializableJob(f'type non serialisable : {type(v).__name__}')
+    raise UnserializableJob(f'unserializable type: {type(v).__name__}')
 
 
 def decode_value(v, assets_dir):
@@ -135,7 +135,7 @@ def decode_value(v, assets_dir):
         if '__pil__' in v:
             from PIL import Image
             return Image.fromarray(_load_array(v['__pil__'], assets_dir))
-        raise ValueError('objet inconnu dans la file persistee')
+        raise ValueError('unknown object in the saved queue')
     return v
 
 
@@ -273,20 +273,20 @@ class JobQueue:
         n = len(self)
         cur = self.current_task
         if self.restored and not self.runner_active and cur is None:
-            return (f'{self.restored} job(s) restaure(s) de la session precedente, en attente '
-                    '— relancez Run queue pour reprendre.')
+            return (f'{self.restored} job(s) restored from the previous session, pending '
+                    '— click Run queue to resume.')
         running = ''
         if cur is not None:
-            running = ' Job en cours.'
+            running = ' Job running.'
         elif self.runner_active:
-            running = ' Runner en attente de jobs.'
+            running = ' Runner waiting for jobs.'
         if self.pause_requested:
-            running += ' Pause demandee : la file s\'arretera apres le job en cours.'
+            running += ' Pause requested: the queue will stop after the current job.'
         if n == 0:
-            return ('File vide.' + running).strip()
+            return ('Queue empty.' + running).strip()
         if self.paused:
-            return f'{n} job(s) en attente, file en pause — relancez Run queue.'
-        return f'{n} job(s) en attente, file en cours de traitement.{running}'.strip()
+            return f'{n} job(s) pending, queue paused — click Run queue to resume.'
+        return f'{n} job(s) pending, queue processing.{running}'.strip()
 
     # -- persistance (custom-21) ----------------------------------------------
     def configure_persistence(self, directory, expected_len=None, groups_export=None,
@@ -320,7 +320,7 @@ class JobQueue:
                     except UnserializableJob as e:
                         if j.id not in self._warned_unserializable:
                             self._warned_unserializable.add(j.id)
-                            print(f'[JobQueue] WARNING job non persiste ({j.label}) : {e}')
+                            print(f'[JobQueue] WARNING job not saved to disk ({j.label}): {e}')
                         continue
                     out.append({'id': j.id, 'label': j.label, 'added_at': j.added_at,
                                 'meta': j.meta, 'args': args})
@@ -329,7 +329,7 @@ class JobQueue:
                     try:
                         groups = self.groups_export() or {}
                     except Exception as e:
-                        print(f'[JobQueue] WARNING groupes XYZ non persistes : {e}')
+                        print(f'[JobQueue] WARNING XYZ groups not saved: {e}')
                 data = {'version': PERSIST_VERSION, 'saved_at': time.time(),
                         'expected_len': self.expected_len, 'jobs': out, 'xyz_groups': groups}
                 tmp = qfile + '.tmp'
@@ -345,7 +345,7 @@ class JobQueue:
                                 pass
                 return True
             except Exception as e:
-                print(f'[JobQueue] WARNING file non sauvee : {e}')
+                print(f'[JobQueue] WARNING queue not saved: {e}')
                 return False
 
     def _backup(self, suffix, payload=None):
@@ -377,15 +377,15 @@ class JobQueue:
                 raise ValueError(f'version {data.get("version") if isinstance(data, dict) else "?"}')
         except Exception as e:
             dst = self._backup('bad')
-            print(f'[JobQueue] WARNING file persistee illisible ({e}), mise de cote : {dst}')
+            print(f'[JobQueue] WARNING saved queue unreadable ({e}), set aside: {dst}')
             return 0
         loaded, rejected = [], []
         for raw in data.get('jobs') or []:
             try:
                 args = raw['args']
                 if self.expected_len is not None and len(args) != self.expected_len:
-                    raise ValueError(f'{len(args)} ctrls au lieu de {self.expected_len} '
-                                     '(Fooocus a change depuis)')
+                    raise ValueError(f'{len(args)} ctrls instead of {self.expected_len} '
+                                     '(Fooocus has changed since)')
                 decoded = [decode_value(a, assets) for a in args]
                 loaded.append(Job(decoded, raw.get('label', 'job'), raw.get('meta'),
                                   raw.get('added_at'), raw.get('id')))
@@ -394,25 +394,25 @@ class JobQueue:
         extra = loaded[self.max_jobs:]
         loaded = loaded[:self.max_jobs]
         for j in extra:
-            rejected.append({'reason': f'file pleine ({self.max_jobs} jobs max)',
+            rejected.append({'reason': f'queue full ({self.max_jobs} jobs max)',
                              'job': {'label': j.label, 'id': j.id}})
         if rejected:
             dst = self._backup('rejected', {'rejected': rejected})
-            print(f'[JobQueue] WARNING {len(rejected)} job(s) non restaure(s), detail : {dst}')
+            print(f'[JobQueue] WARNING {len(rejected)} job(s) not restored, details: {dst}')
             for r in rejected[:5]:
                 label = (r.get('job') or {}).get('label', '?')
-                print(f'[JobQueue]   - {label} : {r["reason"]}')
+                print(f'[JobQueue]   - {label}: {r["reason"]}')
         if self.groups_import is not None and data.get('xyz_groups'):
             try:
                 self.groups_import(data['xyz_groups'])
             except Exception as e:
-                print(f'[JobQueue] WARNING groupes XYZ non restaures : {e}')
+                print(f'[JobQueue] WARNING XYZ groups not restored: {e}')
         with self._lock:
             self._jobs.extend(loaded)
         self.restored = len(loaded)
         if loaded:
-            print(f'[JobQueue] {len(loaded)} job(s) restaure(s) de la session precedente '
-                  '(file en attente : Run queue pour reprendre).')
+            print(f'[JobQueue] {len(loaded)} job(s) restored from the previous session '
+                  '(queue pending: Run queue to resume).')
         if rejected:
             self.save()
         return len(loaded)
@@ -434,7 +434,7 @@ def make_label(args):
     Positions calees sur AsyncTask.__init__ : 1=prompt, 4=performance,
     6=image_number, 8=seed, 12=base_model. Defensive : jamais d'exception."""
     try:
-        prompt = ' '.join(str(args[1]).split()) or '(prompt vide)'
+        prompt = ' '.join(str(args[1]).split()) or '(empty prompt)'
         if len(prompt) > 60:
             prompt = prompt[:57] + '...'
         base = str(args[12]).rsplit('.', 1)[0]

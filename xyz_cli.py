@@ -34,16 +34,16 @@ sys.path.insert(0, ROOT)
 
 
 def parse_cli():
-    p = argparse.ArgumentParser(add_help=True, description='Grille X/Y/Z Fooocus2026 en CLI')
+    p = argparse.ArgumentParser(add_help=True, description='Fooocus2026 X/Y/Z grid from the command line')
     p.add_argument('--prompt', required=True)
     p.add_argument('--negative', default=None)
-    p.add_argument('--preset', default=None, help='preset applique au snapshot de base (nom partiel accepte)')
-    p.add_argument('--x', required=True, help='"NomAxe:val1,val2,..."')
+    p.add_argument('--preset', default=None, help='preset applied to the base snapshot (partial name accepted)')
+    p.add_argument('--x', required=True, help='"AxisName:val1,val2,..."')
     p.add_argument('--y', default=None)
     p.add_argument('--z', default=None)
     p.add_argument('--seed', type=int, default=None)
     p.add_argument('--performance', default=None, help='Quality / Speed / ...')
-    p.add_argument('--aspect', default=None, help='ex: 1152×896 (defaut: config)')
+    p.add_argument('--aspect', default=None, help='e.g. 1152×896 (default: config)')
     p.add_argument('--output-format', default=None, choices=[None, 'png', 'jpeg', 'webp'])
     p.add_argument('--dry-run', action='store_true')
     ours, passthrough = p.parse_known_args()
@@ -57,12 +57,12 @@ def resolve_axis(name, xyz):
     for k in xyz.AXES:
         if k.lower() == low:
             return k
-    raise SystemExit(f'[xyz-cli] axe inconnu "{name}". Choix: {", ".join(xyz.AXES)}')
+    raise SystemExit(f'[xyz-cli] unknown axis "{name}". Choices: {", ".join(xyz.AXES)}')
 
 
 def parse_axis_arg(raw, xyz):
     if ':' not in raw:
-        raise SystemExit(f'[xyz-cli] format attendu "NomAxe:val1,val2" (recu: "{raw}")')
+        raise SystemExit(f'[xyz-cli] expected format "AxisName:val1,val2" (got: "{raw}")')
     name, values = raw.split(':', 1)
     axis = resolve_axis(name, xyz)
     try:
@@ -91,14 +91,14 @@ def validate(args_list, worker, label):
     probe = list(args_list)
     task = worker.AsyncTask(args=probe)
     if len(probe) != 0:
-        raise SystemExit(f'[xyz-cli] ERREUR: {len(probe)} ctrls non consommes pour "{label}". '
-                         'L\'ordre de AsyncTask a change: mettre a jour build_base_args().')
+        raise SystemExit(f'[xyz-cli] ERROR: {len(probe)} ctrls not consumed for "{label}". '
+                         'The AsyncTask order changed: update build_base_args().')
     return task
 
 
 def main():
     a = parse_cli()
-    print('[xyz-cli] Demarrage du backend Fooocus (patiente, torch se reveille)...')
+    print('[xyz-cli] Starting the Fooocus backend (please wait, torch is waking up)...')
     import modules.async_worker as worker
     import modules.config  # noqa: F401  (charge la config + listes de modeles)
     import modules.xyz_grid as xyz
@@ -112,7 +112,7 @@ def main():
     base = build_base_args(a)
     if a.preset:
         xyz._apply_preset(base, a.preset)
-        print(f'[xyz-cli] Preset applique: {a.preset}')
+        print(f'[xyz-cli] Preset applied: {a.preset}')
 
     spec = [parse_axis_arg(a.x, xyz)]
     if a.y:
@@ -126,17 +126,17 @@ def main():
         # custom-18 : l'axe Checkpoint resout ses valeurs ici (dans _apply), pas au
         # parsing -> sans ce filet, un modele introuvable sortait en traceback.
         raise SystemExit(f'[xyz-cli] {e}')
-    print(f'[xyz-cli] {len(jobs)} cases a generer '
+    print(f'[xyz-cli] {len(jobs)} cells to generate '
           f'({group["nx"]}x{group["ny"]}x{group["nz"]}), seed {base[8]}.')
 
     # validation integrale AVANT de generer quoi que ce soit
     for args_i, label_i, _ in jobs:
         validate(args_i, worker, label_i)
-    print('[xyz-cli] Snapshots valides (ordre des ctrls OK).')
+    print('[xyz-cli] Snapshots valid (ctrls order OK).')
     if a.dry_run:
         for _, label_i, _ in jobs:
             print(f'[xyz-cli]   {label_i}')
-        print('[xyz-cli] Dry-run termine, rien n\'a ete genere.')
+        print('[xyz-cli] Dry run finished, nothing was generated.')
         return
 
     xyz.register_group(group)
@@ -147,7 +147,7 @@ def main():
             next_model = args_i[12]
             if prev_model is not None and next_model != prev_model:
                 import ldm_patched.modules.model_management as mm
-                print(f'[xyz-cli] Changement de checkpoint: purge VRAM.')
+                print(f'[xyz-cli] Checkpoint change: purging VRAM.')
                 mm.unload_all_models()
                 mm.soft_empty_cache()
             prev_model = next_model
@@ -164,14 +164,14 @@ def main():
             first = next((r for r in task.results if isinstance(r, str)), None)
             grids = xyz.on_job_done(meta_i, first)
     except KeyboardInterrupt:
-        print('\n[xyz-cli] Interrompu. Les cases deja generees restent dans outputs/.')
+        print('\n[xyz-cli] Interrupted. Cells already generated stay in outputs/.')
         return
     if grids:
-        print('[xyz-cli] Termine. Planche(s):')
+        print('[xyz-cli] Done. Sheet(s):')
         for gpath in grids:
             print(f'[xyz-cli]   {gpath}')
     else:
-        print('[xyz-cli] Termine sans planche (cases manquantes ?). Voir outputs/.')
+        print('[xyz-cli] Done without a sheet (missing cells?). See outputs/.')
 
 
 if __name__ == '__main__':

@@ -58,26 +58,26 @@ AXES = {
 # axes dont les valeurs sont des noms de fichiers : decoupage CSV (un nom peut
 # contenir une virgule) et pas de cast numerique.
 _LORA_NAME_KEYS = ('lora1_name', 'lora1_name_weight')
-AXIS_CHOICES = ['(aucun)'] + list(AXES.keys())
+AXIS_CHOICES = ['(none)'] + list(AXES.keys())
 
 
 def parse_values(axis_name, raw):
     """'4, 6, 8' -> [4.0, 6.0, 8.0] selon le type de l'axe. ValueError si vide/invalide.
     Prompt S/R : decoupage CSV (guillemets acceptes pour proteger une virgule)."""
     if axis_name not in AXES:
-        raise ValueError(f'axe inconnu: {axis_name}')
+        raise ValueError(f'unknown axis: {axis_name}')
     key = AXES[axis_name][0]
     if key == 'prompt_sr':
         import csv as _csv
         vals = [v.strip() for v in next(_csv.reader([str(raw)], skipinitialspace=True)) if v.strip()]
         if len(vals) < 2:
-            raise ValueError('Prompt S/R: au moins 2 valeurs (terme cherche, remplacement, ...)')
+            raise ValueError('Prompt S/R: at least 2 values (search term, replacement, ...)')
         return vals
     if key in _LORA_NAME_KEYS:
         import csv as _csv
         vals = [v.strip() for v in next(_csv.reader([str(raw)], skipinitialspace=True)) if v.strip()]
         if not vals:
-            raise ValueError(f'{axis_name}: aucune valeur')
+            raise ValueError(f'{axis_name}: no value')
         if key == 'lora1_name':
             # resolution immediate : une faute de frappe est signalee au clic sur
             # "Construire", pas 40 minutes plus tard au milieu de la serie.
@@ -86,17 +86,17 @@ def parse_values(axis_name, raw):
         for v in vals:
             name, _, w = str(v).rpartition(':')
             if not name:
-                raise ValueError(f'{axis_name}: "{v}" doit s\'ecrire nom:poids (ex. mon_lora:0.8)')
+                raise ValueError(f'{axis_name}: "{v}" must be written name:weight (e.g. my_lora:0.8)')
             try:
                 weight = float(w.strip().replace(',', '.'))
             except ValueError:
-                raise ValueError(f'{axis_name}: poids invalide dans "{v}" (attendu nom:0.8)')
+                raise ValueError(f'{axis_name}: invalid weight in "{v}" (expected name:0.8)')
             out.append((_resolve_lora(name.strip()), weight))
         return out
     _, caster = AXES[axis_name]
     vals = [v.strip() for v in str(raw).split(',') if v.strip()]
     if not vals:
-        raise ValueError(f'{axis_name}: aucune valeur')
+        raise ValueError(f'{axis_name}: no value')
     return [caster(v) for v in vals]
 
 
@@ -108,7 +108,7 @@ def _prepare_axis(axis_name, values, base_args):
         return values
     search = str(values[0])
     if search not in str(base_args[1]):
-        raise ValueError(f'Prompt S/R: "{search}" est absent du prompt')
+        raise ValueError(f'Prompt S/R: "{search}" is not in the prompt')
     return [(search, str(v)) for v in values]
 
 
@@ -120,9 +120,9 @@ def _load_preset(name):
     exact = [p for p in presets if p.lower() == v0.lower()]
     cands = exact or [p for p in presets if v0.lower() in p.lower()]
     if not cands:
-        raise ValueError(f'preset introuvable: "{v0}"')
+        raise ValueError(f'preset not found: "{v0}"')
     if len(cands) > 1:
-        raise ValueError(f'preset ambigu "{v0}": {", ".join(cands[:4])}')
+        raise ValueError(f'ambiguous preset "{v0}": {", ".join(cands[:4])}')
     return cands[0], (_cfg.try_get_preset_content(cands[0]) or {})
 
 
@@ -177,8 +177,8 @@ def _resolve_checkpoint(v):
     if len(cands) == 1:
         return cands[0]
     if not cands:
-        raise ValueError(f'checkpoint introuvable: "{v0}" (voir dropdown Base Model)')
-    raise ValueError(f'checkpoint ambigu "{v0}": {", ".join(cands[:4])}')
+        raise ValueError(f'checkpoint not found: "{v0}" (see the Base Model dropdown)')
+    raise ValueError(f'ambiguous checkpoint "{v0}": {", ".join(cands[:4])}')
 
 
 def _resolve_lora(v):
@@ -189,7 +189,7 @@ def _resolve_lora(v):
     import modules.config as _cfg
     names = list(getattr(_cfg, 'lora_filenames', []))
     v0 = str(v).strip()
-    if v0.lower() in ('none', '(aucun)', '-'):
+    if v0.lower() in ('none', '(none)', '(aucun)', '-'):
         return 'None'
     if v0 in names or not names:
         return v0
@@ -202,8 +202,8 @@ def _resolve_lora(v):
         stems = [n for n in names if low in os.path.splitext(os.path.basename(n))[0].lower()]
         if len(stems) == 1:
             return stems[0]
-        raise ValueError(f'LoRA introuvable: "{v0}" (voir les dropdowns LoRA)')
-    raise ValueError(f'LoRA ambigu "{v0}": {", ".join(cands[:4])}')
+        raise ValueError(f'LoRA not found: "{v0}" (see the LoRA dropdowns)')
+    raise ValueError(f'ambiguous LoRA "{v0}": {", ".join(cands[:4])}')
 
 
 def _apply(args, axis_name, value):
@@ -231,7 +231,7 @@ def _apply(args, axis_name, value):
         value = _resolve_checkpoint(value)
     idx = _indices()[key]
     if idx >= len(args):
-        raise IndexError(f'{axis_name}: index {idx} hors limites ({len(args)} ctrls)')
+        raise IndexError(f'{axis_name}: index {idx} out of range ({len(args)} ctrls)')
     args[idx] = value
 
 
@@ -269,7 +269,7 @@ def expand(base_args, spec):
     Renvoie (jobs, group) où jobs = [(args, label, meta)] en ordre Z, Y, X."""
     axes = [(a, v) for a, v in spec if a and a in AXES]
     if not axes:
-        raise ValueError('aucun axe sélectionné')
+        raise ValueError('no axis selected')
     xs = _prepare_axis(axes[0][0], axes[0][1], base_args)
     ys = _prepare_axis(axes[1][0], axes[1][1], base_args) if len(axes) > 1 else [None]
     zs = _prepare_axis(axes[2][0], axes[2][1], base_args) if len(axes) > 2 else [None]
@@ -364,11 +364,11 @@ def on_job_done(meta, image_path):
             return None
         if image_path:
             g['cells'][(meta['z'], meta['y'], meta['x'])] = image_path
-            print(f"[XYZ] case {len(g['cells'])}/{g['expected']} enregistree "
+            print(f"[XYZ] cell {len(g['cells'])}/{g['expected']} recorded "
                   f"(x={meta['x'] + 1}, y={meta['y'] + 1}, z={meta['z'] + 1})", flush=True)
         else:
-            print(f"[XYZ] WARNING: aucune image pour la case x={meta['x'] + 1}, "
-                  f"y={meta['y'] + 1}, z={meta['z'] + 1} (elle restera vide)", flush=True)
+            print(f"[XYZ] WARNING: no image for cell x={meta['x'] + 1}, "
+                  f"y={meta['y'] + 1}, z={meta['z'] + 1} (it will stay empty)", flush=True)
         done = len(g['cells']) >= g['expected']
         if done:
             del _GROUPS[meta['group']]
@@ -377,7 +377,7 @@ def on_job_done(meta, image_path):
     try:
         return assemble_group(g)
     except Exception as e:
-        print(f'[XYZ] WARNING: assemblage impossible: {e}')
+        print(f'[XYZ] WARNING: could not assemble the sheet: {e}')
         return None
 
 
@@ -448,5 +448,5 @@ def assemble_group(g, cell_px=512):
             pnginfo = None
         canvas.save(out, pnginfo=pnginfo)
         paths.append(out)
-        print(f'[XYZ] Planche assemblee: {out}')
+        print(f'[XYZ] Sheet assembled: {out}')
     return paths

@@ -131,7 +131,7 @@ class TestAssess(unittest.TestCase):
         git(self.w.work, 'commit', '-am', 'local commit')
         st = U.assess()
         self.assertEqual(st['status'], 'blocked', st)
-        self.assertIn('divergente', st['why'])
+        self.assertIn('diverged', st['why'])
 
     def test_a_local_commit_not_pushed_is_up_to_date(self):
         write(os.path.join(self.w.work, 'b.txt'), 'local\n')
@@ -209,7 +209,7 @@ class TestNoRepo(unittest.TestCase):
             git(d, 'commit', '-m', 'x')
             st = U.assess()
             self.assertEqual(st['status'], 'skip', st)
-            self.assertIn('branche', st['why'])
+            self.assertIn('branch', st['why'])
             self.assertEqual(U.main([]), 0)
         finally:
             U.ROOT = old

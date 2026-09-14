@@ -1235,19 +1235,19 @@ def save_preset_to_file(preset_name, current_values, overwrite=False):
         (success: bool, message: str)
     """
     if not preset_name or not preset_name.strip():
-        return False, "Nom de preset vide."
+        return False, "Empty preset name."
 
     preset_name = preset_name.strip()
 
     # Sanitize filename
     safe_name = "".join(c for c in preset_name if c.isalnum() or c in ('_', '-', ' ')).strip()
     if not safe_name:
-        return False, "Nom de preset invalide."
+        return False, "Invalid preset name."
 
     save_path = os.path.abspath(f'./presets/{safe_name}.json')
 
     if os.path.exists(save_path) and not overwrite:
-        return False, f"Le preset '{safe_name}' existe deja. Utilise 'Ecraser' pour le remplacer."
+        return False, f"Preset '{safe_name}' already exists. Use 'Overwrite Selected' to replace it."
 
     # Build preset dict from current UI values
     # Mapping: UI variable name -> preset config key
@@ -1328,9 +1328,9 @@ def save_preset_to_file(preset_name, current_values, overwrite=False):
 
         # Update available presets list
         update_presets()
-        return True, f"Preset '{safe_name}' sauvegarde avec succes!"
+        return True, f"Preset '{safe_name}' saved successfully!"
     except Exception as e:
-        return False, f"Erreur lors de la sauvegarde: {str(e)}"
+        return False, f"Error while saving: {str(e)}"
 
 
 def get_user_presets():

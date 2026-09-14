@@ -45,7 +45,7 @@ def _run(cmd, cwd, log):
     if proc.stderr:
         log(proc.stderr.rstrip())
     if proc.returncode != 0:
-        raise RuntimeError(f"Echec ({proc.returncode}): {' '.join(cmd)}")
+        raise RuntimeError(f"Failed ({proc.returncode}): {' '.join(cmd)}")
     return proc
 
 
@@ -90,14 +90,14 @@ def install_from_github(url, install_root, strategy="fresh_venv",
 
     if os.path.isdir(plugin_dir):
         if not force:
-            raise RuntimeError(f"Deja installe: {name}. Utiliser force pour reinstaller.")
-        log(f"Suppression de l'install existante: {plugin_dir}")
+            raise RuntimeError(f"Already installed: {name}. Use Force to reinstall.")
+        log(f"Removing the existing install: {plugin_dir}")
         try:
             _rmtree_robust(plugin_dir)
         except Exception as e:
             raise RuntimeError(
-                f"Impossible de supprimer {plugin_dir} ({e}). Ferme tout process "
-                f"qui l'utilise, ou supprime le dossier a la main, puis relance.")
+                f"Could not remove {plugin_dir} ({e}). Close any process "
+                f"using it, or delete the folder by hand, then try again.")
 
     # 1) Clone
     log(f"== Clone {url} ==")
@@ -105,34 +105,34 @@ def install_from_github(url, install_root, strategy="fresh_venv",
 
     # 2) Manifeste
     data = manifest_mod.load(plugin_dir)
-    log(f"== Manifeste OK : {data['name']} v{data.get('version', '?')} ==")
+    log(f"== Manifest OK: {data['name']} v{data.get('version', '?')} ==")
 
     # 3) Environnement
     env = data.get("env", {})
     strategies = env.get("strategies", {})
     strat = strategies.get(strategy)
     if not strat:
-        raise RuntimeError(f"Strategie '{strategy}' absente du manifeste.")
+        raise RuntimeError(f"Strategy '{strategy}' is missing from the manifest.")
 
     if strat.get("create"):
         create = _expand_cmd(strat["create"], plugin_dir, base_python)
-        log("== Creation du venv ==")
+        log("== Creating the venv ==")
         _run(create, cwd=plugin_dir, log=log)
         vpy = runner.venv_python(plugin_dir)
         if not os.path.isfile(vpy):
             raise RuntimeError(
-                f"Venv non cree ({vpy} absent). Verifie 'Python de base' : mets "
-                f"simplement 'py -3.10' (ou un chemin vers python.exe), PAS une "
-                f"commande complete avec -c.")
+                f"Venv not created ({vpy} missing). Check 'Base Python': just enter "
+                f"'py -3.10' (or a path to python.exe), NOT a full "
+                f"command with -c.")
 
     for step in strat.get("steps", []):
         log(f"== {step.get('name', 'step')} ==")
         if step.get("warn"):
-            log(f"[ATTENTION] {step['warn']}")
+            log(f"[WARNING] {step['warn']}")
         cmd = _expand_cmd(step["cmd"], plugin_dir, base_python)
         _run(cmd, cwd=plugin_dir, log=log)
 
-    log(f"== Installe : {name} ==")
+    log(f"== Installed: {name} ==")
     return plugin_dir
 
 
@@ -151,9 +151,9 @@ def _git(plugin_dir, *args, timeout=60):
                            encoding="utf-8", errors="replace", timeout=timeout)
         return p.returncode, ((p.stdout or "") + ((p.stderr or "") if p.returncode else "")).strip()
     except FileNotFoundError:
-        return None, "git introuvable"
+        return None, "git not found"
     except subprocess.TimeoutExpired:
-        return None, f"pas de reponse en {timeout} s"
+        return None, f"no response within {timeout} s"
 
 
 def _lines(out):
@@ -172,15 +172,15 @@ def update_status(plugin_dir, fetch=True):
     if code is None:
         return {"status": "skip", "why": out}
     if code != 0 or out != "true":
-        return {"status": "skip", "why": "le plugin n'est pas un clone git (reinstaller pour le mettre a jour)"}
+        return {"status": "skip", "why": "the plugin is not a git clone (reinstall it to update)"}
     code, up = _git(plugin_dir, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}", timeout=10)
     if code != 0 or not up:
-        return {"status": "skip", "why": "la branche du plugin ne suit aucune branche distante"}
+        return {"status": "skip", "why": "the plugin branch does not track a remote branch"}
     if fetch:
         code, out = _git(plugin_dir, "fetch", "--quiet", up.split("/", 1)[0], timeout=120)
         if code != 0:
-            last = _lines(out)[-1][:120] if _lines(out) else "fetch en echec"
-            return {"status": "skip", "why": f"GitHub injoignable ({last})"}
+            last = _lines(out)[-1][:120] if _lines(out) else "fetch failed"
+            return {"status": "skip", "why": f"GitHub unreachable ({last})"}
     _, behind = _git(plugin_dir, "rev-list", "--count", "HEAD..@{u}")
     _, ahead = _git(plugin_dir, "rev-list", "--count", "@{u}..HEAD")
     behind = int(behind) if str(behind).isdigit() else 0
@@ -192,7 +192,7 @@ def update_status(plugin_dir, fetch=True):
     info = {"upstream": up, "behind": behind, "ahead": ahead, "log": _lines(log), "commit": commit}
     if ahead:
         return {**info, "status": "blocked",
-                "why": f"branche divergente : {ahead} commit(s) local(aux) absent(s) du depot"}
+                "why": f"diverged branch: {ahead} local commit(s) not in the repository"}
     _, changed = _git(plugin_dir, "diff", "--name-only", "--no-renames", "HEAD", "@{u}")
     _, added = _git(plugin_dir, "diff", "--name-only", "--no-renames", "--diff-filter=A", "HEAD", "@{u}")
     _, local = _git(plugin_dir, "diff", "--name-only", "HEAD")
@@ -201,30 +201,30 @@ def update_status(plugin_dir, fetch=True):
     clobber = sorted(p for p in added if os.path.lexists(os.path.join(plugin_dir, p)))
     if overlap or clobber:
         return {**info, "status": "blocked", "overlap": overlap, "clobber": clobber,
-                "why": "la mise a jour toucherait des fichiers modifies dans le plugin"}
+                "why": "the update would touch files modified inside the plugin"}
     return {**info, "status": "safe", "local": sorted(local)}
 
 
 def format_status(st):
     """Lignes lisibles pour le journal du Gestionnaire."""
     s = st["status"]
-    head = f"Commit installe : {st['commit']}" if st.get("commit") else None
+    head = f"Installed commit: {st['commit']}" if st.get("commit") else None
     lines = [head] if head else []
     if s == "skip":
-        return lines + [f"Pas de verification : {st['why']}."]
+        return lines + [f"Not checked: {st['why']}."]
     if s == "uptodate":
-        extra = f" ({st['ahead']} commit(s) local(aux) non pousse(s))" if st.get("ahead") else ""
-        return lines + [f"A jour{extra}."]
-    lines.append(f"{st['behind']} commit(s) disponible(s) sur {st['upstream']} :")
+        extra = f" ({st['ahead']} local commit(s) not pushed)" if st.get("ahead") else ""
+        return lines + [f"Up to date{extra}."]
+    lines.append(f"{st['behind']} commit(s) available on {st['upstream']}:")
     lines += [f"  {ln[:110]}" for ln in st["log"]]
     if st["behind"] > len(st["log"]):
-        lines.append(f"  ... et {st['behind'] - len(st['log'])} autre(s)")
+        lines.append(f"  ... and {st['behind'] - len(st['log'])} more")
     if s == "blocked":
-        lines.append(f"BLOQUEE : {st['why']}.")
-        lines += [f"  modifie dans le plugin ET par la mise a jour : {p}" for p in st.get("overlap", [])]
-        lines += [f"  present hors de git, ajoute par la mise a jour : {p}" for p in st.get("clobber", [])]
+        lines.append(f"BLOCKED: {st['why']}.")
+        lines += [f"  modified inside the plugin AND by the update: {p}" for p in st.get("overlap", [])]
+        lines += [f"  present outside git, added by the update: {p}" for p in st.get("clobber", [])]
     else:
-        lines.append("Mise a jour sure : clique 'Mettre a jour'.")
+        lines.append("Safe update: click 'Update'.")
     return lines
 
 
@@ -262,7 +262,7 @@ def update_plugin(plugin_dir, strategy="fresh_venv", base_python=None, log=None,
     if st["status"] == "skip":
         raise RuntimeError(st["why"])
     if st["status"] == "blocked":
-        raise RuntimeError("mise a jour bloquee, rien n'a ete touche")
+        raise RuntimeError("update blocked, nothing was touched")
     if st["status"] == "uptodate" and not force_deps:
         return {"updated": False, "deps": False, "manifest_changed": False, "behind": 0}
 
@@ -274,12 +274,12 @@ def update_plugin(plugin_dir, strategy="fresh_venv", base_python=None, log=None,
 
     updated = False
     if st["status"] == "safe":
-        log("== Avance rapide (git merge --ff-only) ==")
+        log("== Fast-forward (git merge --ff-only) ==")
         code, out = _git(plugin_dir, "merge", "--ff-only", "@{u}", timeout=300)
         if out:
             log(out)
         if code != 0:
-            raise RuntimeError("git a refuse l'avance rapide, rien n'a change")
+            raise RuntimeError("git refused the fast-forward, nothing changed")
         updated = True
 
     new_manifest = manifest_mod.load(plugin_dir)  # leve ManifestError si le nouveau est casse
@@ -289,13 +289,13 @@ def update_plugin(plugin_dir, strategy="fresh_venv", base_python=None, log=None,
         if not os.path.isfile(req_path):
             continue
         if force_deps or before.get(req) != _file_hash(req_path):
-            why = "force" if force_deps else f"{req} a change"
+            why = "forced" if force_deps else f"{req} changed"
             log(f"== {step.get('name', 'deps')} ({why}) ==")
             _run(_expand_cmd(step["cmd"], plugin_dir, base_python), cwd=plugin_dir, log=log)
             ran = True
     if not ran:
-        log("Dependances inchangees : rien a reinstaller.")
+        log("Dependencies unchanged: nothing to reinstall.")
     changed = manifest_before != _file_hash(mpath)
-    log(f"== Plugin a jour : {current_commit(plugin_dir)} ==")
+    log(f"== Plugin up to date: {current_commit(plugin_dir)} ==")
     return {"updated": updated, "deps": ran, "manifest_changed": changed,
             "behind": st.get("behind", 0)}

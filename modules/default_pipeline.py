@@ -73,8 +73,8 @@ def refresh_base_model(name, vae_name=None):
 
     try:
         _sz_gb = os.path.getsize(filename) / (1024 ** 3)
-        print(f'[Boot] Chargement du checkpoint {os.path.basename(filename)} '
-              f'({_sz_gb:.1f} Go) depuis le disque, cela peut prendre un moment...', flush=True)
+        print(f'[Boot] Loading checkpoint {os.path.basename(filename)} '
+              f'({_sz_gb:.1f} GB) from disk, this may take a moment...', flush=True)
     except OSError:
         pass
     import time as _time
@@ -102,8 +102,8 @@ def refresh_refiner_model(name):
         return
 
     try:
-        print(f'[Boot] Chargement du refiner {os.path.basename(filename)} '
-              f'({os.path.getsize(filename) / (1024 ** 3):.1f} Go)...', flush=True)
+        print(f'[Boot] Loading refiner {os.path.basename(filename)} '
+              f'({os.path.getsize(filename) / (1024 ** 3):.1f} GB)...', flush=True)
     except OSError:
         pass
     model_refiner = core.load_model(filename)
