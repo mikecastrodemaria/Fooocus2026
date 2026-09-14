@@ -9,6 +9,7 @@ from PIL.PngImagePlugin import PngInfo
 from modules.flags import OutputFormat
 from modules.meta_parser import MetadataParser, get_exif
 from modules.util import generate_temp_filename
+import modules.provenance as provenance
 
 log_cache = {}
 
@@ -30,6 +31,12 @@ def log(img, metadata, metadata_parser: MetadataParser | None = None, output_for
     parsed_parameters = metadata_parser.to_string(metadata.copy()) if metadata_parser is not None else ''
     image = Image.fromarray(img)
 
+    # custom-23 : declaration IA lisible par machine (EU AI Act art. 50) sur CHAQUE image,
+    # meme sans sauvegarde des parametres ; filigrane TrustMark en option.
+    mark_ai = provenance.enabled()
+    if mark_ai:
+        image = provenance.maybe_watermark(image)
+
     if output_format == OutputFormat.PNG.value:
         if parsed_parameters != '':
             pnginfo = PngInfo()
@@ -37,11 +44,16 @@ def log(img, metadata, metadata_parser: MetadataParser | None = None, output_for
             pnginfo.add_text('fooocus_scheme', metadata_parser.get_scheme().value)
         else:
             pnginfo = None
+        if mark_ai:
+            pnginfo = provenance.add_to_pnginfo(pnginfo)
         image.save(local_temp_filename, pnginfo=pnginfo)
     elif output_format == OutputFormat.JPEG.value:
         image.save(local_temp_filename, quality=95, optimize=True, progressive=True, exif=get_exif(parsed_parameters, metadata_parser.get_scheme().value) if metadata_parser else Image.Exif())
+        if mark_ai:
+            provenance.inject_jpeg_xmp(local_temp_filename)
     elif output_format == OutputFormat.WEBP.value:
-        image.save(local_temp_filename, quality=95, lossless=False, exif=get_exif(parsed_parameters, metadata_parser.get_scheme().value) if metadata_parser else Image.Exif())
+        image.save(local_temp_filename, quality=95, lossless=False, exif=get_exif(parsed_parameters, metadata_parser.get_scheme().value) if metadata_parser else Image.Exif(),
+                   **(provenance.webp_save_kwargs() if mark_ai else {}))
     else:
         image.save(local_temp_filename)
 

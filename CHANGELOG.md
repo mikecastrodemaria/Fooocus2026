@@ -3,6 +3,50 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-23] — 2026-09-14 — Provenance IA des images (EU AI Act, article 50)
+
+### Added
+- **Chaque image enregistree declare qu'elle est generee par IA**, dans un format
+  lisible par machine : paquet XMP avec la propriete IPTC standard
+  `Iptc4xmpExt:DigitalSourceType = trainedAlgorithmicMedia` et `xmp:CreatorTool`
+  (`Fooocus2026 <version>`). PNG : chunk iTXt `XML:com.adobe.xmp` + un tEXt lisible
+  `ai_provenance`. JPEG : segment APP1 XMP insere apres JFIF/EXIF (Pillow 10 ne sait
+  pas l'ecrire lui-meme). WEBP : chunk XMP natif. Les planches X/Y/Z aussi.
+- La declaration est ecrite **meme quand la sauvegarde des parametres est coupee**
+  (`--disable-metadata`, case decochee) : elle ne contient **aucun prompt ni
+  parametre**, seulement le fait qu'une IA a produit l'image et l'outil.
+- **Filigrane invisible TrustMark** (Adobe, open source) en option :
+  `provenance.watermark: true` + `pip install trustmark`, calcule sur CPU pour
+  laisser le GPU a la generation, payload `provenance.watermark_id` (9 caracteres
+  ASCII). Paquet absent : un message une fois, l'image est enregistree avec la
+  declaration XMP, jamais d'echec de sauvegarde.
+- **Onglet Metadata** : section `provenance` dans le JSON : declaration IPTC
+  trouvee ou non, outil createur, manifeste C2PA (si `c2pa-python` est installe),
+  filigrane TrustMark (si `trustmark` est installe).
+
+### Notes
+- Fooocus n'ecrivait aucune declaration IA : les parametres de generation
+  (quand ils sont sauves) decrivent le *comment*, pas le fait qu'une IA a produit
+  l'image. L'article 50(2) de l'AI Act vise precisement ce marquage lisible par
+  machine.
+- **L'absence de marque ne prouve rien** (image d'un autre outil, metadonnees
+  retirees par un site, recompression) : l'onglet Metadata ne dit jamais
+  "authentique" ni "pas IA", et le rappelle a chaque lecture.
+- Porte de crispz-studio (`cz_provenance.py` : TrustMark + lecture C2PA),
+  complete par l'ecriture de la declaration IPTC.
+- `provenance.enabled: false` coupe tout (declaration et filigrane).
+
+### Files
+- `modules/provenance.py` : **nouveau** (xmp_packet, add_to_pnginfo, inject_jpeg_xmp,
+  webp_save_kwargs, maybe_watermark, describe).
+- `modules/private_logger.py` : declaration + filigrane a l'enregistrement.
+- `modules/xyz_grid.py` : declaration sur les planches.
+- `modules/config.py` : bloc `provenance` (enabled, watermark, watermark_id).
+- `webui.py` : section `provenance` dans l'onglet Metadata.
+- `tests/test_provenance.py` : **nouveau** (PNG avec parametres intacts, JPEG avec
+  EXIF Fooocus intact et segment idempotent, WEBP, image non marquee jamais dite
+  authentique, filigrane jamais bloquant).
+
 ## [custom-22] — 2026-09-14 — CivitAI : chercher et telecharger un modele
 
 ### Added

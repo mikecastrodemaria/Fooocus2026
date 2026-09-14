@@ -699,6 +699,31 @@ def job_queue_enabled():
         return False
 
 
+# === custom-23: provenance IA (EU AI Act art. 50) ===
+_provenance_defaults = {
+    'enabled': True,           # declaration XMP IPTC trainedAlgorithmicMedia sur chaque image
+    'watermark': False,        # filigrane invisible TrustMark (pip install trustmark)
+    'watermark_id': 'Fooocus26',  # payload du filigrane, 9 caracteres ASCII max
+}
+provenance_config = get_config_item_or_set_default(
+    key='provenance',
+    default_value=dict(_provenance_defaults),
+    validator=lambda x: isinstance(x, dict),
+    expected_type=dict
+)
+for _k, _v in _provenance_defaults.items():
+    provenance_config.setdefault(_k, _v)
+
+
+def provenance_setting(key, default=None):
+    if key in _provenance_defaults and default is None:
+        default = _provenance_defaults[key]
+    try:
+        return provenance_config.get(key, default)
+    except Exception:
+        return default
+
+
 def asset_browser_setting(key, default=None):
     """Safe getter for any asset_browser sub-key. Used everywhere instead of
     direct dict access so a malformed config.txt never crashes the hook.

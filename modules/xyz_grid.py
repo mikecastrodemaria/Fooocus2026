@@ -440,7 +440,13 @@ def assemble_group(g, cell_px=512):
 
         suffix = f'_z{zi + 1}' if g['nz'] > 1 else ''
         out = os.path.join(out_dir, f'xyz_{stamp}{suffix}.png')
-        canvas.save(out)
+        # custom-23 : une planche est faite d'images generees, elle porte la meme declaration IA
+        try:
+            import modules.provenance as provenance
+            pnginfo = provenance.add_to_pnginfo(None) if provenance.enabled() else None
+        except Exception:
+            pnginfo = None
+        canvas.save(out, pnginfo=pnginfo)
         paths.append(out)
         print(f'[XYZ] Planche assemblee: {out}')
     return paths

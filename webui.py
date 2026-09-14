@@ -582,6 +582,13 @@ with shared.gradio_root:
                             if isinstance(metadata_scheme, flags.MetadataScheme):
                                 results['metadata_scheme'] = metadata_scheme.value
 
+                            # custom-23 : provenance IA (declaration XMP, C2PA, filigrane TrustMark)
+                            try:
+                                import modules.provenance as provenance
+                                results['provenance'] = provenance.describe(file)
+                            except Exception as e:
+                                results['provenance'] = {'error': str(e)}
+
                             return results
 
                         metadata_input_image.upload(trigger_metadata_preview, inputs=metadata_input_image,
