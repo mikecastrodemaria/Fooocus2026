@@ -3,6 +3,63 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-26] — 2026-09-14 — Protocole CLI de la famille crispz : Fooocus2026 moteur SDXL
+
+### Added
+- **`czp.bat` / `czp.sh`** : le protocole CLI v1 de la famille crispz
+  (`comics2crispz/docs/CLI_PROTOCOL.md`). Une spec JSON en entree, **une ligne JSON**
+  en sortie, codes 0 ok / 1 erreur / 2 spec invalide / 3 non supporte / 4 pas de
+  route. Commandes `caps`, `gen`, `upscale`, `inpaint` ; `edit` repond 3 (Fooocus
+  n'a pas de pipeline d'edition par instruction). Fooocus2026 devient un moteur de
+  la famille : comics2crispz, un script de nuit ou un agent le pilotent comme
+  crispz-studio, sans connaitre l'outil qui genere.
+- **Routage** : `czp` sonde l'instance Fooocus qui tourne (`cli_protocol.instance_url`,
+  defaut `http://127.0.0.1:7865`) par ses **endpoints caches** `cli_caps` / `cli_gen`
+  et y execute la spec, dans le thread worker, derriere les rendus de l'utilisateur.
+  Sans instance, execution dans le process `czp` (charge le backend comme
+  `xyz_cli.py`). `--remote URL` force une instance (exit 4 si elle ne repond pas),
+  `--local` force le process.
+- **Correspondance** : `gen` = txt2img SDXL ; `width`/`height` -> resolution exacte ;
+  `steps` -> overwrite ; `loras` et balises `<lora:...>` du prompt -> slots LoRA
+  (resolution floue, comme la grille X/Y/Z ; introuvable = exit 2) ; `refs` -> Image
+  Prompt (IP-Adapter), 4 au plus ; `detail_faces` / `detail_hands` -> Enhance
+  (masques `face` / `hand`, reglages du mode Improve Detail). `upscale` : facteur 1 =
+  Vary (force = `denoise`), 1.5 / 2 = Upscale Fooocus, `denoise` 0 en 2x = Upscale
+  Fast ; tout autre facteur = exit 2. `inpaint` : masque blanc = a redessiner,
+  `denoise` = force, prompt **local** a la zone.
+
+### Changed
+- `xyz_cli.py` delegue son snapshot de ctrls a **`modules/task_args.py`**, partage
+  avec le protocole : l'ordre fragile des ctrls de `AsyncTask` n'est plus recopie
+  qu'a un seul endroit. Verifie a l'identique sur les 162 ctrls avant / apres.
+
+### Notes
+- **L'identite de l'outil qui repond est verifiee** : une autre app sur le port
+  (crispz-studio, Gradio 5) n'est jamais prise pour Fooocus.
+- Sur la route distante, `model` est **refuse avec un avertissement** : on ne change
+  jamais le checkpoint de l'instance de l'utilisateur sous ses pieds (protocole §7).
+- `seed_used` est toujours la seed concrete ; `-1` est tire avant la generation.
+- Chaque snapshot est valide par un `AsyncTask` a blanc avant d'etre enfile : une
+  derive d'ordre des ctrls donne une erreur, jamais une image fausse.
+- Les chemins relatifs d'une spec sont resolus depuis le dossier de l'appelant
+  (`czp.bat` fait un `cd`). Specs avec BOM UTF-8 (PowerShell) acceptees.
+- comics2crispz : declarer le moteur avec son chemin `czp` seulement
+  (`"engines": {"fooocus2026": {"czp": "D:/Github/Fooocus2026/czp.bat"}}`) ; le czp
+  route lui-meme vers l'instance chaude. Pas d'`url` : l'appel direct de
+  comics2crispz vise l'API Gradio 4/5.
+- `supports.faces` est faux : comics2crispz place alors les bulles sans detection
+  de visage.
+
+### Files
+- `fooocus_protocol.py` : **nouveau** (validation, correspondance, routes, endpoints).
+- `czp.bat`, `czp.sh` : **nouveaux**.
+- `modules/task_args.py` : **nouveau** (snapshot + index memorises a la construction).
+- `xyz_cli.py` : `build_base_args` delegue a `task_args`.
+- `webui.py` : endpoints caches `cli_caps` / `cli_gen`.
+- `modules/config.py` : bloc `cli_protocol` (`instance_url`).
+- `tests/test_protocol.py` : **nouveau** (validation, route distante contre un faux
+  Fooocus Gradio 3, outil usurpateur refuse, correspondance vers le snapshot).
+
 ## [custom-25] — 2026-09-14 — Describe via un modele vision Ollama
 
 ### Added

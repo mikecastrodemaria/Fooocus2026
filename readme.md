@@ -429,6 +429,32 @@ Local entries also carry a text badge (`[lora-name]`, `[embedding]`, `[wildcard]
 
 ---
 
+### 20. 🔌 crispz family CLI protocol (`czp`) — Fooocus2026 as an SDXL engine
+**Where:** `czp.bat` / `czp.sh` at the repo root.
+
+**What it does:** implements the [crispz family CLI protocol v1](https://github.com/mikecastrodemaria/comics2crispz/blob/main/docs/CLI_PROTOCOL.md): a JSON spec in, **one JSON line** out, exit codes `0` ok · `1` run error · `2` invalid spec · `3` unsupported · `4` no route. Any family interface — comics2crispz, a night batch script, an agent — can then drive Fooocus2026 exactly like crispz-studio.
+
+```bat
+czp.bat caps
+czp.bat gen --spec panel.json          :: or --spec - to read stdin
+czp.bat upscale --spec up.json
+czp.bat inpaint --spec fix.json
+```
+
+```json
+{"protocol": 1, "prompt": "ink comic panel, @Lea running in the rain <lora:ink_style:0.7>",
+ "width": 1024, "height": 1344, "seed": -1, "refs": ["C:/book/lea.png"], "detail_faces": true,
+ "out_dir": "C:/book/panels"}
+```
+
+**Routing:** `czp` first looks for the running Fooocus (`cli_protocol.instance_url`, default `http://127.0.0.1:7865`) through its hidden `cli_caps` / `cli_gen` endpoints, and runs the spec there, in the worker thread, behind your own renders — one GPU, one queue. Without an instance it loads the backend itself (like `xyz_cli.py`). `--remote URL` forces an instance, `--local` forces the process. The answering app's identity is checked: another app on the port is never taken for Fooocus.
+
+**Mapping:** `gen` = SDXL txt2img — `width`/`height` exact size, `steps`, `loras` plus `<lora:…>` tags in the prompt (fuzzy names, unknown = exit 2), `refs` → Image Prompt (IP-Adapter, 4 max), `detail_faces` / `detail_hands` → Enhance with a `face` / `hand` mask. `upscale`: factor `1` = Vary (strength = `denoise`), `1.5` / `2` = Fooocus upscale (`denoise` 0 at 2x = Upscale Fast). `inpaint`: white mask = redraw, `denoise` = strength, prompt local to the area. `edit` answers 3 (no instruction-edit pipeline). On the remote route `model` is refused with a warning — the running instance's checkpoint is never swapped under your feet.
+
+**comics2crispz:** declare the engine with its czp path only — `"engines": {"fooocus2026": {"czp": "D:/Github/Fooocus2026/czp.bat"}}` — the czp routes to the warm instance itself.
+
+---
+
 ## 🚀 Getting this fork
 
 ### Option A — I already have Fooocus installed
@@ -530,6 +556,7 @@ All upstream keys still apply. The fork adds a few of its own. Most have a UI co
 | `ollama_describe.model` | `""` | string | custom-25 | Vision model. Empty = the first model Ollama reports with the `vision` capability. |
 | `ollama_describe.style` / `.length` | `"Prompt (prose)"` / `"Long"` | string | custom-25 | Default style and length of the Describe panel (and of auto-describe). |
 | `ollama_describe.timeout` / `.temperature` / `.keep_alive` | `180` / `0.3` / `"5m"` | int / float / string | custom-25 | HTTP timeout (s), sampling temperature, how long Ollama keeps the model loaded. |
+| `cli_protocol.instance_url` | `""` | URL string | custom-26 | Running Fooocus instance `czp` talks to. Empty = `http://127.0.0.1:<GRADIO_SERVER_PORT or 7865>`. Env `FOOOCUS_CLI_URL` overrides it. |
 
 Each value is clamped on save — bad values in `config.txt` fall back to the default rather than crashing.
 
@@ -591,6 +618,8 @@ Example fragment:
 | `modules/xyz_grid.py` | **New** — X/Y/Z grid: axis registry, combo expansion, Pillow sheet assembly (custom-15) |
 | `xyz_cli.py` | **New** — headless X/Y/Z grid runner with ctrl-order validation (custom-15.3) |
 | `update_check.py` | **New** — boot update offered only when safe: fetch, local-work guard, `--ff-only` apply (custom-19) |
+| `fooocus_protocol.py`, `czp.bat`, `czp.sh` | **New** — crispz family CLI protocol v1: spec validation, SDXL mapping, instance / local routing, hidden `cli_caps` / `cli_gen` endpoints (custom-26) |
+| `modules/task_args.py` | **New** — AsyncTask ctrl snapshot built outside the UI, with positions recorded while building; shared by `xyz_cli.py` and the protocol (custom-26) |
 | `entry_with_update.py` | Calls `update_check.boot()` instead of the pygit2 fast-forward + hard reset (custom-19) |
 | `CHANGELOG.md` | Per-release fork history |
 | `.gitignore` | Excludes `civitai_cache/`, local presets, assistant artifacts |

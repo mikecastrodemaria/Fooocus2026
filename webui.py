@@ -3023,6 +3023,21 @@ with shared.gradio_root:
         metadata_import_button.click(trigger_metadata_import, inputs=[metadata_input_image, state_is_generating], outputs=load_data_outputs, queue=False, show_progress=True) \
             .then(style_sorter.sort_styles, inputs=style_selections, outputs=style_selections, queue=False, show_progress=False)
 
+        # === custom-26 : protocole CLI de la famille crispz (czp.bat / fooocus_protocol.py) ===
+        # Endpoints caches, hors file Gradio pour etre appelables en POST /run/<nom> (Gradio 3.41).
+        # La generation elle-meme passe par le thread worker de Fooocus, derriere les rendus de
+        # l'utilisateur : une GPU, une file.
+        import fooocus_protocol
+        with gr.Row(visible=False):
+            cli_protocol_in = gr.Textbox(visible=False)
+            cli_protocol_out = gr.Textbox(visible=False)
+            cli_caps_button = gr.Button(visible=False)
+            cli_gen_button = gr.Button(visible=False)
+        cli_caps_button.click(fooocus_protocol.remote_caps, inputs=cli_protocol_in, outputs=cli_protocol_out,
+                              api_name='cli_caps', queue=False, show_progress=False)
+        cli_gen_button.click(fooocus_protocol.remote_run, inputs=cli_protocol_in, outputs=cli_protocol_out,
+                             api_name='cli_gen', queue=False, show_progress=False)
+
         # === custom-14: cablage Job Queue =================================
         if modules.config.job_queue_enabled():
             from modules import job_queue as jq

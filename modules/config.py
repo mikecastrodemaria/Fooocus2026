@@ -764,6 +764,18 @@ def ollama_describe_setting(key, default=None):
     return value
 
 
+# === custom-26: protocole CLI de la famille crispz (czp.bat / fooocus_protocol.py) ===
+# instance_url vide = http://127.0.0.1:<GRADIO_SERVER_PORT ou 7865>. fooocus_protocol.py
+# relit ce bloc directement dans config.txt (sans importer ce module, trop lourd pour caps).
+cli_protocol_config = get_config_item_or_set_default(
+    key='cli_protocol',
+    default_value={'instance_url': ''},
+    validator=lambda x: isinstance(x, dict),
+    expected_type=dict
+)
+cli_protocol_config.setdefault('instance_url', '')
+
+
 def asset_browser_setting(key, default=None):
     """Safe getter for any asset_browser sub-key. Used everywhere instead of
     direct dict access so a malformed config.txt never crashes the hook.

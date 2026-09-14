@@ -76,93 +76,13 @@ def parse_axis_arg(raw, xyz):
 
 def build_base_args(a):
     """Snapshot ctrls complet, STRICTEMENT dans l'ordre de AsyncTask.__init__
-    (modules/async_worker.py). Toute modification la-bas doit etre reportee ici;
-    le dry-run AsyncTask ci-dessous echoue bruyamment en cas de derive."""
-    import modules.config as cfg
-    import modules.flags as flags
-
-    def g(attr, fallback):
-        return getattr(cfg, attr, fallback)
-
-    n_loras = int(g('default_max_lora_number', 5))
-    loras = []
-    for entry in (g('default_loras', []) or [])[:n_loras]:
-        if isinstance(entry, (list, tuple)) and len(entry) >= 3:
-            loras += [bool(entry[0]), str(entry[1]), float(entry[2])]
-        elif isinstance(entry, (list, tuple)) and len(entry) == 2:
-            loras += [True, str(entry[0]), float(entry[1])]
-    while len(loras) < 3 * n_loras:
-        loras += [False, 'None', 1.0]
-
-    cn_stop, cn_weight = flags.default_parameters[flags.default_ip]
-    args = [
-        False,                                        # generate_image_grid
-        a.prompt,                                     # 1 prompt
-        a.negative if a.negative is not None else g('default_prompt_negative', ''),
-        list(g('default_styles', [])),                # 3 styles
-        a.performance or g('default_performance', 'Quality'),
-        a.aspect or g('default_aspect_ratio', '1152×896'),
-        1,                                            # 6 image_number (1 par case)
-        a.output_format or g('default_output_format', 'png'),
-        a.seed if a.seed is not None else random.randint(0, 2 ** 32),
-        False,                                        # read_wildcards_in_order
-        g('default_sample_sharpness', 2.0),           # 10
-        g('default_cfg_scale', 4.0),                  # 11
-        g('default_base_model_name', 'model.safetensors'),  # 12
-        g('default_refiner_model_name', 'None'),
-        g('default_refiner_switch', 0.5),
-    ] + loras + [
-        False,                                        # input_image_checkbox
-        'uov',                                        # current_tab
-        flags.disabled,                               # uov_method
-        None,                                         # uov_input_image
-        [],                                           # outpaint_selections
-        None,                                         # inpaint_input_image
-        '',                                           # inpaint_additional_prompt
-        None,                                         # inpaint_mask_image_upload
-        False, False, False,                          # disable_preview / intermediate / seed_increment
-        bool(g('default_black_out_nsfw', False)),
-        1.5, 0.8, 0.3,                                # adm +/-/end
-        g('default_cfg_tsnr', 7.0),
-        g('default_clip_skip', 2),
-        g('default_sampler', 'dpmpp_2m_sde_gpu'),
-        g('default_scheduler', 'karras'),
-        g('default_vae', getattr(flags, 'default_vae', 'Default (model)')),
-        g('default_overwrite_step', -1),
-        g('default_overwrite_switch', -1),
-        -1, -1, -1,                                   # overwrite width / height / vary_strength
-        g('default_overwrite_upscale', -1),
-        False, False,                                 # mixing image prompt vary / inpaint
-        False,                                        # use_aspect_for_vary (custom-6)
-        False, 4, 3, 'Ratio + taille max', 1024,      # custom-7 (desactive)
-        False, False, 64, 128,                        # cn preprocessor debug/skip + canny
-        flags.refiner_swap_method,
-        0.25,                                         # controlnet_softness
-        False, 1.01, 1.02, 0.99, 0.95,                # freeu
-        False, False,                                 # inpaint debug / disable_initial_latent
-        g('default_inpaint_engine_version', 'v2.6'),
-        1.0, 0.618, False, False, 0,                  # inpaint strength/field/advanced/invert/erode
-        False,                                        # save_final_enhanced_image_only
-        bool(g('default_save_metadata_to_images', False)),
-        g('default_metadata_scheme', 'fooocus'),
-    ]
-    for _ in range(int(g('default_controlnet_image_count', 4))):
-        args += [None, cn_stop, cn_weight, flags.default_ip]
-    args += [
-        False, 0, False,                              # dino debug / erode / enhance masks debug
-        None,                                         # enhance_input_image
-        False,                                        # enhance_checkbox
-        flags.disabled,                               # enhance_uov_method
-        flags.enhancement_uov_before,
-        flags.enhancement_uov_prompt_type_original,
-    ]
-    for _ in range(int(g('default_enhance_tabs', 3))):
-        args += [False, '', '', '', 'sam', 'full', 'vit_b', 0.25, 0.3, 0,
-                 False, g('default_inpaint_engine_version', 'v2.6'), 1.0, 0.618, 0, False]
-    args += [
-        'Fooocus Default (ESRGAN)',                   # custom-10 upscaler sentinel
-        'Off', 0.8, 'After upscale',                  # face restore model / visibility / order
-    ]
+    (modules/async_worker.py). custom-26 : construit par modules/task_args.py, partage
+    avec le protocole CLI (fooocus_protocol.py), pour que cet ordre fragile ne soit
+    recopie qu'a un seul endroit. Le dry-run AsyncTask ci-dessous echoue bruyamment
+    en cas de derive."""
+    import modules.task_args as task_args
+    args, _idx = task_args.build(prompt=a.prompt, negative=a.negative, performance=a.performance,
+                                 aspect=a.aspect, output_format=a.output_format, seed=a.seed)
     return args
 
 
