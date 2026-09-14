@@ -369,9 +369,11 @@ Local entries also carry a text badge (`[lora-name]`, `[embedding]`, `[wildcard]
 
 **Fire-and-forget (custom-17):** **Generate stays clickable while a generation is running** — each click stacks one more job, which starts automatically as soon as the previous one finishes. Tweak the prompt, hit Generate again, repeat; you never wait for the GPU to be free before queuing the next idea. Under the hood Generate and Run queue share a single execution path: the queue is drained by a live runner that idles instead of exiting, so jobs added mid-flight are picked up on their own. Execution stays strictly sequential (one worker thread, one GPU) — what custom-17 removes is the *queuing* lock, not the serialisation.
 
-**Stop = pause:** Stop interrupts the current job and pauses the queue — remaining jobs wait for the next Run queue. Skip skips the current image and the series continues. Nothing is ever lost.
+**Stop, Pause, Skip:** **⏸ Pause** lets the current job finish, then suspends the queue. **Stop** interrupts the current job and pauses the queue; the interrupted job **stays at the head of the queue** (marked `▶` while it runs) and restarts in full on the next Run queue (custom-21 — before, it was dropped). Skip skips the current image and the series continues. Nothing is ever lost.
 
-**Notes:** the queue lives in memory (a restart clears it — v1 choice, persistence considered for a v2). Snapshots holding input images (inpaint/upscale) stay in RAM, hence the `job_queue.max_jobs` guard (50 by default). The runner goes back to sleep after 60 s with an empty queue; the next Generate wakes it.
+**Survives a restart (custom-21):** the queue is written to `cache/job_queue/queue.json` on every change and after every job, input images included (stored once in `cache/job_queue/assets/`, deduplicated by content). At the next launch it is restored **waiting** — nothing starts on its own, Run queue resumes it — and so are unfinished X/Y/Z grids with the cells already rendered. If Fooocus changed between two sessions and a snapshot no longer matches the UI controls, that job is set aside in `queue.json.rejected-<date>` with the reason instead of being replayed with shifted settings. Turn it off with `job_queue.persist: false`.
+
+**Notes:** the `job_queue.max_jobs` guard (50 by default) also applies to the restored queue. The runner goes back to sleep after 60 s with an empty queue; the next Generate wakes it.
 
 **Zero impact when off:** no button, no panel, no import.
 
@@ -492,7 +494,9 @@ All upstream keys still apply. The fork adds a few of its own. Most have a UI co
 | `tag_autocomplete.insert_comma` | `true` | bool | custom-13 | Append `", "` after each inserted tag. |
 | `tag_autocomplete.suggest_lora_triggers` / `.suggest_embeddings` / `.suggest_wildcards` | `true` | bool | custom-13 | Per-source toggles for the local library suggestions. |
 | `job_queue.enabled` | `true` | bool | custom-14 | Master toggle for the **📋 Job Queue**. ON by default since custom-14.1 — when off, no button, no panel, no import. |
-| `job_queue.max_jobs` | `50` | int | custom-14 | Max pending jobs (snapshots with input images live in RAM). |
+| `job_queue.max_jobs` | `50` | int | custom-14 | Max pending jobs (snapshots with input images live in RAM). Also applies when a saved queue is restored. |
+| `job_queue.persist` | `true` | bool | custom-21 | Save the queue on every change and restore it (waiting) at the next launch. |
+| `job_queue.persist_path` | `""` | path string | custom-21 | Where the saved queue lives. Empty = `cache/job_queue` at the Fooocus root. |
 
 Each value is clamped on save — bad values in `config.txt` fall back to the default rather than crashing.
 
@@ -548,7 +552,7 @@ Example fragment:
 | `modules/tag_autocomplete.py` | **New** — tag CSV download + `tags/local_assets.json` builder (custom-13) |
 | `javascript/tag_autocomplete.js` | **New** — autocomplete dropdown UX, zero dependency (custom-13) |
 | `modules/ui_gradio_extensions.py` | Conditional injection of the Tag Autocomplete script + config meta (custom-13) |
-| `modules/job_queue.py` | **New** — thread-safe pending-jobs queue + labels, pure stdlib (custom-14) |
+| `modules/job_queue.py` | **New** — thread-safe pending-jobs queue + labels, pure stdlib (custom-14); persistence with input images, job kept until finished, soft pause (custom-21) |
 | `modules/xyz_grid.py` | **New** — X/Y/Z grid: axis registry, combo expansion, Pillow sheet assembly (custom-15) |
 | `xyz_cli.py` | **New** — headless X/Y/Z grid runner with ctrl-order validation (custom-15.3) |
 | `update_check.py` | **New** — boot update offered only when safe: fetch, local-work guard, `--ff-only` apply (custom-19) |

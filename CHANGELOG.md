@@ -3,6 +3,58 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-21] — 2026-09-14 — File d'attente persistante + Pause douce
+
+### Added
+- **La file survit a un redemarrage et a un crash.** Elle est ecrite dans
+  `cache/job_queue/queue.json` a chaque ajout / retrait / deplacement / vidage et
+  apres chaque job. Au demarrage, elle est rechargee **en attente** : rien ne
+  repart tout seul, `Run queue` reprend. Le README annoncait cette persistance
+  pour une v2 ; une serie de nuit perdue a cause d'un Restart UI ou d'une coupure
+  etait le pire scenario (porte de crispz-studio).
+- Les **images d'entree** des snapshots (Upscale / Vary, inpaint image + masque,
+  image prompts, Enhance) sont stockees a part dans `cache/job_queue/assets/`,
+  PNG sans perte (uint8) ou `.npy` (le reste), **dedupliquees par empreinte** ;
+  les fichiers qui ne sont plus references sont supprimes a la sauvegarde.
+- Les **groupes X/Y/Z** en cours sont persistes avec leurs cases deja rendues : la
+  planche s'assemble quand la serie reprend apres un redemarrage.
+- **Bouton ⏸ Pause** : le job en cours se termine proprement, puis la file se
+  suspend. Stop reste l'arret immediat.
+- Au chargement de la page, le compteur `+ Queue (n)`, la liste et le statut
+  refletent la file restauree.
+- Cles `job_queue.persist` (defaut `true`) et `job_queue.persist_path` (defaut
+  vide = `cache/job_queue`).
+
+### Fixed
+- **Un Stop perdait le job interrompu.** Le runner retirait le job de la file
+  *avant* de l'executer : interrompu, il avait disparu, seuls les suivants
+  attendaient. Il reste desormais en tete de file (marque `▶` pendant son
+  execution) et repart **entier** a la reprise. Meme chose si l'onglet est ferme
+  ou Reconnect clique en plein job. Un job retire par l'utilisateur pendant son
+  execution n'est pas re-ajoute.
+
+### Notes
+- **Garde-fou de version** : chaque snapshot est un vecteur de ctrls positionnel.
+  Si Fooocus a change entre deux sessions (nombre de ctrls different), les jobs
+  concernes ne sont **pas** rejoues avec des arguments decales : ils sont ecartes
+  et copies dans `queue.json.rejected-<date>` avec la raison. Un fichier illisible
+  est mis de cote en `queue.json.bad-<date>`, jamais efface.
+- Un job interrompu puis rejoue entier peut regenerer des images deja ecrites par
+  l'execution interrompue (batch de plusieurs images).
+- Un ctrl sans representation sur disque laisse le job en memoire seulement, avec
+  un avertissement console ; les autres jobs sont sauves.
+- `job_queue.max_jobs` s'applique aussi a la restauration.
+
+### Files
+- `modules/job_queue.py` : `start_next` / `finish` (le job reste en file jusqu'a sa
+  fin), `request_pause` / `consume_pause_request`, persistance (`configure_persistence`,
+  `save`, `load`, codec ndarray / PIL / tuple / dict).
+- `modules/xyz_grid.py` : `export_groups` / `import_groups`.
+- `modules/config.py` : cles `persist`, `persist_path`.
+- `webui.py` : `queue_runner` (start_next / finish / pause), bouton Pause, chargement
+  de la file au demarrage, rafraichissement du panneau au chargement de la page.
+- `tests/test_job_queue_persist.py` : **nouveau**.
+
 ## [custom-20] — 2026-09-14 — Plugins Extra : mise a jour et mode serveur
 
 ### Added

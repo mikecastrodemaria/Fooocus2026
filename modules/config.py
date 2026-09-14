@@ -670,6 +670,8 @@ def tag_autocomplete_enabled():
 _job_queue_defaults = {
     'enabled': True,
     'max_jobs': 50,
+    'persist': True,       # custom-21 : la file survit a un redemarrage
+    'persist_path': '',    # custom-21 : '' = cache/job_queue a la racine de Fooocus
 }
 job_queue_config = get_config_item_or_set_default(
     key='job_queue',

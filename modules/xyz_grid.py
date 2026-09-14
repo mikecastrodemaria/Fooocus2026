@@ -322,6 +322,37 @@ def register_group(group):
         _GROUPS[group['id']] = group
 
 
+def export_groups():
+    """custom-21 : groupes XYZ en cours, en JSON pour la file persistante. Les cles de
+    cases (z, y, x) deviennent 'z,y,x' ; les valeurs sont deja des chemins d'image."""
+    with _LOCK:
+        out = {}
+        for gid, g in _GROUPS.items():
+            d = dict(g)
+            d['cells'] = {f'{k[0]},{k[1]},{k[2]}': v for k, v in (g.get('cells') or {}).items()}
+            out[gid] = d
+        return out
+
+
+def import_groups(data):
+    """custom-21 : restaure les groupes persistes, cases deja rendues comprises, pour que
+    la planche s'assemble quand la serie reprend apres un redemarrage. Un groupe deja
+    connu n'est pas ecrase. Renvoie le nombre de groupes lus."""
+    restored = {}
+    for gid, d in (data or {}).items():
+        g = dict(d)
+        cells = {}
+        for k, v in (d.get('cells') or {}).items():
+            z, y, x = (int(p) for p in str(k).split(','))
+            cells[(z, y, x)] = v
+        g['cells'] = cells
+        restored[gid] = g
+    with _LOCK:
+        for gid, g in restored.items():
+            _GROUPS.setdefault(gid, g)
+    return len(restored)
+
+
 def on_job_done(meta, image_path):
     """Appelé par run_queue après chaque job. Renvoie la liste des planches
     assemblées si le groupe est complet, sinon None."""

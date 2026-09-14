@@ -160,10 +160,12 @@ def queue_runner():
     prev_model = None
     try:
         jq.queue.paused = False
+        jq.queue.pause_requested = False
         idle_since = time.perf_counter()
 
         while not jq.queue.paused:
-            job = jq.queue.pop_next()
+            # custom-21 : le job reste en tete de file tant qu'il n'est pas termine
+            job = jq.queue.start_next()
 
             if job is None:
                 if time.perf_counter() - idle_since > jq.queue.idle_timeout:
@@ -183,33 +185,50 @@ def queue_runner():
 
             task = worker.AsyncTask(args=list(job.args))
             jq.queue.current_task = task
-            print(f'[JobQueue] Job lance : {job.label} ({len(jq.queue)} restant(s))')
+            print(f'[JobQueue] Job lance : {job.label} ({len(jq.queue) - 1} autre(s) en file)')
 
             for out in execute_task_streaming(task):
                 yield out + queue_state_updates()
 
             jq.queue.current_task = None
+            stopped = task.last_stop == 'stop'
 
-            # custom-15 : si ce job appartient a une grille XYZ complete, assembler
-            if getattr(job, 'meta', None):
+            # custom-15 : si ce job appartient a une grille XYZ complete, assembler.
+            # custom-21 : AVANT finish(), pour que la sauvegarde qui suit contienne la case.
+            grids = None
+            if not stopped and getattr(job, 'meta', None):
                 import modules.xyz_grid as xyz
                 first_img = next((r for r in task.results if isinstance(r, str)), None)
                 grids = xyz.on_job_done(job.meta, first_img)
-                if grids:
-                    yield (gr.update(visible=False), gr.update(visible=False),
-                           gr.update(visible=False), gr.update(visible=True, value=grids)) \
-                        + queue_state_updates()
 
-            if task.last_stop == 'stop':
+            # custom-21 : interrompu par Stop, le job reste en tete de file et sera
+            # re-execute entier a la reprise ; termine (ou Skip), il sort de la file.
+            jq.queue.finish(job, done=not stopped)
+
+            if grids:
+                yield (gr.update(visible=False), gr.update(visible=False),
+                       gr.update(visible=False), gr.update(visible=True, value=grids)) \
+                    + queue_state_updates()
+
+            if stopped:
                 jq.queue.paused = True
-                print(f'[JobQueue] Stop : file en pause, {len(jq.queue)} job(s) en attente.')
+                print(f'[JobQueue] Stop : file en pause, le job interrompu reste en tete '
+                      f'({len(jq.queue)} job(s) en file).')
+                break
+
+            if jq.queue.consume_pause_request():
+                print(f'[JobQueue] Pause : job termine, file suspendue ({len(jq.queue)} job(s) en file).')
                 break
 
             idle_since = time.perf_counter()
     finally:
         # doit tourner meme sur GeneratorExit (onglet ferme, reset) sinon le
         # verrou reste pris et plus aucun job ne partirait jamais.
+        if jq.queue.running_job is not None:
+            # custom-21 : coupe en plein job (onglet ferme, Reconnect) : il reste en file
+            jq.queue.finish(jq.queue.running_job, done=False)
         jq.queue.current_task = None
+        jq.queue.pause_requested = False
         jq.queue.release_runner()
 
     yield (gr.update(visible=False), gr.update(visible=False),
@@ -359,8 +378,10 @@ with shared.gradio_root:
                                 '<b>Generate</b> reste cliquable pendant une generation : chaque clic '
                                 'empile un job de plus, qui part automatiquement des que le precedent '
                                 'se termine. <b>+ Queue</b> empile sans lancer (chaque job fige les '
-                                'reglages du moment). <b>Stop</b> interrompt le job courant et met la '
-                                'file en pause — relancez avec Run queue, rien n\'est perdu.</div>')
+                                'reglages du moment). <b>Pause</b> finit le job en cours puis suspend. '
+                                '<b>Stop</b> interrompt le job courant, qui reste en tete de file et '
+                                'repartira entier — relancez avec Run queue, rien n\'est perdu. '
+                                'La file survit a un redemarrage de Fooocus.</div>')
                         queue_status = gr.HTML(value='File vide.')
                         queue_display = gr.Radio(label='Jobs en attente', choices=[], value=None, interactive=True)
                         # custom-15 : grille X/Y/Z, les combos partent dans la queue
@@ -383,6 +404,7 @@ with shared.gradio_root:
                             xyz_build_button = gr.Button(value='Construire la grille dans la queue')
                         with gr.Row():
                             queue_run_button = gr.Button(value='\u25B6 Run queue', variant='primary', scale=2)
+                            queue_pause_button = gr.Button(value='\u23F8 Pause', scale=1)  # custom-21
                             queue_up_button = gr.Button(value='\U0001F53C Up', scale=1)
                             queue_down_button = gr.Button(value='\U0001F53D Down', scale=1)
                             queue_remove_button = gr.Button(value='\u274C Remove', scale=1)
@@ -2891,7 +2913,25 @@ with shared.gradio_root:
                 jq.queue.clear()
                 return queue_refresh()
 
+            def queue_pause():
+                # custom-21 : pause douce, le job en cours se termine d'abord
+                if jq.queue.request_pause():
+                    print('[JobQueue] Pause demandee : la file s\'arretera apres le job en cours.')
+                return queue_refresh()
+
             jq.queue.max_jobs = int(modules.config.job_queue_setting('max_jobs') or 50)
+
+            # custom-21 : file persistante, rechargee au demarrage (jamais relancee seule)
+            if modules.config.job_queue_setting('persist'):
+                import modules.xyz_grid as xyz_persist
+                _jq_dir = (modules.config.job_queue_setting('persist_path')
+                           or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache', 'job_queue'))
+                jq.queue.configure_persistence(
+                    os.path.abspath(_jq_dir), expected_len=len(ctrls) - 1,
+                    groups_export=xyz_persist.export_groups,
+                    groups_import=xyz_persist.import_groups)
+                if len(jq.queue) == 0:
+                    jq.queue.load()
 
             queue_checkbox.change(lambda x: gr.update(visible=x), inputs=queue_checkbox,
                                   outputs=job_queue_panel, queue=False, show_progress=False) \
@@ -2937,6 +2977,11 @@ with shared.gradio_root:
             queue_up_button.click(queue_up, inputs=queue_display, outputs=[queue_display, queue_status, queue_add_button], queue=False, show_progress=False)
             queue_down_button.click(queue_down, inputs=queue_display, outputs=[queue_display, queue_status, queue_add_button], queue=False, show_progress=False)
             queue_clear_button.click(queue_clear, outputs=[queue_display, queue_status, queue_add_button], queue=False, show_progress=False)
+            queue_pause_button.click(queue_pause, outputs=[queue_display, queue_status, queue_add_button], queue=False, show_progress=False)
+            # custom-21 : une file restauree au demarrage se voit des le chargement de la page
+            # (compteur du bouton + Queue, liste et statut), sans devoir rouvrir le panneau.
+            shared.gradio_root.load(queue_refresh, outputs=[queue_display, queue_status, queue_add_button],
+                                    queue=False, show_progress=False)
 
             # custom-17 : Run queue reveille le runner. Si un runner tourne deja,
             # queue_runner rend la main aussitot et after_run ne masque rien.
