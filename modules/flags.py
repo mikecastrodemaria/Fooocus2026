@@ -96,7 +96,8 @@ inpaint_options = [inpaint_option_default, inpaint_option_detail, inpaint_option
 
 describe_type_photo = 'Photograph'
 describe_type_anime = 'Art/Anime'
-describe_types = [describe_type_photo, describe_type_anime]
+describe_type_ollama = 'Ollama vision (prose)'  # custom-25 : modele vision local, style choisi
+describe_types = [describe_type_photo, describe_type_anime, describe_type_ollama]
 
 sdxl_aspect_ratios = [
     '704*1408', '704*1344', '768*1344', '768*1280', '832*1216', '832*1152',

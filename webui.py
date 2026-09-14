@@ -548,6 +548,24 @@ with shared.gradio_root:
                                     label='Content Type',
                                     choices=flags.describe_types,
                                     value=modules.config.default_describe_content_type)
+                                # custom-25 : Describe via un modele vision Ollama, visible quand coche
+                                import modules.ollama_describe as ollama_describe
+                                _ollama_model = modules.config.ollama_describe_setting('model') or ''
+                                with gr.Group(visible=flags.describe_type_ollama in (modules.config.default_describe_content_type or [])) as describe_ollama_group:
+                                    with gr.Row():
+                                        describe_ollama_style = gr.Dropdown(
+                                            label='Ollama style', choices=list(ollama_describe.DESCRIBE_STYLES),
+                                            value=modules.config.ollama_describe_setting('style'))
+                                        describe_ollama_length = gr.Dropdown(
+                                            label='Length', choices=list(ollama_describe.DESCRIBE_LENGTHS),
+                                            value=modules.config.ollama_describe_setting('length'))
+                                    with gr.Row():
+                                        describe_ollama_model = gr.Dropdown(
+                                            label='Vision model (empty = first detected)',
+                                            choices=[_ollama_model] if _ollama_model else [],
+                                            value=_ollama_model or None, allow_custom_value=True, scale=3)
+                                        describe_ollama_detect = gr.Button(value='\U0001F50D Detect', scale=1)
+                                    describe_ollama_status = gr.Markdown(value='')
                                 describe_apply_styles = gr.Checkbox(label='Apply Styles', value=modules.config.default_describe_apply_prompts_checkbox)
                                 describe_btn = gr.Button(value='Describe this Image into Prompt')
                                 describe_image_size = gr.Textbox(label='Image Size and Recommended Size', elem_id='describe_image_size', visible=False)
@@ -559,6 +577,25 @@ with shared.gradio_root:
 
                                 describe_input_image.upload(trigger_show_image_properties, inputs=describe_input_image,
                                                             outputs=describe_image_size, show_progress=False, queue=False)
+
+                                # custom-25 : panneau Ollama visible seulement quand la methode est cochee
+                                describe_methods.change(lambda modes: gr.update(visible=flags.describe_type_ollama in (modes or [])),
+                                                        inputs=describe_methods, outputs=describe_ollama_group,
+                                                        queue=False, show_progress=False)
+
+                                def trigger_ollama_detect(current):
+                                    try:
+                                        models = ollama_describe.list_vision_models()
+                                    except ollama_describe.OllamaError as e:
+                                        return gr.update(), f'⚠ {e}'
+                                    if not models:
+                                        return (gr.update(choices=[], value=None),
+                                                '⚠ No vision model in Ollama (for example `ollama pull qwen2.5vl:7b`).')
+                                    value = current if current in models else models[0]
+                                    return gr.update(choices=models, value=value), f'{len(models)} vision model(s) found.'
+
+                                describe_ollama_detect.click(trigger_ollama_detect, inputs=describe_ollama_model,
+                                                             outputs=[describe_ollama_model, describe_ollama_status], queue=False)
 
                     with gr.Tab(label='Enhance', id='enhance_tab') as enhance_tab:
                         with gr.Row():
@@ -3164,7 +3201,7 @@ with shared.gradio_root:
                 gr.Audio(interactive=False, value=notification_file, elem_id='audio_notification', visible=False)
                 break
 
-        def trigger_describe(modes, img, apply_styles):
+        def trigger_describe(modes, img, apply_styles, ollama_style=None, ollama_length=None, ollama_model=None):
             describe_prompts = []
             styles = set()
 
@@ -3178,6 +3215,25 @@ with shared.gradio_root:
                 describe_prompts.append(default_interrogator_anime(img))
                 styles.update(["Fooocus V2", "Fooocus Masterpiece"])
 
+            # custom-25 : description redigee par un modele vision Ollama, dans le style choisi.
+            # Les consignes demandent deja medium, eclairage, palette : aucun style Fooocus ajoute.
+            ollama_error = None
+            if flags.describe_type_ollama in modes and img is not None:
+                import modules.ollama_describe as ollama_describe
+                try:
+                    text, used = ollama_describe.describe(img, model=ollama_model or None,
+                                                          style=ollama_style, length=ollama_length)
+                    describe_prompts.append(text)
+                    print(f'[Describe] Ollama {used}, style "{ollama_style or ollama_describe.DEFAULT_STYLE}"')
+                except ollama_describe.OllamaError as e:
+                    ollama_error = str(e)
+                    print(f'[Describe] Ollama : {ollama_error}')
+            if ollama_error:
+                if not describe_prompts:
+                    raise gr.Error(f'Ollama describe: {ollama_error}')
+                if hasattr(gr, 'Warning'):
+                    gr.Warning(f'Ollama describe skipped: {ollama_error}')
+
             if len(styles) == 0 or not apply_styles:
                 styles = gr.update()
             else:
@@ -3190,7 +3246,8 @@ with shared.gradio_root:
 
             return describe_prompt, styles
 
-        describe_btn.click(trigger_describe, inputs=[describe_methods, describe_input_image, describe_apply_styles],
+        describe_btn.click(trigger_describe, inputs=[describe_methods, describe_input_image, describe_apply_styles,
+                                                     describe_ollama_style, describe_ollama_length, describe_ollama_model],
                            outputs=[prompt, style_selections], show_progress=True, queue=True) \
             .then(fn=style_sorter.sort_styles, inputs=style_selections, outputs=style_selections, queue=False, show_progress=False) \
             .then(lambda: None, _js='()=>{refresh_style_localization();}')

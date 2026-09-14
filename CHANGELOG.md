@@ -3,6 +3,53 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-25] — 2026-09-14 — Describe via un modele vision Ollama
+
+### Added
+- **Methode `Ollama vision (prose)`** dans l'onglet Describe, a cote de
+  *Photograph* (BLIP) et *Art/Anime* (WD14). Un modele vision local ecrit un
+  **prompt redige** qui reconstruit l'image, dans le style choisi : *Prompt
+  (prose)*, *Prompt (tags)*, *Photo (technical)*, *Art & style*, *Composition &
+  layout*, *Character sheet*, *Text & typography*, *Dataset paragraph*, *Short
+  caption* ; longueur *Short* a *Very long* (60 a 300 mots).
+- Choix du modele vision avec **Detect** : la liste vient de la capacite `vision`
+  que rapporte Ollama (`/api/show`), repli sur les noms clairement multimodaux ;
+  vide = premier modele detecte.
+- Nettoyage deterministe de la reponse : monologue des modeles de raisonnement
+  retire (`<think>`), phrases qui enoncent une absence retirees ("No text is
+  visible" peut faire *apparaitre* du texte), hesitations reecrites ("appears to
+  be" -> "is").
+- Bloc de config `ollama_describe` : `endpoint`, `model`, `style`, `length`,
+  `timeout`, `temperature`, `keep_alive`.
+
+### Notes
+- Porte de crispz-klein 1.36. Mesure faite la-bas (Agents-A1-4B et muse-glimmer,
+  trois images de prompt connu, chaque description regeneree a seed fixe) : sans le
+  medium, un portrait au crayon revenait en photo ; demander l'epoque fait passer la
+  fidelite du portrait de 0,54 a 0,65-0,66. Les consignes sont reprises telles
+  quelles, en anglais.
+- `endpoint` vide = l'hote de `omost.endpoint` : un Ollama deja configure pour
+  Layout/Omost sert aussi Describe, sans rien regler.
+- Aucun style Fooocus n'est ajoute par cette methode : les consignes demandent deja
+  medium, eclairage et palette.
+- Ollama arrete ou modele absent : erreur explicite (commande `ollama pull` a
+  lancer) si c'etait la seule methode cochee ; avertissement sinon, les autres
+  descriptions sont gardees. Un modele sans raisonnement qui refuse `think` est
+  rappele sans ce champ.
+- L'auto-describe (`--enable-auto-describe-image`) utilise le style, la longueur et
+  le modele de `config.txt`.
+
+### Files
+- `modules/ollama_describe.py` : **nouveau** (styles, consigne, appel /api/generate,
+  detection des modeles vision, nettoyage).
+- `modules/flags.py` : `describe_type_ollama`.
+- `modules/config.py` : bloc `ollama_describe` (endpoint derive de Omost).
+- `webui.py` : panneau Ollama de l'onglet Describe (style, longueur, modele, Detect),
+  `trigger_describe`.
+- `tests/test_ollama_describe.py` : **nouveau** (faux serveur Ollama : consigne,
+  image bornee a 1024 px, rejeu sans `think`, modele manquant, Ollama arrete,
+  reponse faite uniquement de raisonnement).
+
 ## [custom-24] — 2026-09-14 — Plugins Extra : plusieurs actions par plugin (Face swap exact)
 
 ### Added

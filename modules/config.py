@@ -724,6 +724,46 @@ def provenance_setting(key, default=None):
         return default
 
 
+# === custom-25: Describe via un modele vision Ollama ===
+_ollama_describe_defaults = {
+    'endpoint': '',              # '' = hote de omost.endpoint (meme Ollama), sinon localhost:11434
+    'model': '',                 # '' = premier modele vision detecte
+    'style': 'Prompt (prose)',
+    'length': 'Long',
+    'timeout': 180,
+    'temperature': 0.3,
+    'keep_alive': '5m',
+}
+ollama_describe_config = get_config_item_or_set_default(
+    key='ollama_describe',
+    default_value=dict(_ollama_describe_defaults),
+    validator=lambda x: isinstance(x, dict),
+    expected_type=dict
+)
+for _k, _v in _ollama_describe_defaults.items():
+    ollama_describe_config.setdefault(_k, _v)
+
+
+def ollama_describe_setting(key, default=None):
+    if key in _ollama_describe_defaults and default is None:
+        default = _ollama_describe_defaults[key]
+    try:
+        value = ollama_describe_config.get(key, default)
+    except Exception:
+        value = default
+    if key == 'endpoint' and not value:
+        # meme serveur que Layout/Omost : on reprend son hote, sans le chemin OpenAI
+        try:
+            from urllib.parse import urlsplit
+            parts = urlsplit(str(omost_config.get('endpoint') or ''))
+            if parts.scheme and parts.netloc:
+                return f'{parts.scheme}://{parts.netloc}'
+        except Exception:
+            pass
+        return 'http://localhost:11434'
+    return value
+
+
 def asset_browser_setting(key, default=None):
     """Safe getter for any asset_browser sub-key. Used everywhere instead of
     direct dict access so a malformed config.txt never crashes the hook.

@@ -418,6 +418,17 @@ Local entries also carry a text badge (`[lora-name]`, `[embedding]`, `[wildcard]
 
 ---
 
+### 19. 🗣️ Describe with a local vision model (Ollama)
+**Where:** Input Image → **Describe** → tick **Ollama vision (prose)** (next to *Photograph* and *Art/Anime*).
+
+**What it does:** a local [Ollama](https://ollama.com) vision model writes a prompt that rebuilds the image, in the style you pick — *Prompt (prose)*, *Prompt (tags)*, *Photo (technical)*, *Art & style*, *Composition & layout*, *Character sheet*, *Text & typography*, *Dataset paragraph*, *Short caption* — and at the length you pick (60 to 300 words). BLIP and WD14 give a short caption or a tag list; this gives the medium, subject, clothing, pose, setting, camera, lighting, palette and era. The instructions come from crispz-klein, where naming the medium and the era was measured to rebuild images more faithfully.
+
+**How to use:** pull a vision model once (for example `ollama pull qwen2.5vl:7b` or `ollama pull llava`), click **🔍 Detect** to list the vision models Ollama reports, pick a style and a length, then **Describe this Image into Prompt**. The answer is cleaned before it lands in the prompt: reasoning blocks removed, sentences stating what is *absent* dropped (they tend to make it appear), hedges like "appears to be" rewritten.
+
+**Config:** `ollama_describe.endpoint` (empty = the host of `omost.endpoint`, so the Ollama you set up for Layout/Omost works as is), `.model` (empty = first vision model), `.style`, `.length`, `.timeout`, `.temperature`, `.keep_alive`. If Ollama is down or the model is missing, the error says which command to run; other ticked methods still return their description.
+
+---
+
 ## 🚀 Getting this fork
 
 ### Option A — I already have Fooocus installed
@@ -515,6 +526,10 @@ All upstream keys still apply. The fork adds a few of its own. Most have a UI co
 | `provenance.enabled` | `true` | bool | custom-23 | Write the machine-readable AI declaration (IPTC `DigitalSourceType` in XMP) on every saved image. No prompt, no parameter. |
 | `provenance.watermark` | `false` | bool | custom-23 | Also embed an invisible TrustMark watermark. Needs `pip install trustmark`; missing package = image saved without it, never a failed save. |
 | `provenance.watermark_id` | `"Fooocus26"` | string (9 ASCII chars) | custom-23 | Payload of the TrustMark watermark. |
+| `ollama_describe.endpoint` | `""` | URL string | custom-25 | Ollama server for Describe. Empty = the host of `omost.endpoint`, else `http://localhost:11434`. |
+| `ollama_describe.model` | `""` | string | custom-25 | Vision model. Empty = the first model Ollama reports with the `vision` capability. |
+| `ollama_describe.style` / `.length` | `"Prompt (prose)"` / `"Long"` | string | custom-25 | Default style and length of the Describe panel (and of auto-describe). |
+| `ollama_describe.timeout` / `.temperature` / `.keep_alive` | `180` / `0.3` / `"5m"` | int / float / string | custom-25 | HTTP timeout (s), sampling temperature, how long Ollama keeps the model loaded. |
 
 Each value is clamped on save — bad values in `config.txt` fall back to the default rather than crashing.
 
@@ -558,6 +573,7 @@ Example fragment:
 | `modules/async_worker.py` | Reads `use_aspect_for_vary` (custom-6) and `custom_resolution` (custom-7) flags |
 | `modules/private_logger.py` | Silent hook into `gallery_writer.on_image_logged()` (custom-8); AI provenance declaration + optional watermark on save (custom-23) |
 | `modules/provenance.py` | **New** — IPTC `trainedAlgorithmicMedia` XMP writer (PNG / JPEG / WEBP), optional TrustMark watermark, provenance reader for the Metadata tab (custom-23) |
+| `modules/ollama_describe.py` | **New** — Describe through an Ollama vision model: styles, instruction, vision-model detection, answer cleaning (custom-25) |
 | `modules/gallery_writer.py` | **New** — Asset Browser per-image hook, thumbnails, manifests, days.json (custom-8) |
 | `modules/model_indexer.py` | **New** — Asset Browser model scanners (LoRAs / Checkpoints / Embeddings) + sidecar preview lookup + placeholder generation (custom-8) |
 | `modules/omost_lib/canvas.py` | **New** — vendored verbatim from Omost (Apache-2.0): the `Canvas` DSL + system prompt (Layout/Omost) |
