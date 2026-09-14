@@ -592,7 +592,7 @@ Example fragment:
 ## 📁 Files touched by this fork
 | File | Purpose |
 |---|---|
-| `fooocus_version.py` | Version bumped to `2026.4.0` (CalVer): custom-19 to custom-26 |
+| `fooocus_version.py` | Version bumped to `2026.5.0` (CalVer): custom-19 to custom-28 |
 | `modules/civitai_api.py` | **New** — CivitAI client, caching, consensus aggregation, model+embedding triggers; search + SHA256-verified download (custom-22) |
 | `modules/lora_metadata.py` | **New** — local safetensors metadata reader for LoRA/embedding triggers |
 | `modules/util.py` | Adds `compute_custom_wh()` — ratio + size → snapped W×H (custom-7) |
@@ -601,6 +601,7 @@ Example fragment:
 | `modules/private_logger.py` | Silent hook into `gallery_writer.on_image_logged()` (custom-8); AI provenance declaration + optional watermark on save (custom-23) |
 | `modules/provenance.py` | **New** — IPTC `trainedAlgorithmicMedia` XMP writer (PNG / JPEG / WEBP), optional TrustMark watermark, provenance reader for the Metadata tab (custom-23) |
 | `modules/ollama_describe.py` | **New** — Describe through an Ollama vision model: styles, instruction, vision-model detection, answer cleaning (custom-25) |
+| `modules/ollama_improve.py` | **New** — Improve the positive/negative prompt through an Ollama text model, reusing the Describe transport (custom-28) |
 | `modules/gallery_writer.py` | **New** — Asset Browser per-image hook, thumbnails, manifests, days.json (custom-8) |
 | `modules/model_indexer.py` | **New** — Asset Browser model scanners (LoRAs / Checkpoints / Embeddings) + sidecar preview lookup + placeholder generation (custom-8) |
 | `modules/omost_lib/canvas.py` | **New** — vendored verbatim from Omost (Apache-2.0): the `Canvas` DSL + system prompt (Layout/Omost) |
