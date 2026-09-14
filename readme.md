@@ -387,6 +387,17 @@ Local entries also carry a text badge (`[lora-name]`, `[embedding]`, `[wildcard]
 
 ---
 
+### 17. 🔄 Safe update at boot (never over your local work)
+**Where:** the console of `run.bat`, before Fooocus starts.
+
+**What it does:** upstream Fooocus fast-forwarded to GitHub at every launch with a hard reset, silently overwriting any tracked file you had edited. This fork checks GitHub, lists the incoming commits, and **offers** the update (`[o/N]`, N after 20 s) — only when it is safe: no incoming commit touches a file you modified, none adds a path that already exists here outside git, and your branch has not diverged. Otherwise the console says which file blocks it and nothing is touched. The update itself is a plain `git merge --ff-only`, which keeps your edits to every file it does not touch.
+
+**Knobs (environment variables):** `FOOOCUS_NO_UPDATE_CHECK=1` skips the check, `FOOOCUS_AUTO_UPDATE=1` applies a *safe* update without asking (Colab, services — a blocked update is never forced), `FOOOCUS_UPDATE_TIMEOUT=20` sets the fetch/question delay. Offline or without git, Fooocus simply starts.
+
+**CLI:** `python update_check.py` prints the diagnosis (exit 0 nothing to do / 10 safe / 11 blocked); `--guard` returns 0 when a fast-forward can run, for your own update script.
+
+---
+
 ## 🚀 Getting this fork
 
 ### Option A — I already have Fooocus installed
@@ -537,6 +548,8 @@ Example fragment:
 | `modules/job_queue.py` | **New** — thread-safe pending-jobs queue + labels, pure stdlib (custom-14) |
 | `modules/xyz_grid.py` | **New** — X/Y/Z grid: axis registry, combo expansion, Pillow sheet assembly (custom-15) |
 | `xyz_cli.py` | **New** — headless X/Y/Z grid runner with ctrl-order validation (custom-15.3) |
+| `update_check.py` | **New** — boot update offered only when safe: fetch, local-work guard, `--ff-only` apply (custom-19) |
+| `entry_with_update.py` | Calls `update_check.boot()` instead of the pygit2 fast-forward + hard reset (custom-19) |
 | `CHANGELOG.md` | Per-release fork history |
 | `.gitignore` | Excludes `civitai_cache/`, local presets, assistant artifacts |
 

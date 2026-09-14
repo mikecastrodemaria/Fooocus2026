@@ -3,6 +3,51 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-19] — 2026-09-14 — Mise a jour au demarrage : proposee, jamais par-dessus le travail local
+
+### Fixed
+- **L'auto-update du demarrage pouvait ecraser du travail local sans un mot.**
+  `entry_with_update.py` (herite de Fooocus) faisait un fetch pygit2 puis, des
+  qu'une avance rapide etait possible, `checkout_tree` + `reset --hard` sur la
+  branche distante. Un fichier suivi modifie ici (webui.py retouche, un preset,
+  un `.bat`) etait remis a l'etat GitHub au lancement suivant un push. Le seul
+  cas refuse etait la branche divergente, et encore avec un message trompeur
+  ("Update failed - Did you modify any file?") suivi de... "Update succeeded.".
+
+### Changed
+- La mise a jour est desormais **proposee** ([o/N], N par defaut au bout de 20 s)
+  et seulement quand elle est **sure** : aucun commit a recuperer ne touche un
+  fichier modifie ici, n'ajoute un chemin deja present hors de git (git
+  l'ecraserait sans rien dire, ex. `run_quality_rtx5090_lan.bat` local), et la
+  branche n'a pas diverge. Sinon la console dit pourquoi, fichier par fichier, et
+  rien n'est touche.
+- L'application passe par `git merge --ff-only @{u}`, **jamais par un reset** :
+  git conserve les modifications locales des fichiers que la mise a jour ne
+  touche pas.
+- Les commits a recuperer sont listes avant la question (8 au plus).
+
+### Added
+- `update_check.py` : porte de crispz (`_update_check.py`, crispz-klein 1.35.0).
+  Bibliotheque standard + git CLI seulement, tourne avant `launch.py`.
+- Variables d'environnement : `FOOOCUS_NO_UPDATE_CHECK=1` (ne rien chercher),
+  `FOOOCUS_AUTO_UPDATE=1` (appliquer sans demander une mise a jour **sure** :
+  Colab, service), `FOOOCUS_UPDATE_TIMEOUT` (delai du fetch et de la question).
+- `python update_check.py` (diagnostic, codes 0/10/11) et `--guard` (0 = avance
+  rapide possible, 11 = bloquee) pour un script de mise a jour maison.
+
+### Notes
+- Console non interactive (sortie redirigee, Colab) : aucune question, aucune
+  mise a jour, sauf `FOOOCUS_AUTO_UPDATE=1`.
+- GitHub injoignable ou git absent : le demarrage continue tel quel, jamais bloque.
+- `FOOOCUS_AUTO_UPDATE=1` n'applique jamais une mise a jour bloquee.
+
+### Files
+- `update_check.py` : **nouveau** (assess / apply / ask / boot).
+- `entry_with_update.py` : appelle `update_check.boot()` a la place de pygit2.
+- `tests/test_update_check.py` : **nouveau**, 16 tests sur de vrais depots git
+  temporaires (un depot nu joue GitHub), dont l'avance rapide qui conserve un
+  fichier modifie la ou l'ancien `reset --hard` l'aurait ecrase.
+
 ## [custom-18] — 2026-07-20 — Axes LoRA dans la grille X/Y/Z
 
 ### Added
