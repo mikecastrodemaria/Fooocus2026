@@ -1212,6 +1212,9 @@ with shared.gradio_root:
                         civitai_search_results = gr.Dropdown(label='Results (one entry per version)', choices=[], value=None, interactive=True)
                         civitai_search_state = gr.State(value=[])
                         civitai_search_preview = gr.HTML(value='')
+                        civitai_download_folder = gr.Dropdown(
+                            label='Save into (subfolder suggested from the base model and tags; type a new one to create it)',
+                            choices=['(root)'], value='(root)', allow_custom_value=True, interactive=True)
                         civitai_download_btn = gr.Button(value='⬇ Download into the models folder', variant='primary')
                         civitai_download_status = gr.HTML(value='')
 
@@ -1891,7 +1894,15 @@ with shared.gradio_root:
                     return (f'<div style="padding:6px 8px;border:1px solid #444;border-radius:6px;'
                             f'color:{color};font-size:13px;">{_html.escape(msg)}</div>')
 
-                def _civitai_candidate_html(cand, model_type):
+                def _civitai_folder(cand, model_type):
+                    """(update du menu Save into, raison) : sous-dossiers existants du type,
+                    valeur = suggestion base + categorie (tags, NSFW)."""
+                    root = _civitai_dest_dir(model_type)
+                    sub, why = modules.civitai_api.suggest_subfolder(cand, root)
+                    choices = ['(root)'] + modules.civitai_api.list_subfolders(root)
+                    return gr.update(choices=choices, value=sub or '(root)'), why
+
+                def _civitai_candidate_html(cand, model_type, why=''):
                     if not cand:
                         return ''
                     import html as _html
@@ -1908,7 +1919,8 @@ with shared.gradio_root:
                             f'<span style="color:{color}">{esc(cand.get("support_note", ""))}</span><br>'
                             f'File: {esc(cand.get("fileName") or "?")} · SHA256 {sha}<br>'
                             f'Trigger words: {esc(triggers)}<br>'
-                            f'Destination: <code>{esc(_civitai_dest_dir(model_type))}</code><br>'
+                            f'Models folder: <code>{esc(_civitai_dest_dir(model_type))}</code>'
+                            f'{" — suggested subfolder from " + esc(why) if why else ""}<br>'
                             f'<a href="{esc(cand.get("url", ""))}" target="_blank">Open on CivitAI</a>'
                             f'</div></div>')
 
@@ -1921,36 +1933,49 @@ with shared.gradio_root:
 
                 def civitai_search_clicked(query, model_type, base, nsfw):
                     if not str(query or '').strip():
-                        return gr.update(choices=[], value=None), [], '', _civitai_box('Type a name to search.')
+                        return (gr.update(choices=[], value=None), [], '', gr.update(),
+                                _civitai_box('Type a name to search.'))
                     cands = modules.civitai_api.search_models(
                         query, types=model_type, base_model=base, nsfw=bool(nsfw),
                         api_key=modules.config.civitai_api_key or None)
                     if not cands:
-                        return (gr.update(choices=[], value=None), [], '',
+                        return (gr.update(choices=[], value=None), [], '', gr.update(),
                                 _civitai_box('No result (or CivitAI unreachable, see the console).'))
                     labels = [modules.civitai_api.candidate_label(i, c) for i, c in enumerate(cands)]
+                    folder, why = _civitai_folder(cands[0], model_type)
                     return (gr.update(choices=labels, value=labels[0]), cands,
-                            _civitai_candidate_html(cands[0], model_type),
+                            _civitai_candidate_html(cands[0], model_type, why), folder,
                             _civitai_box(f'{len(cands)} version(s) found.'))
 
                 def civitai_result_selected(label, cands, model_type):
-                    return _civitai_candidate_html(_civitai_pick(label, cands), model_type)
+                    cand = _civitai_pick(label, cands)
+                    if cand is None:
+                        return '', gr.update()
+                    folder, why = _civitai_folder(cand, model_type)
+                    return _civitai_candidate_html(cand, model_type, why), folder
 
-                def civitai_download_clicked(label, cands, model_type, progress=gr.Progress()):
+                def civitai_download_clicked(label, cands, model_type, folder, progress=gr.Progress()):
                     cand = _civitai_pick(label, cands)
                     if cand is None:
                         return _civitai_box('Search, then pick a result first.', '#ffa500')
+                    root = _civitai_dest_dir(model_type)
+                    try:
+                        dest = modules.civitai_api.resolve_subfolder(root, folder)
+                    except ValueError as e:
+                        return _civitai_box(str(e), '#ff6b6b')
                     res = modules.civitai_api.download_model_file(
-                        cand, _civitai_dest_dir(model_type),
-                        api_key=modules.config.civitai_api_key or None,
-                        progress=lambda frac, text: progress(frac if frac is not None else 0, desc=text))
+                        cand, dest, api_key=modules.config.civitai_api_key or None,
+                        progress=lambda frac, text: progress(frac if frac is not None else 0, desc=text),
+                        search_root=root)
                     if not res['success']:
                         return _civitai_box(res['message'], '#ff6b6b')
                     msg = res['message']
                     try:
                         from modules.model_indexer import fetch_civitai_preview_for
+                        # chemin relatif a la racine du type : un nom seul ne se retrouve pas
+                        # quand le fichier est range dans un sous-dossier
                         prev = fetch_civitai_preview_for(_CIVITAI_KIND.get(model_type, 'loras'),
-                                                         os.path.basename(res['path']))
+                                                         os.path.relpath(res['path'], root))
                         if prev.get('success'):
                             msg += ' Preview saved for the Asset Browser.'
                     except Exception:
@@ -1965,17 +1990,20 @@ with shared.gradio_root:
 
                 _civitai_search_io = dict(
                     inputs=[civitai_search_query, civitai_search_type, civitai_search_base, civitai_search_nsfw],
-                    outputs=[civitai_search_results, civitai_search_state, civitai_search_preview, civitai_download_status],
+                    outputs=[civitai_search_results, civitai_search_state, civitai_search_preview,
+                             civitai_download_folder, civitai_download_status],
                     queue=False)
                 civitai_search_btn.click(civitai_search_clicked, **_civitai_search_io)
                 civitai_search_query.submit(civitai_search_clicked, **_civitai_search_io)
                 civitai_search_results.change(civitai_result_selected,
                                               inputs=[civitai_search_results, civitai_search_state, civitai_search_type],
-                                              outputs=civitai_search_preview, queue=False, show_progress=False)
+                                              outputs=[civitai_search_preview, civitai_download_folder],
+                                              queue=False, show_progress=False)
                 # le telechargement passe par la queue Gradio (barre de progression), puis les
                 # listes de modeles se rafraichissent : le fichier est choisissable tout de suite
                 civitai_download_btn.click(civitai_download_clicked,
-                                           inputs=[civitai_search_results, civitai_search_state, civitai_search_type],
+                                           inputs=[civitai_search_results, civitai_search_state, civitai_search_type,
+                                                   civitai_download_folder],
                                            outputs=civitai_download_status) \
                     .then(refresh_files_clicked, [], refresh_files_output + lora_ctrls,
                           queue=False, show_progress=False)

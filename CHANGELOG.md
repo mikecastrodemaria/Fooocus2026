@@ -218,6 +218,20 @@ Only fork-specific changes are listed here — upstream history is available via
   quand il est actif, et les trigger words sont affiches.
 - Le hash du fichier telecharge est mis en cache : *Fetch CivitAI Settings* ne
   relit pas plusieurs Go pour le recalculer.
+- **Rangement dans la bibliotheque** : menu *Save into* pre-rempli avec un
+  sous-dossier EXISTANT deduit de la base (`_SDXL_1_0`, `_Pony`, `_Illustrous`,
+  `SD_1.5`... noms compares sans casse ni ponctuation, `sd` ne prend jamais `sdxl`)
+  puis de la categorie d'apres les tags CivitAI (`style`, `actor`, `helper`,
+  `accelerator`, `slider`...) ; un modele NSFW va dans `.nsfw` / `.nsfw_style`.
+  Base sans dossier -> `Other` s'il existe, sinon la racine. On peut choisir un
+  autre dossier ou en taper un nouveau (cree, jamais hors du dossier de modeles).
+  Aucun dossier de categorie n'est cree d'office.
+- Un fichier du meme nom deja range **ailleurs** dans l'arborescence n'est pas
+  retelecharge (pas de doublon).
+
+### Fixed
+- La recuperation de l'apercu apres telechargement cherchait le modele par son
+  seul nom : elle echouait des qu'il etait range dans un sous-dossier.
 
 ### Notes
 - Porte de crispz (`cz_civitai.search_loras` / `download_model_file`).

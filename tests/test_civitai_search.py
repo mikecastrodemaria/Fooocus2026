@@ -71,6 +71,59 @@ class TestSearch(unittest.TestCase):
         self.assertEqual(C.base_model_support('')[0], 'unknown')
 
 
+class TestFolders(unittest.TestCase):
+    """Rangement <racine>/<base>/<categorie> dans les dossiers qui existent deja."""
+    TREE = ['_SDXL_1_0/style', '_SDXL_1_0/actor', '_SDXL_1_0/.nsfw', '_SDXL_1_0/.nsfw_style',
+            '_SDXL_1_0/helper', '_SDXL_1_0/accelerator', '_Pony/style', '_Pony/.nsfw',
+            '_Illustrous/style', '_SD_1.5/style', '_Flux/_Flux_style', '_trash/old', 'Other/tool']
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix='fciv_tree_')
+        for d in self.TREE:
+            os.makedirs(os.path.join(self.root, *d.split('/')))
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def sub(self, base, tags=(), nsfw=False):
+        return C.suggest_subfolder({'baseModel': base, 'tags': list(tags), 'nsfw': nsfw}, self.root)[0]
+
+    def test_base_then_category_from_tags(self):
+        self.assertEqual(self.sub('SDXL 1.0', ['ink', 'style']), '_SDXL_1_0/style')
+        self.assertEqual(self.sub('SDXL 1.0', ['character', 'woman']), '_SDXL_1_0/actor')
+        self.assertEqual(self.sub('SDXL Lightning', ['lightning']), '_SDXL_1_0/accelerator')
+        self.assertEqual(self.sub('Pony', ['style']), '_Pony/style')
+        self.assertEqual(self.sub('SDXL 1.0', ['landscape']), '_SDXL_1_0', 'no category tag: base folder only')
+
+    def test_nsfw_goes_to_the_nsfw_folders(self):
+        self.assertEqual(self.sub('SDXL 1.0', ['style'], nsfw=True), '_SDXL_1_0/.nsfw_style')
+        self.assertEqual(self.sub('SDXL 1.0', ['character'], nsfw=True), '_SDXL_1_0/.nsfw')
+        self.assertEqual(self.sub('SDXL 1.0', ['style']), '_SDXL_1_0/style', 'SFW never lands in .nsfw_style')
+
+    def test_folder_names_are_matched_loosely_but_never_sdxl_for_sd15(self):
+        self.assertEqual(self.sub('Illustrious', ['style']), '_Illustrous/style')
+        self.assertEqual(self.sub('SD 1.5', ['style']), '_SD_1.5/style')
+        self.assertEqual(self.sub('Flux.1 D', ['style']), '_Flux/_Flux_style')
+
+    def test_unknown_base_falls_back_to_other_then_root(self):
+        self.assertEqual(self.sub('SD 3.5', ['tool']), 'Other/tool')
+        shutil.rmtree(os.path.join(self.root, 'Other'))
+        self.assertEqual(C.suggest_subfolder({'baseModel': 'SD 3.5'}, self.root),
+                         ('', 'no matching folder, models root'))
+
+    def test_list_and_resolve_subfolders(self):
+        subs = C.list_subfolders(self.root)
+        self.assertIn('_SDXL_1_0/.nsfw', subs)
+        self.assertFalse(any(s.startswith('_trash') for s in subs))
+        self.assertEqual(C.resolve_subfolder(self.root, '(root)'), self.root)
+        self.assertEqual(C.resolve_subfolder(self.root, '_Pony\\style'), os.path.join(self.root, '_Pony', 'style'))
+        self.assertEqual(C.resolve_subfolder(self.root, '/new/'), os.path.join(self.root, 'new'),
+                         'a leading slash stays inside the models folder')
+        for bad in ('../escape', 'style/../../escape', 'C:/Windows'):
+            with self.assertRaises(ValueError):
+                C.resolve_subfolder(self.root, bad)
+
+
 class _Handler(BaseHTTPRequestHandler):
     seen = []
 
@@ -136,6 +189,17 @@ class TestDownload(unittest.TestCase):
         self.assertIn('not overwritten', res['message'])
         with open(dest, 'rb') as f:
             self.assertEqual(f.read(), b'mine')
+
+    def test_a_file_already_filed_in_another_subfolder_is_not_downloaded_again(self):
+        os.makedirs(os.path.join(self.dir, '_SDXL_1_0', 'style'))
+        mine = os.path.join(self.dir, '_SDXL_1_0', 'style', 'Demo.safetensors')
+        with open(mine, 'wb') as f:
+            f.write(b'mine')
+        seen = len(_Handler.seen)
+        res = C.download_model_file(self.cand(), os.path.join(self.dir, '_SDXL_1_0'), search_root=self.dir)
+        self.assertTrue(res['success'])
+        self.assertIn('already exists in', res['message'])
+        self.assertEqual((res['path'], len(_Handler.seen)), (mine, seen))
 
     def test_a_locked_file_without_key_says_so(self):
         res = C.download_model_file(self.cand(path='/locked'), self.dir)

@@ -812,6 +812,7 @@ def search_models(query, types='LORA', base_model=None, limit=20, api_key=None, 
                 'sizeKB': float(f.get('sizeKB') or 0),
                 'downloadUrl': str(f.get('downloadUrl') or v.get('downloadUrl') or '').strip(),
                 'sha256': str((f.get('hashes') or {}).get('SHA256') or '').strip().lower(),
+                'tags': [str(t).strip().lower() for t in (m.get('tags') or []) if str(t).strip()],
                 'trainedWords': [str(w).strip() for w in (v.get('trainedWords') or []) if str(w).strip()],
                 'previewUrl': _preview_url(v, nsfw),
                 'url': f"https://civitai.com/models/{m.get('id')}?modelVersionId={v.get('id')}",
@@ -834,6 +835,150 @@ def candidate_label(index, cand):
             f"[{cand.get('baseModel') or '?'}] {size_txt}{by}")
 
 
+# --- Rangement : base puis categorie, dans les dossiers qui EXISTENT deja -------------
+# Une bibliotheque se range souvent <racine>/<base>/<categorie> (ex. _SDXL_1_0/style,
+# _Pony/.nsfw). Les noms sont compares sans casse ni ponctuation ('_SD_1.5' -> 'sd15').
+# Chaque cle est (texte, exact) : exact=True exige l'egalite ('sd' ne doit pas prendre
+# 'sdxl'), sinon le nom du dossier peut commencer par la cle ('sdxl' -> '_SDXL_1_0').
+_BASE_FOLDER_KEYS = [
+    (('sdxl',), [('sdxl', False)]),
+    (('pony',), [('pony', False)]),
+    (('illustrious',), [('illustrious', False), ('illu', False)]),
+    (('noobai',), [('noob', False)]),
+    (('flux2klein', 'klein'), [('flux2klein', False), ('klein', False)]),
+    (('flux2',), [('flux2', False)]),
+    (('flux',), [('flux1', False), ('flux', True)]),
+    (('zimage',), [('zimage', False)]),
+    (('qwen',), [('qwen', False)]),
+    (('wan',), [('wan', False)]),
+    (('krea',), [('krea', False)]),
+    (('ltx',), [('ltx', False)]),
+    (('sd1',), [('sd15', False), ('sd1', False), ('sd', True)]),
+]
+
+# (tags CivitAI, noms de dossier) dans l'ordre de priorite : le premier dont un tag
+# correspond ET dont un dossier existe l'emporte.
+_CATEGORY_RULES = [
+    ('accelerator', ('lcm', 'turbo', 'lightning', 'hyper', 'dmd', 'speed'), ('accelerator', 'accelerators', 'dmd')),
+    ('slider', ('slider',), ('slider', 'sliders')),
+    ('neg', ('negative', 'negative embedding'), ('neg', 'negative', 'negatives')),
+    ('style', ('style', 'art style', 'artstyle', 'paintingstyle'), ('style', 'styles')),
+    ('actor', ('character', 'celebrity', 'person', 'actor', 'actress'),
+     ('actor', 'actors', 'actress', 'character', 'characters', 'celebrity')),
+    ('cloth', ('clothing', 'clothes', 'outfit', 'costume'), ('cloth', 'clothing', 'clothes')),
+    ('action', ('poses', 'pose', 'action'), ('action', 'pose', 'poses')),
+    ('body', ('body', 'anatomy'), ('body',)),
+    ('hair', ('hair', 'hairstyle'), ('hair',)),
+    ('helper', ('tool', 'tools', 'detailer', 'enhancer', 'utility'), ('helper', 'helpers', 'tool', 'tools')),
+    ('effect', ('effect', 'background', 'lighting'), ('effect', 'effects')),
+    ('concept', ('concept',), ('concept', 'concepts')),
+]
+_SKIPPED_FOLDERS = {'cache', 'git', 'pycache', 'trash'}
+
+
+def _subdirs(path):
+    try:
+        return sorted((e.name for e in os.scandir(path) if e.is_dir()), key=str.casefold)
+    except OSError:
+        return []
+
+
+def _match_folder(names, keys, skip_nsfw=False):
+    """Premier dossier de names qui correspond a une cle : egalite d'abord, puis debut
+    ou fin du nom ('_Flux_style' -> 'style'), toujours dans l'ordre des cles."""
+    usable = [(n, _norm_base(n)) for n in names
+              if _norm_base(n) not in _SKIPPED_FOLDERS and not (skip_nsfw and 'nsfw' in _norm_base(n))]
+    for key, exact in keys:
+        for n, norm in usable:
+            if norm == key:
+                return n
+        if exact:
+            continue
+        for n, norm in usable:
+            if norm.startswith(key) or norm.endswith(key):
+                return n
+    return None
+
+
+def list_subfolders(root, max_depth=3):
+    """Sous-dossiers de root (chemins relatifs en '/'), tries, sans caches ni corbeille."""
+    out = []
+
+    def walk(rel, depth):
+        for name in _subdirs(os.path.join(root, rel)):
+            if _norm_base(name) in _SKIPPED_FOLDERS:
+                continue
+            child = f'{rel}/{name}' if rel else name
+            out.append(child)
+            if depth < max_depth:
+                walk(child, depth + 1)
+
+    if root and os.path.isdir(root):
+        walk('', 1)
+    return out
+
+
+def suggest_subfolder(cand, root):
+    """(sous-dossier relatif, raison) pour ranger cand sous root. Ne propose QUE des
+    dossiers existants : base du modele, puis NSFW ou categorie d'apres les tags.
+    ('', raison) = la racine, faute de dossier correspondant."""
+    cand = cand or {}
+    parts, why = [], []
+    base_norm = _norm_base(cand.get('baseModel'))
+    if base_norm:
+        for markers, keys in _BASE_FOLDER_KEYS:
+            if any(m in base_norm for m in markers):
+                hit = _match_folder(_subdirs(root), keys)
+                if hit:
+                    parts.append(hit)
+                    why.append(f"base {cand.get('baseModel')}")
+                break
+    if not parts:
+        other = _match_folder(_subdirs(root), [('other', True), ('others', True), ('misc', True)])
+        if other:
+            parts.append(other)
+            why.append('no folder for this base')
+
+    here = os.path.join(root, *parts)
+    names = _subdirs(here)
+    tags = {str(t).lower() for t in (cand.get('tags') or [])}
+    rule = next((r for r in _CATEGORY_RULES if tags & set(r[1])
+                 and _match_folder(names, [(k, False) for k in r[2]], skip_nsfw=True)), None)
+    if cand.get('nsfw'):
+        keys = ([('nsfwstyle', False)] if rule and rule[0] == 'style' else []) + [('nsfw', False)]
+        hit = _match_folder(names, keys)
+        if hit:
+            parts.append(hit)
+            why.append('NSFW' + (' style' if 'style' in _norm_base(hit) else ''))
+            rule = None
+    if rule:
+        parts.append(_match_folder(names, [(k, False) for k in rule[2]], skip_nsfw=True))
+        why.append(f'tag {rule[0]}')
+    return '/'.join(parts), (', '.join(why) if why else 'no matching folder, models root')
+
+
+def resolve_subfolder(root, sub):
+    """Chemin absolu de sub sous root ; ValueError si sub sort de root (absolu, '..')."""
+    sub = str(sub or '').strip().replace('\\', '/').strip('/')
+    if sub in ('', '.', '(root)'):
+        return root
+    if os.path.isabs(sub) or ':' in sub or any(p == '..' for p in sub.split('/')):
+        raise ValueError(f'"{sub}" must be a subfolder of {root}')
+    return os.path.join(root, *[p for p in sub.split('/') if p and p != '.'])
+
+
+def find_existing_model(root, file_name):
+    """Chemin d'un fichier du meme nom n'importe ou sous root (casse ignoree), sinon ''."""
+    want = os.path.basename(str(file_name or '')).casefold()
+    if not want or not root or not os.path.isdir(root):
+        return ''
+    for dirpath, _, files in os.walk(root):
+        for f in files:
+            if f.casefold() == want:
+                return os.path.join(dirpath, f)
+    return ''
+
+
 def _remove_quietly(path):
     try:
         if path and os.path.isfile(path):
@@ -842,12 +987,14 @@ def _remove_quietly(path):
         pass
 
 
-def download_model_file(cand, dest_dir, api_key=None, progress=None):
+def download_model_file(cand, dest_dir, api_key=None, progress=None, search_root=None):
     """Telecharge le fichier d'un candidat search_models() dans dest_dir.
 
     Stream par blocs de 1 Mo vers '<nom>.part', SHA256 calcule PENDANT le telechargement
     et compare a celui annonce par CivitAI : mismatch = fichier supprime + echec (jamais de
     modele corrompu silencieux). Renomme a la fin, n'ecrase jamais un fichier existant.
+    search_root : si un fichier du meme nom existe deja n'importe ou dessous (autre
+    sous-dossier), rien n'est telecharge (pas de doublon dans la bibliotheque).
     progress(frac|None, texte) optionnel. Renvoie {success, message, path}, jamais d'exception.
     """
     def _p(frac, text):
@@ -870,10 +1017,15 @@ def download_model_file(cand, dest_dir, api_key=None, progress=None):
         fname = os.path.basename(str(cand.get('fileName') or '').strip().replace('\\', '/'))
         if not fname:
             fname = f"civitai_{cand.get('versionId') or 'model'}.safetensors"
-        os.makedirs(dest_dir, exist_ok=True)
         dest = os.path.join(dest_dir, fname)
         if os.path.isfile(dest):
             return {'success': True, 'message': f'{fname} already exists (not overwritten)', 'path': dest}
+        elsewhere = find_existing_model(search_root, fname) if search_root else ''
+        if elsewhere:
+            rel = os.path.relpath(elsewhere, search_root)
+            return {'success': True, 'message': f'{fname} already exists in {rel} (not downloaded again)',
+                    'path': elsewhere}
+        os.makedirs(dest_dir, exist_ok=True)
         expected = str(cand.get('sha256') or '').strip().lower()
         req = Request(url, headers={'User-Agent': _DOWNLOAD_UA})
         h = hashlib.sha256()
