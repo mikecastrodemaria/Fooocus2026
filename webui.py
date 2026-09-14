@@ -333,6 +333,16 @@ with shared.gradio_root:
                         elem_id='negative_prompt', lines=2,
                         value=modules.config.default_prompt_negative)
 
+                    # custom-28 : boutons Improve (Ollama) \u2014 reecrit le prompt / le negatif,
+                    # meme intention en plus riche. Caches si ollama_improve.enabled = false.
+                    _improve_enabled = bool(modules.config.ollama_improve_setting('enabled', True))
+                    if _improve_enabled:
+                        with gr.Row(elem_id='improve_prompt_row'):
+                            improve_prompt_btn = gr.Button(
+                                value='\u2728 Improve prompt', size='sm', min_width=0, scale=1)
+                            improve_negative_btn = gr.Button(
+                                value='\u2728 Improve negative', size='sm', min_width=0, scale=1)
+
                 with gr.Column(scale=3, min_width=0):
                     generate_button = gr.Button(label="Generate", value="Generate", elem_classes='type_row', elem_id='generate_button', visible=True)
                     reset_button = gr.Button(label="Reconnect", value="Reconnect", elem_classes='type_row', elem_id='reset_button', visible=False)
@@ -2555,6 +2565,28 @@ with shared.gradio_root:
                         outputs=[prompt],
                         queue=False, show_progress=False
                     )
+
+                # === custom-28: Improve prompt (Ollama) event handlers ===
+                # Wired only when the feature is enabled (the buttons exist only then).
+                if _improve_enabled:
+                    def improve_text(text, kind):
+                        import modules.ollama_improve as ollama_improve
+                        try:
+                            out, used = ollama_improve.improve(text, kind=kind)
+                        except ollama_improve.OllamaError as exc:
+                            gr.Warning(f'Improve skipped: {exc}')
+                            return gr.update()  # laisse le texte inchange
+                        print(f'[improve] {kind} prompt rewritten by {used}')
+                        return gr.update(value=out)
+
+                    improve_prompt_btn.click(
+                        lambda t: improve_text(t, 'positive'),
+                        inputs=[prompt], outputs=[prompt],
+                        queue=True, show_progress=True)
+                    improve_negative_btn.click(
+                        lambda t: improve_text(t, 'negative'),
+                        inputs=[negative_prompt], outputs=[negative_prompt],
+                        queue=True, show_progress=True)
 
                 # === Embeddings event handlers ===
                 def fetch_embedding_triggers_for_slot(emb_name, api_key_field):

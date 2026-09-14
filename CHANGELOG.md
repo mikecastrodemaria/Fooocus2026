@@ -3,6 +3,27 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-28] — 2026-09-14 — Improve prompt (Ollama)
+
+### Added
+- Two **✨ Improve** buttons under the prompt column — one for the positive prompt, one
+  for the negative. Each sends the current text to a local text LLM (Ollama) and replaces
+  it with a better version: the positive prompt is made more vivid and detailed while
+  keeping its subject and intent; the negative prompt is expanded and tidied into a fuller
+  comma-separated list of defects to avoid, keeping every term already present.
+- New `modules/ollama_improve.py`, reusing the Describe (custom-25) Ollama transport and
+  endpoint (`_http`, `endpoint`, `OllamaError`, `strip_thinking`) so both features share
+  one server. Text-only rewrite (no vision model needed); with no model set it picks the
+  first installed Ollama model.
+- Config block `ollama_improve` (`enabled`, `endpoint`, `model`, `timeout`, `temperature`,
+  `keep_alive`) with getter `modules.config.ollama_improve_setting`. `enabled: false` hides
+  the buttons; an empty `endpoint` reuses the Describe/Omost host.
+
+### Notes
+- Fails cleanly: if Ollama is down or has no model, a `gr.Warning` explains it and the
+  prompt is left unchanged — never a crash, never an emptied box.
+- Tests: `tests/test_ollama_improve.py` (fake Ollama server, standard library only).
+
 ## [custom-27] — 2026-09-14 — English UI strings
 
 ### Changed

@@ -764,6 +764,41 @@ def ollama_describe_setting(key, default=None):
     return value
 
 
+# === custom-28: Improve prompt via un modele texte Ollama ===
+_ollama_improve_defaults = {
+    'enabled': True,             # False = cache les boutons "Improve" a cote des prompts
+    'endpoint': '',              # '' = meme hote que ollama_describe / omost, sinon localhost:11434
+    'model': '',                 # '' = premier modele Ollama installe
+    'timeout': 120,
+    'temperature': 0.7,
+    'keep_alive': '5m',
+}
+ollama_improve_config = get_config_item_or_set_default(
+    key='ollama_improve',
+    default_value=dict(_ollama_improve_defaults),
+    validator=lambda x: isinstance(x, dict),
+    expected_type=dict
+)
+for _k, _v in _ollama_improve_defaults.items():
+    ollama_improve_config.setdefault(_k, _v)
+
+
+def ollama_improve_setting(key, default=None):
+    if key in _ollama_improve_defaults and default is None:
+        default = _ollama_improve_defaults[key]
+    try:
+        value = ollama_improve_config.get(key, default)
+    except Exception:
+        value = default
+    if key == 'endpoint' and not value:
+        # meme serveur Ollama que Describe (custom-25) : on reprend son hote resolu
+        try:
+            return ollama_describe_setting('endpoint')
+        except Exception:
+            return 'http://localhost:11434'
+    return value
+
+
 # === custom-26: protocole CLI de la famille crispz (czp.bat / fooocus_protocol.py) ===
 # instance_url vide = http://127.0.0.1:<GRADIO_SERVER_PORT ou 7865>. fooocus_protocol.py
 # relit ce bloc directement dans config.txt (sans importer ce module, trop lourd pour caps).
