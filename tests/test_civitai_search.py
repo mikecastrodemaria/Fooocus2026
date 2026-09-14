@@ -46,8 +46,9 @@ API_REPLY = {'items': [
 class TestSearch(unittest.TestCase):
     def test_versions_are_flattened_and_the_wanted_base_comes_first(self):
         with mock.patch.object(C, '_api_request', return_value=API_REPLY) as api:
-            out = C.search_models('ink', types='LORA', base_model='SDXL 1.0', api_key='K')
+            out = C.search_models('ink', types='LORA', base_model='SDXL 1.0', api_key='K', all_architectures=True)
         params = api.call_args[0][1]
+        self.assertNotIn('baseModels', params, 'no base filter when every architecture is asked for')
         self.assertEqual((params['query'], params['types'], params['nsfw']), ('ink', 'LORA', 'false'))
         self.assertEqual(api.call_args[1]['api_key'], 'K')
         self.assertEqual([c['versionId'] for c in out], [102, 101, 201])
@@ -62,7 +63,16 @@ class TestSearch(unittest.TestCase):
         with mock.patch.object(C, '_api_request', return_value=None):
             self.assertEqual(C.search_models('ink'), [])
 
+    def test_only_fooocus_architectures_by_default(self):
+        with mock.patch.object(C, '_api_request', return_value=API_REPLY) as api:
+            out = C.search_models('ink', base_model='SDXL 1.0')
+        self.assertEqual(api.call_args[0][1]['baseModels'], C.COMPATIBLE_BASES)
+        self.assertNotIn('Flux.1 D', C.COMPATIBLE_BASES)
+        self.assertEqual([c['versionId'] for c in out], [102, 201], 'the Flux version is dropped even if the API returns it')
+
     def test_base_support_levels(self):
+        self.assertEqual(C.base_model_support('Pony V7')[0], 'hidden')
+        self.assertEqual(C.base_model_support('Pony V6')[0], 'ok')
         self.assertEqual(C.base_model_support('Pony')[0], 'ok')
         self.assertEqual(C.base_model_support('Illustrious')[0], 'ok')
         self.assertEqual(C.base_model_support('SDXL Lightning')[0], 'ok')

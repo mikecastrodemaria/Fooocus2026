@@ -1203,8 +1203,9 @@ with shared.gradio_root:
                         gr.HTML('<div style="font-size:12px;color:#888;margin-bottom:4px;">'
                                 'Find a LoRA, checkpoint or embedding by name and download it into your '
                                 'models folder. The file is checked against the SHA256 published by '
-                                'CivitAI and never overwrites an existing one. ⛔ = architecture '
-                                'Fooocus hides (Flux, SD3...), ⚠ = SD 1.x (refiner / SD 1.5 LoRA only). '
+                                'CivitAI and never overwrites an existing one. Only SD 1.x / SDXL-family '
+                                'results are listed; tick <i>Show other architectures</i> to see the rest, '
+                                'flagged ⛔ (Fooocus hides them). ⚠ = SD 1.x (refiner / SD 1.5 LoRA only). '
                                 'Some files need the API key saved above.</div>')
                         with gr.Row():
                             civitai_search_query = gr.Textbox(label='Name', placeholder='e.g. ink style, detail tweaker...', scale=4)
@@ -1212,6 +1213,8 @@ with shared.gradio_root:
                             civitai_search_base = gr.Dropdown(label='Base model first', choices=modules.civitai_api.SEARCH_BASES, value='SDXL 1.0', scale=2)
                         with gr.Row():
                             civitai_search_nsfw = gr.Checkbox(label='Include NSFW', value=False, scale=1)
+                            civitai_search_all_arch = gr.Checkbox(label='Show other architectures (Flux, SD3...)',
+                                                                  value=False, scale=1)
                             civitai_search_btn = gr.Button(value='\U0001F50E Search', variant='secondary', scale=2)
                         civitai_search_results = gr.Dropdown(label='Results (one entry per version)', choices=[], value=None, interactive=True)
                         civitai_search_state = gr.State(value=[])
@@ -1935,13 +1938,14 @@ with shared.gradio_root:
                         return None
                     return cands[idx] if cands and 0 <= idx < len(cands) else None
 
-                def civitai_search_clicked(query, model_type, base, nsfw):
+                def civitai_search_clicked(query, model_type, base, nsfw, all_arch):
                     if not str(query or '').strip():
                         return (gr.update(choices=[], value=None), [], '', gr.update(),
                                 _civitai_box('Type a name to search.'))
                     cands = modules.civitai_api.search_models(
                         query, types=model_type, base_model=base, nsfw=bool(nsfw),
-                        api_key=modules.config.civitai_api_key or None)
+                        api_key=modules.config.civitai_api_key or None,
+                        all_architectures=bool(all_arch))
                     if not cands:
                         return (gr.update(choices=[], value=None), [], '', gr.update(),
                                 _civitai_box('No result (or CivitAI unreachable, see the console).'))
@@ -1993,7 +1997,8 @@ with shared.gradio_root:
                     return _civitai_box(msg, '#4ecdc4')
 
                 _civitai_search_io = dict(
-                    inputs=[civitai_search_query, civitai_search_type, civitai_search_base, civitai_search_nsfw],
+                    inputs=[civitai_search_query, civitai_search_type, civitai_search_base, civitai_search_nsfw,
+                            civitai_search_all_arch],
                     outputs=[civitai_search_results, civitai_search_state, civitai_search_preview,
                              civitai_download_folder, civitai_download_status],
                     queue=False)

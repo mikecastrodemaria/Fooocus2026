@@ -155,7 +155,7 @@ def _api_request(endpoint, params=None, api_key=None):
 
     url = f'{CIVITAI_API_BASE}{endpoint}'
     if params:
-        url += '?' + urlencode(params, quote_via=quote)
+        url += '?' + urlencode(params, doseq=True, quote_via=quote)  # listes -> cle repetee
 
     headers = {
         'Content-Type': 'application/json',
@@ -748,6 +748,12 @@ def fetch_lora_triggers_combined(lora_filename, paths_loras, api_key=None, force
 _DOWNLOAD_UA = 'Fooocus2026 (CivitAI-Integration)'
 SEARCH_TYPES = ['LORA', 'Checkpoint', 'TextualInversion']
 SEARCH_BASES = ['SDXL 1.0', 'Pony', 'Illustrious', 'NoobAI', 'SD 1.5', 'Any']
+# Bases CivitAI (noms exacts de l'API) que Fooocus2026 sait charger : envoyees en filtre
+# baseModels, pour qu'une page de resultats ne soit pas remplie de Flux. Une valeur
+# inconnue de l'API est ignoree sans erreur. 'Pony V7' (AuraFlow) n'y est volontairement pas.
+COMPATIBLE_BASES = ['SD 1.4', 'SD 1.5', 'SD 1.5 LCM', 'SD 1.5 Hyper',
+                    'SDXL 0.9', 'SDXL 1.0', 'SDXL 1.0 LCM', 'SDXL Lightning', 'SDXL Hyper',
+                    'SDXL Turbo', 'SDXL Distilled', 'Pony', 'Illustrious', 'NoobAI']
 
 
 def _norm_base(s):
@@ -761,6 +767,8 @@ def base_model_support(base):
     b = ' '.join(str(base or '').lower().replace('.', ' ').split())
     if not b or b == 'other':
         return 'unknown', 'base model not stated'
+    if b.startswith('pony v') and not b.startswith('pony v6'):
+        return 'hidden', 'Pony V7+ is AuraFlow, not SDXL: Fooocus2026 cannot load it'
     if any(k in b for k in ('sdxl', 'pony', 'illustrious', 'noobai')):
         return 'ok', 'SDXL family'
     if b.startswith('sd 1') or b.startswith('sd 2'):
@@ -778,16 +786,21 @@ def _preview_url(version, nsfw):
     return ''
 
 
-def search_models(query, types='LORA', base_model=None, limit=20, api_key=None, nsfw=False):
+def search_models(query, types='LORA', base_model=None, limit=20, api_key=None, nsfw=False,
+                  all_architectures=False):
     """GET /models?query=... Renvoie une liste PLATE, une entree par VERSION (les versions
     d'une meme page visent souvent des bases differentes). base_model remonte les versions
-    de cette base en tete sans exclure les autres (tri stable). [] sur echec reseau ou
-    aucun resultat, jamais d'exception."""
+    de cette base en tete sans exclure les autres (tri stable). Par defaut, seules les
+    bases que Fooocus sait charger sont demandees (COMPATIBLE_BASES) et les versions d'une
+    autre architecture sont ecartees ; all_architectures=True liste tout, marque ⛔.
+    [] sur echec reseau ou aucun resultat, jamais d'exception."""
     q = str(query or '').strip()
     if not q:
         return []
     params = {'query': q, 'types': types, 'limit': int(limit), 'sort': 'Highest Rated',
               'nsfw': 'true' if nsfw else 'false'}
+    if not all_architectures:
+        params['baseModels'] = list(COMPATIBLE_BASES)
     data = _api_request('/models', params, api_key=api_key)
     out = []
     for m in (data or {}).get('items') or []:
@@ -799,6 +812,8 @@ def search_models(query, types='LORA', base_model=None, limit=20, api_key=None, 
             files = [f for f in (v.get('files') or []) if isinstance(f, dict)]
             f = next((x for x in files if x.get('primary')), files[0] if files else {})
             level, note = base_model_support(v.get('baseModel'))
+            if level == 'hidden' and not all_architectures:
+                continue  # le filtre serveur couvre la page ; ceci couvre une API qui l'ignore
             out.append({
                 'modelId': m.get('id'),
                 'modelName': str(m.get('name') or '').strip(),

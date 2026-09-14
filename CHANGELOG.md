@@ -248,8 +248,16 @@ Only fork-specific changes are listed here — upstream history is available via
   Aucun dossier de categorie n'est cree d'office.
 - Un fichier du meme nom deja range **ailleurs** dans l'arborescence n'est pas
   retelecharge (pas de doublon).
+- **Compatible architectures only by default**: the search sends CivitAI a
+  `baseModels` filter limited to what Fooocus can load (SD 1.4/1.5 incl.
+  LCM/Hyper, SDXL 0.9/1.0 incl. Lightning/Turbo/Hyper/Distilled, Pony,
+  Illustrious, NoobAI), and drops any other version client-side as well. An
+  "ink style" search used to return 8 Flux versions out of 25. *Show other
+  architectures* lists everything again, flagged ⛔.
 
 ### Fixed
+- Pony V7 (AuraFlow, not SDXL) was reported as SDXL-compatible because its name
+  contains "pony"; it is now flagged ⛔.
 - La recuperation de l'apercu apres telechargement cherchait le modele par son
   seul nom : elle echouait des qu'il etait range dans un sous-dossier.
 
