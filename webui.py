@@ -209,6 +209,10 @@ def queue_runner():
                 yield (gr.update(visible=False), gr.update(visible=False),
                        gr.update(visible=False), gr.update(visible=True, value=grids)) \
                     + queue_state_updates()
+            else:
+                # le dernier etat pousse datait d'avant finish() ("1 job pending, job
+                # running") : sans ce yield il restait affiche tant que le runner idle
+                yield (gr.update(), gr.update(), gr.update(), gr.update()) + queue_state_updates()
 
             if stopped:
                 jq.queue.paused = True

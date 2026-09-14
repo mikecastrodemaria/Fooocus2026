@@ -275,6 +275,10 @@ Only fork-specific changes are listed here — upstream history is available via
   execution) et repart **entier** a la reprise. Meme chose si l'onglet est ferme
   ou Reconnect clique en plein job. Un job retire par l'utilisateur pendant son
   execution n'est pas re-ajoute.
+- **Statut fige apres le dernier job** (« 1 job(s) en attente, file en cours de
+  traitement. Job en cours. » alors que tout etait fini) : le dernier etat pousse
+  a l'UI datait d'avant la sortie du job de la file, et le runner en veille ne
+  rafraichissait plus rien. Le panneau est mis a jour des la fin de chaque job.
 
 ### Notes
 - **Garde-fou de version** : chaque snapshot est un vecteur de ctrls positionnel.
