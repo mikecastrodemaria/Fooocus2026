@@ -259,5 +259,22 @@ class TestTaskArgsMapping(unittest.TestCase):
         self.assertEqual(int(pair['mask'][0, 0, 0]), 0)
 
 
+class Cp1252Stream(unittest.TestCase):
+    """The JSON line is written in UTF-8 even when the stream defaults to
+    cp1252 (Windows console / pipe): an accented or emoji name must not end
+    the command with UnicodeEncodeError."""
+
+    def test_json_line_survives_a_cp1252_stream(self):
+        raw = io.BytesIO()
+        out = io.TextIOWrapper(raw, encoding='cp1252', newline='\n')
+        name = 'bidule\u00e9\U0001f98b'
+        code = P.main([name], out=out)
+        out.flush()
+        self.assertEqual(code, 3)
+        line = raw.getvalue().decode('utf-8')
+        self.assertIn(name, line)
+        self.assertFalse(json.loads(line)['ok'])
+
+
 if __name__ == '__main__':
     unittest.main()

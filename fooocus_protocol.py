@@ -497,6 +497,13 @@ def _read_spec(path):
 def main(argv=None, out=None):
     out = out or sys.stdout
     argv = list(sys.argv[1:] if argv is None else argv)
+    # The JSON line keeps its accents and symbols (LoRA and model names), so
+    # the stream must be UTF-8: a Windows console or pipe defaults to cp1252
+    # and would die with UnicodeEncodeError on the first such name.
+    try:
+        out.reconfigure(encoding='utf-8', errors='replace')
+    except (AttributeError, ValueError):
+        pass
 
     def emit(payload, code):
         out.write(json.dumps(payload, ensure_ascii=False) + '\n')
