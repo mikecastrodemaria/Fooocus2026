@@ -339,9 +339,40 @@ with shared.gradio_root:
                     if _improve_enabled:
                         with gr.Row(elem_id='improve_prompt_row'):
                             improve_prompt_btn = gr.Button(
-                                value='\u2728 Improve prompt', size='sm', min_width=0, scale=1)
+                                value='\u2728 Improve prompt', size='sm', min_width=0, scale=4)
+                            # custom-31 : le triangle deplie un panneau de directives
+                            improve_prompt_more_btn = gr.Button(
+                                value='\u25be', size='sm', min_width=0, scale=0,
+                                elem_classes='improve_more_btn')
                             improve_negative_btn = gr.Button(
-                                value='\u2728 Improve negative', size='sm', min_width=0, scale=1)
+                                value='\u2728 Improve negative', size='sm', min_width=0, scale=4)
+                            improve_negative_more_btn = gr.Button(
+                                value='\u25be', size='sm', min_width=0, scale=0,
+                                elem_classes='improve_more_btn')
+                        # custom-31 : un panneau replie par bouton : directives libres ajoutees
+                        # a la consigne par defaut pour cet appel seulement
+                        with gr.Column(visible=False, elem_id='improve_prompt_panel') as improve_prompt_panel:
+                            improve_prompt_directives = gr.Textbox(
+                                label='Improve prompt: extra directives (added to the default instruction)',
+                                lines=2, placeholder='e.g. more cinematic, keep it under 60 words, '
+                                                     'write it in French, no camera brand names')
+                            with gr.Row():
+                                improve_prompt_go_btn = gr.Button(
+                                    value='\u2728 Improve with these directives', size='sm',
+                                    variant='primary', min_width=0, scale=3)
+                                improve_prompt_close_btn = gr.Button(
+                                    value='Close', size='sm', min_width=0, scale=1)
+                        with gr.Column(visible=False, elem_id='improve_negative_panel') as improve_negative_panel:
+                            improve_negative_directives = gr.Textbox(
+                                label='Improve negative: extra directives (added to the default instruction)',
+                                lines=2, placeholder='e.g. photo realism only, keep it short, '
+                                                     'add anime-specific defects, no NSFW terms')
+                            with gr.Row():
+                                improve_negative_go_btn = gr.Button(
+                                    value='\u2728 Improve with these directives', size='sm',
+                                    variant='primary', min_width=0, scale=3)
+                                improve_negative_close_btn = gr.Button(
+                                    value='Close', size='sm', min_width=0, scale=1)
 
                 with gr.Column(scale=3, min_width=0):
                     generate_button = gr.Button(label="Generate", value="Generate", elem_classes='type_row', elem_id='generate_button', visible=True)
@@ -2569,14 +2600,25 @@ with shared.gradio_root:
                 # === custom-28: Improve prompt (Ollama) event handlers ===
                 # Wired only when the feature is enabled (the buttons exist only then).
                 if _improve_enabled:
-                    def improve_text(text, kind):
+                    def improve_text(text, kind, directives=''):
                         import modules.ollama_improve as ollama_improve
+                        seeded = None
+                        if kind == 'negative' and not (text or '').strip():
+                            # custom-31 : negatif vide -> on part d'un negatif standard, que le
+                            # modele enrichit ; si Ollama manque, le standard est insere tel quel
+                            seeded = ollama_improve.default_negative()
+                            text = seeded
                         try:
-                            out, used = ollama_improve.improve(text, kind=kind)
+                            out, used = ollama_improve.improve(text, kind=kind, directives=directives)
                         except ollama_improve.OllamaError as exc:
+                            if seeded is not None:
+                                gr.Warning(f'Improve skipped ({exc}): the standard negative was inserted instead.')
+                                return gr.update(value=seeded)
                             gr.Warning(f'Improve skipped: {exc}')
                             return gr.update()  # laisse le texte inchange
-                        print(f'[improve] {kind} prompt rewritten by {used}')
+                        how = ' from the standard negative' if seeded is not None else ''
+                        how += ' with directives' if (directives or '').strip() else ''
+                        print(f'[improve] {kind} prompt rewritten by {used}{how}')
                         return gr.update(value=out)
 
                     improve_prompt_btn.click(
@@ -2587,6 +2629,22 @@ with shared.gradio_root:
                         lambda t: improve_text(t, 'negative'),
                         inputs=[negative_prompt], outputs=[negative_prompt],
                         queue=True, show_progress=True)
+
+                    # custom-31 : triangle = ouvre/ferme le panneau ; Improve with these = meme
+                    # appel, avec les directives du panneau
+                    for _panel, _more, _close, _go, _box, _kind, _target in (
+                            (improve_prompt_panel, improve_prompt_more_btn, improve_prompt_close_btn,
+                             improve_prompt_go_btn, improve_prompt_directives, 'positive', prompt),
+                            (improve_negative_panel, improve_negative_more_btn, improve_negative_close_btn,
+                             improve_negative_go_btn, improve_negative_directives, 'negative', negative_prompt)):
+                        _open = gr.State(False)
+                        _more.click(lambda o: (gr.update(visible=not o), not o),
+                                    inputs=[_open], outputs=[_panel, _open], queue=False)
+                        _close.click(lambda: (gr.update(visible=False), False),
+                                     outputs=[_panel, _open], queue=False)
+                        _go.click(lambda t, d, _k=_kind: improve_text(t, _k, d),
+                                  inputs=[_target, _box], outputs=[_target],
+                                  queue=True, show_progress=True)
 
                 # === Embeddings event handlers ===
                 def fetch_embedding_triggers_for_slot(emb_name, api_key_field):

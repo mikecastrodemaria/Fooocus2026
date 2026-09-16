@@ -294,6 +294,8 @@ Without this loop, the restart button still works — it just becomes a clean ex
 
 - **Several actions per plugin (custom-24):** a manifest may declare an `actions` block; the plugin tab then shows one sub-tab per action, each with its own parameters, CLI flags and extra image inputs. First use: install **crispz-studio** as a plugin (`https://github.com/mikecastrodemaria/crispz-studio`) to get a **Face swap** action next to *Upscale* — the exact face from a *Source face* image, pasted with an occlusion mask (a hand, food or a mic in front of the mouth is kept), face-region mask, colour match and CodeFormer restore. It complements Fooocus's own FaceSwap (IP-Adapter face), which injects an approximate identity during diffusion and cannot edit an existing image. Needs insightface + onnxruntime-gpu in the plugin venv and `faceswap/inswapper_128.onnx`.
 
+- **Interrupted torch install detected (custom-30):** the torch step is the longest of an install (a 3 GB cu128 wheel). If Fooocus is closed, restarted or killed in the middle of it, the venv keeps a `torch/` folder without its `torch-*.dist-info`: pip does not list it and `import torch` dies on `WinError 127` (`cudnn_cnn64_9.dll`). Before each run, the plugin tab now checks the venv and, in that state, prints the cause and the manifest's own torch command to paste in a terminal (or *Manager → Install with Force*). A failed run whose output shows a torch DLL error gets the same hint, which also covers a second CUDA/cuDNN copy shadowing `torch\lib`. *Update* never replays the torch step by design, so this message is the way out.
+
 **Files:** the whole feature lives in a self-contained `extra_plugins/` package; `webui.py` only adds the checkbox + panel + toggle, and one call to release plugin VRAM when a generation starts. See [`extra_plugins/INTEGRATION.md`](extra_plugins/INTEGRATION.md) to port it.
 
 ---
@@ -475,6 +477,17 @@ czp.bat inpaint --spec fix.json
 
 ---
 
+### 22. ✨ Improve prompt: directives panel and standard negative
+**Where:** the two **✨ Improve** buttons under the prompt column (custom-28), each with a small **▾** next to it.
+
+**What it does:**
+- **▾** unfolds a panel with a two-line text area and **✨ Improve with these directives**. Whatever you type is added to the default instruction for that call only, as a `USER DIRECTIVES` block the model must follow on top of the general rules: "more cinematic", "keep it under 60 words", "write it in French", "add anime-specific defects" for the negative. The plain button keeps its one-click behaviour; **Close** folds the panel.
+- **Improve negative on an empty box** starts from a standard SDXL negative (lowres, worst quality, bad anatomy, bad hands, extra limbs, watermark, text...) and lets the model expand and tidy it, directives included. If Ollama is unreachable, the standard negative is inserted as is, with a warning saying why.
+
+**Config:** `ollama_improve.default_negative` (empty = the built-in baseline). Directives are not saved: the box keeps its text for the session only.
+
+---
+
 ## 🚀 Getting this fork
 
 ### Option A — I already have Fooocus installed
@@ -631,7 +644,7 @@ Example fragment:
 | `gallery_template/index.html` + `_assets/` | **New** — Asset Browser SPA + bundled PhotoSwipe v5 / Dynamic Caption / Deep Zoom (custom-8) |
 | `launch.py` | Spawns Asset Browser model indexer in a daemon thread when enabled (custom-8) |
 | `webui.py` | All fork UI: Save Preset, CivitAI / LoRA / Embeddings / Wildcards accordions, Aspect-for-Vary, Custom Resolution panel, Asset Browser accordion + link button, **Layout/Omost** accordion (Layout/Omost), Restart UI button (moved to end of Advanced tab), **Extra Plugins** checkbox + panel + toggle (custom-12), **Job Queue** button + accordion + run/pause wiring (custom-14) |
-| `extra_plugins/` | **New** — self-contained Extra Plugins subsystem: GitHub install + isolated venv, manifest parsing, CLI runner, per-plugin UI, settings persistence (custom-12); plugin update + server mode with VRAM release (custom-20). Runtime dirs (`installed/`, `outputs/`, `settings.json`) gitignored |
+| `extra_plugins/` | **New** — self-contained Extra Plugins subsystem: GitHub install + isolated venv, manifest parsing, CLI runner, per-plugin UI, settings persistence (custom-12); plugin update + server mode with VRAM release (custom-20); `envcheck.py` preflight of the venv, interrupted torch install named with its repair command (custom-30). Runtime dirs (`installed/`, `outputs/`, `settings.json`) gitignored |
 | `run*.bat` / `run*.sh` / `boot_check_rtx5090.*` | **New** — RTX 5090 launch scripts (standard, realistic, anime, quality, boot diagnostic) for Windows + Mac/Linux |
 | `modules/tag_autocomplete.py` | **New** — tag CSV download + `tags/local_assets.json` builder (custom-13) |
 | `javascript/tag_autocomplete.js` | **New** — autocomplete dropdown UX, zero dependency (custom-13) |

@@ -3,6 +3,52 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-31] — 2026-09-16 — Improve prompt: directives panel and standard negative
+
+### Added
+- **Directives panel**: a small `▾` button next to each Improve button unfolds a panel
+  under the prompts with a two-line text area and **✨ Improve with these directives**.
+  What you type there is added to the default instruction for that call only (a
+  `USER DIRECTIVES` block, after the custom-29 syntax note, before the prompt), for
+  example "more cinematic, under 60 words, in French". The plain Improve buttons keep
+  their one-click behaviour. **Close** folds the panel; `▾` toggles it.
+- **Empty negative**: **Improve negative** on an empty box starts from a standard SDXL
+  negative (lowres, bad anatomy, bad hands, watermark, text...) and lets the model expand
+  and tidy it, directives included. If Ollama is unreachable, the standard negative is
+  inserted as is and a warning says why. Overridable with `ollama_improve.default_negative`
+  in `config.txt`.
+- `modules.ollama_improve.improve(..., directives=)` and `default_negative()`.
+
+### Notes
+- Directives are per click and not saved: the box keeps its text for the session only.
+- Tests: directive placement and blank handling, over-the-wire cases in
+  `tests/test_ollama_improve.py`.
+
+## [custom-30] — 2026-09-16 — Extra plugins: interrupted torch install detected
+
+### Added
+- **Preflight check before a plugin run** (`extra_plugins/envcheck.py`, standard library
+  only): for a plugin whose manifest installs torch, the venv is inspected first. A
+  `torch/` folder without its `torch-*.dist-info` is the signature of an interrupted
+  wheel install (window closed, Restart UI or lost download during the 3 GB cu128 step):
+  pip does not list it and `import torch` dies on a DLL error (`WinError 127` on
+  `cudnn_cnn64_9.dll`). The Status box now says so and prints the manifest's own torch
+  command to paste in a terminal (placeholders rendered), instead of a raw traceback.
+  Also covers a missing venv and a torch that never got installed; a `reuse_python`
+  venv (system site-packages) is trusted.
+- **Hint after a failed run**: when the CLI fallback or the server log shows a torch DLL
+  load error or `No module named 'torch'`, the Status gets a one-paragraph explanation
+  (interrupted install, or a second CUDA/cuDNN copy earlier in the DLL search path) with
+  the same repair command.
+- **Refresh models** reports the same preflight message in the Status instead of
+  silently emptying the dropdown.
+
+### Notes
+- Plugin update (custom-20) never replays the torch step by design; the message is the
+  way out, not an automatic reinstall.
+- Tests: `tests/test_extra_envcheck.py` (venv layouts Windows and posix, states, manifest
+  step detection, rendered command, failure hints).
+
 ## [custom-29] — 2026-09-16 — {a|b|c} variant groups in prompts
 
 ### Added

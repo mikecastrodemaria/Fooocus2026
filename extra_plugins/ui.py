@@ -26,6 +26,7 @@ import gradio as gr
 
 from . import registry, runner, installer, manifest as manifest_mod, settings
 from . import server as server_mod
+from . import envcheck
 from . import INSTALL_ROOT, OUTPUT_DIR, offload_host_models
 
 
@@ -97,6 +98,11 @@ def _make_run_handler(plugin, action, keys, show_models):
                    for ip, img in zip(image_params, extra_images) if img is None]
         if missing:
             return None, "Load an image in: " + ", ".join(missing) + "."
+        # custom-30 : un venv dont le torch est incomplet (install interrompue) ne peut
+        # pas demarrer ; on le dit avec la commande de reparation, sans lancer le run
+        problem = envcheck.preflight(pdir, m)
+        if problem:
+            return None, problem
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         # write the current image(s) to temp files
         tmp_dir = tempfile.mkdtemp()
@@ -157,7 +163,9 @@ def _make_run_handler(plugin, action, keys, show_models):
 
         if not res["ok"]:
             tail = (res["stderr"] or "").strip().splitlines()[-8:]
-            return None, fallback_note + "Failed (code %s)\n%s" % (res["returncode"], "\n".join(tail))
+            text = fallback_note + "Failed (code %s)\n%s" % (res["returncode"], "\n".join(tail))
+            hint = envcheck.explain_failure(text, m, pdir)   # custom-30 : torch DLL / import
+            return None, text + ("\n" + hint if hint else "")
 
         status = "OK in %.1fs%s" % (dt, host_note)
         if res["vram"]:
@@ -254,16 +262,22 @@ def _build_action(plugin, action, saved, picked_state):
                 # Refresh button placed right after the ESRGAN folder field
                 refresh = gr.Button("Refresh models", size="sm")
             comps, keys = _build_param_controls(m, saved.get("params"), only=action["params"])
+            status = gr.Textbox(label="Status", lines=4, interactive=False)
             if refresh is not None:
                 model_idx = keys.index(model_param["key"])
 
                 def _refresh(edir, _pid=plugin["id"], _pdir=plugin["dir"], _m=m):
                     settings.set_plugin(_pid, esrgan_dir=edir or "")
+                    # custom-30 : un torch incomplet videra la liste en silence ; on l'explique
+                    problem = envcheck.preflight(_pdir, _m)
+                    if problem:
+                        return gr.update(choices=[], value=None), problem
                     models = runner.list_models(_m, _pdir, esrgan_dir=edir or None)
+                    note = ("%d model(s) found." % len(models) if models
+                            else "No model found (check the ESRGAN folder).")
                     return gr.update(choices=models,
-                                     value=models[0] if models else None)
-                refresh.click(_refresh, inputs=[esrgan_dir], outputs=[comps[model_idx]])
-            status = gr.Textbox(label="Status", lines=4, interactive=False)
+                                     value=models[0] if models else None), note
+                refresh.click(_refresh, inputs=[esrgan_dir], outputs=[comps[model_idx], status])
 
     run_btn.click(_make_run_handler(plugin, action, keys, show_models),
                   inputs=[in_image, esrgan_dir, server_mode] + comps + extra_images,

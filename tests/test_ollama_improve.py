@@ -123,6 +123,30 @@ class TestInstructions(unittest.TestCase):
     def test_wildcard_placeholder_is_enough_to_add_the_note(self):
         self.assertIn(I.SYNTAX_NOTE, I._instruction('positive', '__color__ flower'))
 
+    # custom-31: user directives, after the syntax note, before the label
+    def test_directives_are_inserted_before_the_label(self):
+        tpl = I._instruction('positive', 'a fox', directives='in French, under 40 words')
+        self.assertIn(I.DIRECTIVES_HEAD + 'in French, under 40 words', tpl)
+        self.assertTrue(tpl.endswith('\n\nPROMPT: {prompt}'))
+        self.assertLess(tpl.index(I.DIRECTIVES_HEAD), tpl.index('\n\nPROMPT:'))
+
+    def test_directives_come_after_the_syntax_note(self):
+        tpl = I._instruction('negative', '__neg__, blurry', directives='keep it short')
+        self.assertLess(tpl.index(I.SYNTAX_NOTE), tpl.index(I.DIRECTIVES_HEAD))
+        self.assertTrue(tpl.endswith('\n\nNEGATIVE PROMPT: {prompt}'))
+
+    def test_blank_directives_change_nothing(self):
+        self.assertEqual(I._instruction('positive', 'a fox', directives='   '),
+                         I._instruction('positive', 'a fox'))
+        self.assertEqual(I._instruction('positive', 'a fox', directives=None),
+                         I._instruction('positive', 'a fox'))
+
+    def test_default_negative_is_a_usable_baseline(self):
+        neg = I.default_negative()
+        self.assertIn('watermark', neg)
+        self.assertIn('bad anatomy', neg)
+        self.assertNotIn('\n', neg)
+
 
 class TestSyntaxNoteOverTheWire(unittest.TestCase):
     @classmethod
@@ -144,6 +168,19 @@ class TestSyntaxNoteOverTheWire(unittest.TestCase):
     def test_plain_prompt_is_sent_without_the_note(self):
         I.improve('a fox', kind='positive', model='llama3.1:8b', base=self.base)
         self.assertNotIn(I.SYNTAX_NOTE, FakeOllama.last_generate['prompt'])
+
+    # custom-31
+    def test_directives_travel_with_the_prompt(self):
+        I.improve('a fox', kind='positive', model='llama3.1:8b', base=self.base,
+                  directives='make it a winter night')
+        sent = FakeOllama.last_generate['prompt']
+        self.assertIn('make it a winter night', sent)
+        self.assertTrue(sent.endswith('PROMPT: a fox'))
+
+    def test_default_negative_can_be_improved_like_any_text(self):
+        out, _ = I.improve(I.default_negative(), kind='negative', model='llama3.1:8b', base=self.base)
+        self.assertTrue(out)
+        self.assertIn('NEGATIVE PROMPT: lowres', FakeOllama.last_generate['prompt'])
 
 
 if __name__ == '__main__':

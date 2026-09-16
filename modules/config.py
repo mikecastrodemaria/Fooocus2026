@@ -772,6 +772,7 @@ _ollama_improve_defaults = {
     'timeout': 120,
     'temperature': 0.7,
     'keep_alive': '5m',
+    'default_negative': '',      # '' = the built-in SDXL baseline (custom-31), used when the negative is empty
 }
 ollama_improve_config = get_config_item_or_set_default(
     key='ollama_improve',
