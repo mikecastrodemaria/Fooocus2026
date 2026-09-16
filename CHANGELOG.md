@@ -3,6 +3,22 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-36] — 2026-09-16 — Ollama default endpoint is 127.0.0.1, not localhost
+
+### Fixed
+- **"Ollama unreachable at http://localhost:11434 (timed out)" while Ollama runs fine**
+  (seen on a Pinokio install, Windows): Python resolves `localhost` to IPv6 `::1` first,
+  Ollama listens on IPv4 `127.0.0.1` only, and on some Windows network stacks the IPv6
+  attempt hangs until the timeout instead of being refused. PowerShell falls back to
+  IPv4 silently, which is why `curl` worked. Every Ollama default (`omost.endpoint`,
+  the fallback host of `ollama_describe` and `ollama_improve`, the Omost UI default)
+  now says `http://127.0.0.1:11434`. A `localhost` value written in `config.txt` is left
+  as is: change it to `127.0.0.1` if you hit the symptom.
+
+### Notes
+- Confirmed on the affected machine by setting `omost.endpoint` to 127.0.0.1 in
+  `config.txt` before the code change. Guard test in `tests/test_ollama_describe.py`.
+
 ## [custom-35] — 2026-09-16 — Ollama calls ignore HTTP proxies
 
 ### Fixed

@@ -22,7 +22,7 @@ import sys
 import urllib.error
 import urllib.request
 
-DEFAULT_ENDPOINT = 'http://localhost:11434'
+DEFAULT_ENDPOINT = 'http://127.0.0.1:11434'
 
 _DESCRIBE_RULES = (
     "Describe only what is present: never mention what is absent. State every detail as a "

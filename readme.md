@@ -305,10 +305,10 @@ Without this loop, the restart button still works — it just becomes a clean ex
 
 **What it does:** Turns a short idea into a structured scene layout using an [Omost](https://github.com/lllyasviel/Omost) LLM (the Canvas DSL), then flattens that layout into a rich, deduplicated SDXL prompt you can inject into the main prompt box. This version is **prompt generation only** — no regional attention conditioning (kept for a future V2). The raw layout JSON is shown and stored so a later V2 can reuse it.
 
-**Requires:** A local [Ollama](https://ollama.com) server exposing an OpenAI-compatible endpoint, with an Omost model loaded. The default expects a model named `omost-llama3` (a Modelfile wrapping the `omost-llama-3-8b` GGUF, Q8) at `http://localhost:11434/v1/chat/completions`. No new pip dependency — the call uses the bundled `requests`.
+**Requires:** A local [Ollama](https://ollama.com) server exposing an OpenAI-compatible endpoint, with an Omost model loaded. The default expects a model named `omost-llama3` (a Modelfile wrapping the `omost-llama-3-8b` GGUF, Q8) at `http://127.0.0.1:11434/v1/chat/completions`. No new pip dependency — the call uses the bundled `requests`.
 
 **Setting up the Omost model in Ollama (one time):**
-1. Install [Ollama](https://ollama.com) and make sure it is running — `ollama list` should respond. It serves on `http://localhost:11434` by default.
+1. Install [Ollama](https://ollama.com) and make sure it is running — `ollama list` should respond. It serves on `http://127.0.0.1:11434` by default.
 2. Pull a Q8 GGUF of the Omost model (lllyasviel does not ship a GGUF, so use a community conversion, ~8.5 GB):
    ```
    ollama pull hf.co/zhaijunxiao/omost-llama-3-8b-Q8_0-GGUF:Q8_0
@@ -583,7 +583,7 @@ All upstream keys still apply. The fork adds a few of its own. Most have a UI co
 | `path_gfpgan` | `""` | path string (optional) | custom-10 | A1111-compatible: extra folder for GFPGAN models. |
 | `path_codeformer` | `""` | path string (optional) | custom-10 | A1111-compatible: extra folder for CodeFormer models. |
 | `omost.enabled` | `true` | bool | Layout/Omost | Master toggle for **🧭 Layout / Omost**. **ON by default** — set to `false` to hide it; when off the accordion is never built (no import, no thread, no network call). |
-| `omost.endpoint` | `"http://localhost:11434/v1/chat/completions"` | URL string | Layout/Omost | OpenAI-compatible chat/completions endpoint (Ollama by default). |
+| `omost.endpoint` | `"http://127.0.0.1:11434/v1/chat/completions"` | URL string | Layout/Omost | OpenAI-compatible chat/completions endpoint (Ollama by default). |
 | `omost.model` | `"omost-llama3"` | string | Layout/Omost | Name of the Omost model served by the endpoint. |
 | `omost.timeout` | `120` | 10..600 (int, seconds) | Layout/Omost | HTTP timeout for the LLM call. Clamped on load. |
 | `tag_autocomplete.enabled` | `true` | bool | custom-13 | Master toggle for **⌨️ Tag Autocomplete**. ON by default since custom-14.1 — when off, nothing is downloaded or injected. |
@@ -600,7 +600,7 @@ All upstream keys still apply. The fork adds a few of its own. Most have a UI co
 | `provenance.enabled` | `true` | bool | custom-23 | Write the machine-readable AI declaration (IPTC `DigitalSourceType` in XMP) on every saved image. No prompt, no parameter. |
 | `provenance.watermark` | `false` | bool | custom-23 | Also embed an invisible TrustMark watermark. Needs `pip install trustmark`; missing package = image saved without it, never a failed save. |
 | `provenance.watermark_id` | `"Fooocus26"` | string (9 ASCII chars) | custom-23 | Payload of the TrustMark watermark. |
-| `ollama_describe.endpoint` | `""` | URL string | custom-25 | Ollama server for Describe. Empty = the host of `omost.endpoint`, else `http://localhost:11434`. |
+| `ollama_describe.endpoint` | `""` | URL string | custom-25 | Ollama server for Describe. Empty = the host of `omost.endpoint`, else `http://127.0.0.1:11434`. |
 | `ollama_describe.model` | `""` | string | custom-25 | Vision model. Empty = the first model Ollama reports with the `vision` capability. |
 | `ollama_describe.style` / `.length` | `"Prompt (prose)"` / `"Long"` | string | custom-25 | Default style and length of the Describe panel (and of auto-describe). |
 | `ollama_describe.timeout` / `.temperature` / `.keep_alive` | `180` / `0.3` / `"5m"` | int / float / string | custom-25 | HTTP timeout (s), sampling temperature, how long Ollama keeps the model loaded. |
@@ -626,7 +626,7 @@ Example fragment:
   },
   "omost": {
     "enabled": true,
-    "endpoint": "http://localhost:11434/v1/chat/completions",
+    "endpoint": "http://127.0.0.1:11434/v1/chat/completions",
     "model": "omost-llama3",
     "timeout": 120
   },

@@ -95,6 +95,11 @@ class TestDescribe(unittest.TestCase):
             D.describe(self.image(), model='llava:7b', base='http://127.0.0.1:9', timeout=2)
         self.assertIn('Ollama unreachable', str(cm.exception))
 
+    def test_default_endpoint_is_ipv4_loopback(self):
+        # custom-36 : "localhost" resolves to ::1 first for Python on Windows while Ollama
+        # listens on IPv4 only; the attempt hangs until the timeout. 127.0.0.1 never does.
+        self.assertEqual(D.DEFAULT_ENDPOINT, 'http://127.0.0.1:11434')
+
     def test_a_proxy_in_the_environment_is_ignored(self):
         # custom-35 : HTTP_PROXY / HTTPS_PROXY (Pinokio, corporate networks) must never
         # capture the call to a local Ollama; with the default urllib opener it did.

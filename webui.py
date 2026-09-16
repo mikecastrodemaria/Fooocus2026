@@ -2626,7 +2626,7 @@ with shared.gradio_root:
                 if _omost_enabled:
                     def omost_generate(idea):
                         cfg = getattr(modules.config, 'omost_config', {})
-                        endpoint = cfg.get('endpoint', 'http://localhost:11434/v1/chat/completions')
+                        endpoint = cfg.get('endpoint', 'http://127.0.0.1:11434/v1/chat/completions')
                         model = cfg.get('model', 'omost-llama3')
                         try:
                             timeout = int(cfg.get('timeout', 120))
