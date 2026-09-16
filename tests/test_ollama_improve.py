@@ -103,6 +103,48 @@ class TestInstructions(unittest.TestCase):
         self.assertNotIn('NEGATIVE', I._instruction('positive'))
         self.assertIn('NEGATIVE PROMPT:', I._instruction('negative'))
 
+    # custom-29: the syntax note only appears when the text uses {a|b|c} or __wildcards__
+    def test_plain_text_gets_no_syntax_note(self):
+        self.assertNotIn(I.SYNTAX_NOTE, I._instruction('positive', 'a fox'))
+        self.assertNotIn(I.SYNTAX_NOTE, I._instruction('positive', '{prompt} only'))
+
+    def test_variant_group_adds_the_note_before_the_label(self):
+        tpl = I._instruction('positive', 'a {shy|sad} fox')
+        self.assertIn(I.SYNTAX_NOTE, tpl)
+        self.assertLess(tpl.index(I.SYNTAX_NOTE), tpl.index('\n\nPROMPT:'))
+        self.assertTrue(tpl.endswith('PROMPT: {prompt}'))
+
+    def test_negative_label_is_kept_whole(self):
+        tpl = I._instruction('negative', '__neg-weight__, blurry')
+        self.assertIn(I.SYNTAX_NOTE, tpl)
+        self.assertTrue(tpl.endswith('\n\nNEGATIVE PROMPT: {prompt}'))
+        self.assertNotIn('NEGATIVE \n', tpl)
+
+    def test_wildcard_placeholder_is_enough_to_add_the_note(self):
+        self.assertIn(I.SYNTAX_NOTE, I._instruction('positive', '__color__ flower'))
+
+
+class TestSyntaxNoteOverTheWire(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.httpd = ThreadingHTTPServer(('127.0.0.1', 0), FakeOllama)
+        cls.base = f'http://127.0.0.1:{cls.httpd.server_address[1]}'
+        threading.Thread(target=cls.httpd.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.httpd.shutdown()
+
+    def test_note_and_raw_text_are_sent_together(self):
+        I.improve('a {shy|sad|smile} fox', kind='positive', model='llama3.1:8b', base=self.base)
+        sent = FakeOllama.last_generate['prompt']
+        self.assertIn(I.SYNTAX_NOTE, sent)
+        self.assertIn('PROMPT: a {shy|sad|smile} fox', sent, 'the braces reach the model untouched')
+
+    def test_plain_prompt_is_sent_without_the_note(self):
+        I.improve('a fox', kind='positive', model='llama3.1:8b', base=self.base)
+        self.assertNotIn(I.SYNTAX_NOTE, FakeOllama.last_generate['prompt'])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -3,6 +3,31 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-29] — 2026-09-16 — {a|b|c} variant groups in prompts
+
+### Added
+- **Dynamic-prompts brace syntax** in the positive prompt, the negative prompt and the
+  extra prompts, next to the existing `__wildcards__`: `{shy|sad|smile}` picks one option
+  per image, `{smile|}` may pick nothing, `{2$$a|b|c}` picks two distinct options joined
+  with `, `, `{1-3$$a|b|c}` a range, `{2$$ and $$a|b|c}` a custom separator. Groups nest
+  (`{a|{b|c}}`, innermost first) and can sit inside a wildcard file line.
+- Same rules as wildcards: the pick is bound to the image seed (reproducible), and
+  **Read wildcards in order** walks the options top to bottom, one per image.
+- New `modules/prompt_variants.py` (standard library only), called from
+  `modules.util.apply_wildcards` before the wildcard files, so a `__wildcard__` inside an
+  option that is not picked is never expanded.
+- **Improve prompt (custom-28)** still sends the raw text, but when it contains a variant
+  group or a wildcard placeholder the instruction gains a note explaining the syntax and
+  asking the model to keep every group and placeholder verbatim. If the model drops them
+  anyway, a console line says so.
+
+### Notes
+- A group is only expanded when it contains `|` or a `N$$` prefix: `{prompt}` (style
+  placeholder) and an unclosed `{a|b` stay as written. Plain prompts make no random call,
+  so seeds of existing prompts are unchanged.
+- Tests: `tests/test_prompt_variants.py`, plus syntax-note cases in
+  `tests/test_ollama_improve.py`.
+
 ## [custom-28] — 2026-09-14 — Improve prompt (Ollama)
 
 ### Added
