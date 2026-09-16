@@ -11,9 +11,11 @@ Reuses the Describe module's Ollama transport (`_http`, `endpoint`, `OllamaError
 standard library only. Settings are read from modules.config only if it is already loaded
 (same guard as ollama_describe), so importing this module has no side effect.
 """
+import re
 import sys
 
 from modules.ollama_describe import _http, endpoint, OllamaError, strip_thinking  # shared transport
+from modules.prompt_variants import uses_dynamic_syntax
 
 # Consignes en anglais (langue des modeles), reprises de l'esprit de cz_core.IMPROVE_INSTRUCTION.
 IMPROVE_POSITIVE = (
@@ -30,6 +32,19 @@ IMPROVE_NEGATIVE = (
     "already present and removing duplicates. Output ONLY the negative prompt, on one line, "
     "no preamble, no quotes, no explanation.\n\nNEGATIVE PROMPT: {prompt}")
 
+# custom-29: added to the instruction only when the text uses the dynamic syntax, so the
+# model keeps {a|b|c} groups and __wildcard__ placeholders instead of expanding them.
+SYNTAX_NOTE = (
+    "The prompt uses Fooocus dynamic syntax that is resolved later, at generation time, "
+    "and must be kept EXACTLY as written: {a|b|c} is a variant group (one option is "
+    "picked per image), {2$$a|b|c} picks two options, __name__ is a wildcard file "
+    "placeholder. Keep every group and placeholder verbatim: do not expand, reorder, "
+    "merge, translate or drop them. You may improve the text around them and the "
+    "wording inside each option, as long as the braces, the | separators and the "
+    "__names__ stay intact.")
+
+_LABEL_RE = re.compile(r'\n\n(?:NEGATIVE )?PROMPT:')
+
 
 def _setting(key, default):
     """Lit modules.config.ollama_improve_setting sans importer modules.config (effets de bord)."""
@@ -44,10 +59,20 @@ def _setting(key, default):
         return default
 
 
-def _instruction(kind):
+def _instruction(kind, text=''):
+    """Consigne pour ce `kind`; avec la note de syntaxe dynamique si `text` en utilise."""
     if kind == 'negative':
-        return _setting('negative_instruction', IMPROVE_NEGATIVE)
-    return _setting('positive_instruction', IMPROVE_POSITIVE)
+        tpl = _setting('negative_instruction', IMPROVE_NEGATIVE)
+    else:
+        tpl = _setting('positive_instruction', IMPROVE_POSITIVE)
+    if not uses_dynamic_syntax(text):
+        return tpl
+    last = None
+    for last in _LABEL_RE.finditer(tpl):
+        pass
+    if last is None:                        # custom instruction without the label: append
+        return tpl + '\n\n' + SYNTAX_NOTE
+    return tpl[:last.start()] + '\n\n' + SYNTAX_NOTE + tpl[last.start():]
 
 
 def list_models(base=None):
@@ -71,7 +96,7 @@ def improve(text, kind='positive', model=None, base=None, timeout=None, temperat
         model = found[0]
     payload = {
         'model': model,
-        'prompt': _instruction(kind).replace('{prompt}', text),
+        'prompt': _instruction(kind, text).replace('{prompt}', text),
         'stream': False,
         'think': False,
         'keep_alive': _setting('keep_alive', '5m'),
@@ -84,4 +109,7 @@ def improve(text, kind='positive', model=None, base=None, timeout=None, temperat
     if not result:
         raise OllamaError(f'"{model}" returned an empty result (a reasoning model may have '
                           'spent its whole answer thinking)')
+    if uses_dynamic_syntax(text) and not uses_dynamic_syntax(result):
+        print(f'[Improve] "{model}" dropped the {{a|b|c}} / __wildcard__ syntax from the prompt; '
+              'check the result before generating.')
     return result, model

@@ -455,6 +455,26 @@ czp.bat inpaint --spec fix.json
 
 ---
 
+### 21. 🎲 `{a|b|c}` variant groups in prompts (dynamic-prompts syntax)
+**Where:** the positive prompt, the negative prompt and the extra prompts — next to the `__wildcards__` you already use. Nothing to switch on.
+
+**What it does:** picks one option per image inside braces, the way the Automatic1111 *dynamic prompts* extension does. `portrait of a woman, {disdainful|disgusted|shy|sad|smiling|surprised|scared|angry} expression` gives one expression per image of the batch.
+
+| Syntax | Result |
+|---|---|
+| `{shy\|sad\|smile}` | one option, at random |
+| `{smile\|}` | one option, and the empty one is allowed: 50 % chance of nothing |
+| `{2$$shy\|sad\|smile}` | two distinct options, joined with `, ` |
+| `{1-3$$a\|b\|c\|d}` | between one and three options |
+| `{2$$ and $$a\|b\|c}` | custom separator between the picked options |
+| `{a\|{b\|c}}` | groups nest, innermost first; a wildcard file line may hold a group too |
+
+**Rules, the same as wildcards:** the pick is bound to the image seed, so a seed reproduces its picks. With **Read wildcards in order** (Developer Debug Mode) the options are walked top to bottom, one per image, which is the quick way to get every expression of a list in one batch. A group is only expanded when it holds a `|` or a `N$$` prefix: `{prompt}` (the style placeholder) and an unclosed `{a|b` stay as written.
+
+**Improve prompt (custom-28):** the button still sends your text raw, braces included. When the text holds a group or a `__wildcard__`, the instruction sent to Ollama gains a note explaining the syntax and asking the model to keep every group and placeholder verbatim, so it improves the words around and inside the options without flattening them. If the model drops them anyway, the console says so and you can undo.
+
+---
+
 ## 🚀 Getting this fork
 
 ### Option A — I already have Fooocus installed
@@ -601,7 +621,8 @@ Example fragment:
 | `modules/private_logger.py` | Silent hook into `gallery_writer.on_image_logged()` (custom-8); AI provenance declaration + optional watermark on save (custom-23) |
 | `modules/provenance.py` | **New** — IPTC `trainedAlgorithmicMedia` XMP writer (PNG / JPEG / WEBP), optional TrustMark watermark, provenance reader for the Metadata tab (custom-23) |
 | `modules/ollama_describe.py` | **New** — Describe through an Ollama vision model: styles, instruction, vision-model detection, answer cleaning (custom-25) |
-| `modules/ollama_improve.py` | **New** — Improve the positive/negative prompt through an Ollama text model, reusing the Describe transport (custom-28) |
+| `modules/ollama_improve.py` | **New** — Improve the positive/negative prompt through an Ollama text model, reusing the Describe transport (custom-28); syntax note when the text uses variant groups or wildcards (custom-29) |
+| `modules/prompt_variants.py` | **New** — `{a|b|c}` variant groups (dynamic-prompts syntax), standard library only, called from `apply_wildcards` (custom-29) |
 | `modules/gallery_writer.py` | **New** — Asset Browser per-image hook, thumbnails, manifests, days.json (custom-8) |
 | `modules/model_indexer.py` | **New** — Asset Browser model scanners (LoRAs / Checkpoints / Embeddings) + sidecar preview lookup + placeholder generation (custom-8) |
 | `modules/omost_lib/canvas.py` | **New** — vendored verbatim from Omost (Apache-2.0): the `Canvas` DSL + system prompt (Layout/Omost) |
@@ -1037,6 +1058,14 @@ The wildcard will be replaced with a random color (randomness based on seed).
 You can also disable randomness and process a wildcard file from top to bottom by enabling the checkbox `Read wildcards in order` in Developer Debug Mode.
 
 Wildcards can be nested and combined, and multiple wildcards can be used in the same prompt (example see `wildcards/color_flower.txt`).
+
+### Variant groups
+
+Example prompt: `{red|blue|green} flower`
+
+Processed for positive and negative prompt, with the same seed binding and the same `Read wildcards in order` behaviour as wildcards.
+
+Picks one of the options in the braces. `{2$$a|b|c}` picks two, `{1-3$$a|b|c}` a range, `{2$$ and $$a|b|c}` uses a custom separator, `{a|}` may pick nothing. Groups nest, innermost first. See fork feature 21 for the full table.
 
 ### Array Processing
 

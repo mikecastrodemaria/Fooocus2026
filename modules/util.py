@@ -17,6 +17,7 @@ from PIL import Image
 import modules.config
 import modules.sdxl_styles
 from modules.flags import Performance
+from modules.prompt_variants import expand_variants, has_variants
 
 LANCZOS = (Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.LANCZOS)
 
@@ -504,8 +505,18 @@ def cleanup_prompt(prompt):
 
 def apply_wildcards(wildcard_text, rng, i, read_wildcards_in_order) -> str:
     for _ in range(modules.config.wildcards_max_bfs_depth):
+        # custom-29: {a|b|c} variant groups, one nesting level per pass, same rng and
+        # same in-order rule as the wildcard files. Resolved before the __wildcards__ so a
+        # placeholder inside an option that is not picked never gets expanded.
+        expanded = expand_variants(wildcard_text, rng, i, read_wildcards_in_order, max_depth=1)
+        if expanded != wildcard_text:
+            print(f'[Variants] {wildcard_text} -> {expanded}')
+            wildcard_text = expanded
+
         placeholders = re.findall(r'__([\w-]+)__', wildcard_text)
         if len(placeholders) == 0:
+            if has_variants(wildcard_text):
+                continue                         # nested group left: one more pass
             return wildcard_text
 
         print(f'[Wildcards] processing: {wildcard_text}')
