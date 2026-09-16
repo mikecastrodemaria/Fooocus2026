@@ -1,0 +1,19 @@
+name: Lint
+
+on: [push, pull_request]
+
+jobs:
+  flake8:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install flake8
+        run: python -m pip install --upgrade pip flake8
+      - name: Syntax errors and undefined names (blocking)
+        run: flake8 . --count --select=E9,F63,F7,F821,F822,F823 --show-source --statistics
+      - name: Full style report (informational)
+        run: flake8 . --count --exit-zero --statistics
