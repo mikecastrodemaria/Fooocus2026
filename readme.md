@@ -808,6 +808,18 @@ Note that this Colab will disable refiner by default because Colab free's resour
 
 Using `--always-high-vram` shifts resource allocation from RAM to VRAM and achieves the overall best balance between performance, flexibility and stability on the default T4 instance. Please find more information [here](https://github.com/lllyasviel/Fooocus/pull/1710#issuecomment-1989185346).
 
+### Hugging Face Space
+
+The fork can run as a **Docker Space** that pulls the image built by this repository's CI (`ghcr.io/mikecastrodemaria/fooocus2026`, public): the Space itself holds two files, both in [`huggingface/`](huggingface/).
+
+1. [huggingface.co/new-space](https://huggingface.co/new-space): name it, **SDK: Docker** (blank template), hardware **CPU basic** for now, Create.
+2. In the Space's *Files* tab, add `Dockerfile` and `README.md` with the contents of `huggingface/Dockerfile` and `huggingface/README.md` (the README front matter carries `sdk: docker` and `app_port: 7860`).
+3. Settings > **Hardware**: `Nvidia T4 small` at least (SDXL does not run on CPU). Paid hardware needs a payment method under Settings > Billing. **ZeroGPU is not an option** here: it only serves Gradio-SDK Spaces with `@spaces.GPU` functions, and the fork is a Docker Space on Gradio 3.41.
+4. Settings > **Sleep time**: pick a short delay so the GPU is not billed while nobody uses it.
+5. Optional, Settings > **Storage** (persistent disk), then Settings > **Variables**: `DATADIR=/data`, `config_path=/data/config.txt`, `config_example_path=/data/config_modification_tutorial.txt`. Without it the models (about 7 GB) are downloaded again at every cold start.
+
+Update the Space with Settings > **Factory rebuild** (tag `edge` follows `main`), or pin it to a release by replacing `edge` with a version tag in the Dockerfile.
+
 Thanks to [camenduru](https://github.com/camenduru) for the template!
 
 ### Linux (Using Anaconda)

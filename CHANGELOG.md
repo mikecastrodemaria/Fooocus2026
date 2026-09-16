@@ -19,6 +19,14 @@ Only fork-specific changes are listed here — upstream history is available via
 - `build_launcher.py`: the Windows launcher template is a raw string (no more
   `SyntaxWarning: invalid escape sequence '\p'` on Python 3.12+).
 
+### Added
+- **Hugging Face Space files** in `huggingface/`: a two-line Dockerfile that pulls the
+  public CI image `ghcr.io/mikecastrodemaria/fooocus2026:edge` on port 7860, and the
+  Space README with its front matter (`sdk: docker`, `app_port: 7860`). Readme section
+  "Hugging Face Space" with the steps: create on CPU basic, then a paid GPU (T4 small
+  minimum; ZeroGPU does not apply to a Docker Space), sleep time, optional persistent
+  storage with `DATADIR=/data`.
+
 ## [custom-36] — 2026-09-16 — Ollama default endpoint is 127.0.0.1, not localhost
 
 ### Fixed
