@@ -9,7 +9,7 @@ patch_all()
 
 class AsyncTask:
     def __init__(self, args):
-        from modules.flags import Performance, MetadataScheme, ip_list, disabled
+        from modules.flags import Performance, MetadataScheme, ip_list, disabled, cn_ip_face
         from modules.util import get_enabled_loras
         from modules.config import default_max_lora_number
         import args_manager
@@ -132,10 +132,11 @@ class AsyncTask:
                 self.cn_tasks[cn_type].append([cn_img, cn_stop, cn_weight])
 
         # custom-32 : visage de reference global (Settings) -> tache FaceSwap ajoutee ici,
-        # avec les interrupteurs (Input Image, onglet, mixage) ouverts pour l'onglet courant
-        import modules.flags
-        import modules.global_faceswap
-        modules.global_faceswap.inject(self, modules.flags.cn_ip_face)
+        # avec les interrupteurs (Input Image, onglet, mixage) ouverts pour l'onglet courant.
+        # Jamais "import modules.x" dans cette fonction : le nom `modules` deviendrait local
+        # et `modules.config` plus haut leverait UnboundLocalError (custom-32 hotfix).
+        from modules import global_faceswap
+        global_faceswap.inject(self, cn_ip_face)
 
         self.debugging_dino = args.pop()
         self.dino_erode_or_dilate = args.pop()
