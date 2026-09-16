@@ -3,6 +3,21 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-35] — 2026-09-16 — Ollama calls ignore HTTP proxies
+
+### Fixed
+- **"Ollama unreachable at http://localhost:11434 (timed out)"** on a machine where an
+  HTTP proxy is set in the environment (Pinokio, corporate networks): the Ollama
+  transport used urllib's default opener, which obeys `HTTP_PROXY` / `HTTPS_PROXY`, so
+  the call to localhost went to the proxy and expired. Ollama is local or on the LAN by
+  nature, so `modules.ollama_describe._http` now uses an opener with an empty
+  `ProxyHandler`: no proxy, ever, for Describe, Improve and Layout/Omost through this
+  transport. No config needed.
+
+### Notes
+- Test: `test_a_proxy_in_the_environment_is_ignored` in `tests/test_ollama_describe.py`
+  (fails on the previous code, passes now).
+
 ## [custom-34] — 2026-09-16 — Improve prompt keeps the input format (tags or prose)
 
 ### Added

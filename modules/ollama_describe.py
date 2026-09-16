@@ -183,6 +183,12 @@ def image_to_b64_jpeg(image, max_side=1024, quality=90):
     return base64.b64encode(buf.getvalue()).decode('ascii')
 
 
+# custom-35 : Ollama est local ou sur le LAN, jamais derriere un proxy HTTP. L'ouvreur par
+# defaut d'urllib obeit a HTTP_PROXY / HTTPS_PROXY (Pinokio, reseaux d'entreprise) et la
+# requete vers localhost partait alors vers le proxy et expirait ("timed out").
+_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
 def _http(path, payload=None, base=None, timeout=8):
     b = (base or endpoint()).rstrip('/')
 
@@ -190,7 +196,7 @@ def _http(path, payload=None, base=None, timeout=8):
         data = json.dumps(pl).encode('utf-8') if pl is not None else None
         req = urllib.request.Request(b + path, data=data,
                                      headers={'Content-Type': 'application/json'} if data else {})
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with _OPENER.open(req, timeout=timeout) as r:
             return json.loads(r.read().decode('utf-8'))
 
     try:

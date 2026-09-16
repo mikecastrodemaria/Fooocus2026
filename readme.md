@@ -427,7 +427,7 @@ Local entries also carry a text badge (`[lora-name]`, `[embedding]`, `[wildcard]
 
 **How to use:** pull a vision model once (for example `ollama pull qwen2.5vl:7b` or `ollama pull llava`), click **🔍 Detect** to list the vision models Ollama reports, pick a style and a length, then **Describe this Image into Prompt**. The answer is cleaned before it lands in the prompt: reasoning blocks removed, sentences stating what is *absent* dropped (they tend to make it appear), hedges like "appears to be" rewritten.
 
-**Config:** `ollama_describe.endpoint` (empty = the host of `omost.endpoint`, so the Ollama you set up for Layout/Omost works as is), `.model` (empty = first vision model), `.style`, `.length`, `.timeout`, `.temperature`, `.keep_alive`. If Ollama is down or the model is missing, the error says which command to run; other ticked methods still return their description.
+**Config:** `ollama_describe.endpoint` (empty = the host of `omost.endpoint`, so the Ollama you set up for Layout/Omost works as is), `.model` (empty = first vision model), `.style`, `.length`, `.timeout`, `.temperature`, `.keep_alive`. If Ollama is down or the model is missing, the error says which command to run; other ticked methods still return their description. The Ollama calls never go through an HTTP proxy, whatever `HTTP_PROXY` / `HTTPS_PROXY` say in the environment (custom-35): a local server stays local.
 
 ---
 
