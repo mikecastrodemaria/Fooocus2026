@@ -764,6 +764,23 @@ def ollama_describe_setting(key, default=None):
     return value
 
 
+# === custom-32: FaceSwap global (Settings) : un visage de reference sur chaque generation ===
+# Le visage lui-meme est un PNG a cote de config.txt (modules.global_faceswap.face_path()).
+_global_faceswap_defaults = {
+    'enabled': False,
+    'stop': 0.9,                 # memes defauts que le type FaceSwap d'Image Prompt
+    'weight': 0.75,
+}
+global_faceswap_config = get_config_item_or_set_default(
+    key='global_faceswap',
+    default_value=dict(_global_faceswap_defaults),
+    validator=lambda x: isinstance(x, dict),
+    expected_type=dict
+)
+for _k, _v in _global_faceswap_defaults.items():
+    global_faceswap_config.setdefault(_k, _v)
+
+
 # === custom-28: Improve prompt via un modele texte Ollama ===
 _ollama_improve_defaults = {
     'enabled': True,             # False = cache les boutons "Improve" a cote des prompts

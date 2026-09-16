@@ -1143,6 +1143,42 @@ with shared.gradio_root:
                 shared.gradio_root.load(update_history_link, outputs=history_link, queue=False, show_progress=False)
                 shared.gradio_root.load(update_browser_link, outputs=browser_link, queue=False, show_progress=False)
 
+                # custom-32 : FaceSwap global. Un visage de reference applique a chaque
+                # generation (txt2img, Vary, Upscale, Inpaint, Enhance) sans passer par
+                # Image Prompt. Persistant : config.txt + PNG a cote (modules.global_faceswap).
+                import modules.global_faceswap
+                with gr.Accordion(label='\U0001FA9E Global FaceSwap (every generation)', open=False,
+                                  elem_id='global_faceswap_accordion'):
+                    _gfs = modules.global_faceswap.settings()
+                    gr.HTML('<small>One face reference applied to every generation: text-to-image, '
+                            'Vary, Upscale, Inpaint and Enhance, without going through Image Prompt. '
+                            'Same IP-Adapter FaceSwap as the Image Prompt type, so the identity is '
+                            'approximate; for the exact face use the crispz-studio Face swap plugin. '
+                            'Saved immediately, no restart needed.</small>')
+                    global_faceswap_enabled = gr.Checkbox(
+                        label='Apply the face below to every generation', value=_gfs['enabled'])
+                    _gfs_face = modules.global_faceswap.face_path()
+                    global_faceswap_image = grh.Image(
+                        label='Face reference', source='upload', type='numpy', height=300,
+                        value=_gfs_face if os.path.isfile(_gfs_face) else None)
+                    with gr.Row():
+                        global_faceswap_stop = gr.Slider(label='Stop At', minimum=0.0, maximum=1.0,
+                                                         step=0.001, value=_gfs['stop'])
+                        global_faceswap_weight = gr.Slider(label='Weight', minimum=0.0, maximum=2.0,
+                                                           step=0.001, value=_gfs['weight'])
+                    global_faceswap_status = gr.HTML(value=modules.global_faceswap.status_html())
+
+                    def _gfs_save(enabled, image, stop, weight):
+                        return modules.global_faceswap.save(enabled, image, stop, weight)
+
+                    for _gfs_ctrl in (global_faceswap_enabled, global_faceswap_image,
+                                      global_faceswap_stop, global_faceswap_weight):
+                        _gfs_ctrl.change(
+                            _gfs_save,
+                            inputs=[global_faceswap_enabled, global_faceswap_image,
+                                    global_faceswap_stop, global_faceswap_weight],
+                            outputs=[global_faceswap_status], queue=False, show_progress=False)
+
             with gr.Tab(label='Styles', elem_classes=['style_selections_tab']):
                 style_sorter.try_load_sorted_styles(
                     style_names=legal_style_names,

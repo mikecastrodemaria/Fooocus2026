@@ -3,6 +3,30 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-32] — 2026-09-16 — Global FaceSwap: one face on every generation
+
+### Added
+- **Settings → 🪞 Global FaceSwap (every generation)**: a face reference, an on/off
+  checkbox and the usual Stop At / Weight sliders. When on, the face is applied to
+  **every** generation: text-to-image, Vary, Upscale, Inpaint and Enhance, without going
+  through Input Image → Image Prompt. Saved immediately (config.txt block
+  `global_faceswap` + `global_faceswap_face.png` next to config.txt), no restart.
+- New `modules/global_faceswap.py`: `AsyncTask` calls `inject()` right after its Image
+  Prompt tasks are built. A FaceSwap task (IP-Adapter face) is appended and the gates
+  the worker checks are opened for the current tab: Input Image off → on with the tab
+  set to Image Prompt; Vary/Upscale → the matching mixing flag; Inpaint → the other one;
+  Enhance and the rest → the Vary one, enough to reach the control-net goal. It never
+  turns on a Vary or an Inpaint the user did not ask for, and stale Image Prompt images
+  are not revived unless the user had a mixing flag on themselves.
+
+### Notes
+- Same IP-Adapter FaceSwap as the Image Prompt type: the identity is approximate and it
+  acts during diffusion, so *Upscale Fast* (no diffusion) is unchanged. The exact face is
+  the crispz-studio Face swap plugin (custom-24); custom-33 will apply it to every output.
+- Works for the Job Queue and the X/Y/Z Grid too (they build the same task).
+- Tests: `tests/test_global_faceswap.py` (settings, face file, and the injection rules
+  per tab).
+
 ## [custom-31] — 2026-09-16 — Improve prompt: directives panel and standard negative
 
 ### Added

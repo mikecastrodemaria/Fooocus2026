@@ -131,6 +131,12 @@ class AsyncTask:
             if cn_img is not None:
                 self.cn_tasks[cn_type].append([cn_img, cn_stop, cn_weight])
 
+        # custom-32 : visage de reference global (Settings) -> tache FaceSwap ajoutee ici,
+        # avec les interrupteurs (Input Image, onglet, mixage) ouverts pour l'onglet courant
+        import modules.flags
+        import modules.global_faceswap
+        modules.global_faceswap.inject(self, modules.flags.cn_ip_face)
+
         self.debugging_dino = args.pop()
         self.dino_erode_or_dilate = args.pop()
         self.debugging_enhance_masks_checkbox = args.pop()
