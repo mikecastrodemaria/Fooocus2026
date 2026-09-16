@@ -3,6 +3,59 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-36] — 2026-09-16 — Ollama default endpoint is 127.0.0.1, not localhost
+
+### Fixed
+- **"Ollama unreachable at http://localhost:11434 (timed out)" while Ollama runs fine**
+  (seen on a Pinokio install, Windows): Python resolves `localhost` to IPv6 `::1` first,
+  Ollama listens on IPv4 `127.0.0.1` only, and on some Windows network stacks the IPv6
+  attempt hangs until the timeout instead of being refused. PowerShell falls back to
+  IPv4 silently, which is why `curl` worked. Every Ollama default (`omost.endpoint`,
+  the fallback host of `ollama_describe` and `ollama_improve`, the Omost UI default)
+  now says `http://127.0.0.1:11434`. A `localhost` value written in `config.txt` is left
+  as is: change it to `127.0.0.1` if you hit the symptom.
+
+### Notes
+- Confirmed on the affected machine by setting `omost.endpoint` to 127.0.0.1 in
+  `config.txt` before the code change. Guard test in `tests/test_ollama_describe.py`.
+
+## [custom-35] — 2026-09-16 — Ollama calls ignore HTTP proxies
+
+### Fixed
+- **"Ollama unreachable at http://localhost:11434 (timed out)"** on a machine where an
+  HTTP proxy is set in the environment (Pinokio, corporate networks): the Ollama
+  transport used urllib's default opener, which obeys `HTTP_PROXY` / `HTTPS_PROXY`, so
+  the call to localhost went to the proxy and expired. Ollama is local or on the LAN by
+  nature, so `modules.ollama_describe._http` now uses an opener with an empty
+  `ProxyHandler`: no proxy, ever, for Describe, Improve and Layout/Omost through this
+  transport. No config needed.
+
+### Notes
+- Test: `test_a_proxy_in_the_environment_is_ignored` in `tests/test_ollama_describe.py`
+  (fails on the previous code, passes now).
+
+## [custom-34] — 2026-09-16 — Improve prompt keeps the input format (tags or prose)
+
+### Added
+- **Format detection for Improve prompt**: the positive prompt's format is detected in
+  code, then stated to the model as an `INPUT FORMAT` block: a comma-separated tag list
+  gets "answer as tags, short phrases, no sentences", prose gets "answer as one flowing
+  paragraph, no tag list". Small models guess this badly on their own, above all with
+  `{a|b|c}` groups or `__wildcards__` in the text, so the detection blanks the dynamic
+  syntax first. Rule: sentence punctuation inside the text = prose; otherwise fragments
+  of up to 4 words on average = tags, longer = prose. The negative prompt is always a
+  list and gets no note.
+- Order in the instruction: format, then the custom-29 syntax note, then the custom-31
+  directives (which win on conflict: "in prose" typed in the panel overrides), then the
+  prompt label.
+- Config `ollama_improve.format`: `auto` (default), `tags`, `prose`, or `off` for the
+  previous behaviour. The default positive instruction now says "keep the format of the
+  input" instead of "keep it comma-separated where that reads naturally".
+
+### Notes
+- Tests: `TestFormatDetection` and `TestFormatNote` in `tests/test_ollama_improve.py`,
+  plus an over-the-wire case.
+
 ## [custom-33] — 2026-09-16 — Exact face swap on every output (crispz-studio)
 
 ### Added

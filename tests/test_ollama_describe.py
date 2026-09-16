@@ -95,6 +95,31 @@ class TestDescribe(unittest.TestCase):
             D.describe(self.image(), model='llava:7b', base='http://127.0.0.1:9', timeout=2)
         self.assertIn('Ollama unreachable', str(cm.exception))
 
+    def test_default_endpoint_is_ipv4_loopback(self):
+        # custom-36 : "localhost" resolves to ::1 first for Python on Windows while Ollama
+        # listens on IPv4 only; the attempt hangs until the timeout. 127.0.0.1 never does.
+        self.assertEqual(D.DEFAULT_ENDPOINT, 'http://127.0.0.1:11434')
+
+    def test_a_proxy_in_the_environment_is_ignored(self):
+        # custom-35 : HTTP_PROXY / HTTPS_PROXY (Pinokio, corporate networks) must never
+        # capture the call to a local Ollama; with the default urllib opener it did.
+        import os
+        saved = {k: os.environ.get(k) for k in ('HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy',
+                                                 'https_proxy', 'NO_PROXY', 'no_proxy')}
+        try:
+            for k in saved:
+                os.environ.pop(k, None)
+            os.environ['HTTP_PROXY'] = 'http://127.0.0.1:9'
+            os.environ['http_proxy'] = 'http://127.0.0.1:9'
+            tags = D._http('/api/tags', base=self.base, timeout=5)
+            self.assertIn('models', tags)
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
     def test_a_reply_that_is_only_thinking_is_an_error_not_an_empty_prompt(self):
         old = FakeOllama.reply
         FakeOllama.reply = '<think>endless reasoning'

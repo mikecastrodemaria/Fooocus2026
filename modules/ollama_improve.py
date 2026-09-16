@@ -21,9 +21,59 @@ from modules.prompt_variants import uses_dynamic_syntax
 IMPROVE_POSITIVE = (
     "You are an expert text-to-image prompt writer. Rewrite the following prompt to be more "
     "vivid and detailed while keeping the SAME subject and intent. Prefer concrete visual "
-    "terms; keep it comma-separated where that reads naturally; do not pad it with generic "
-    "quality filler (masterpiece, best quality, 8k). Output ONLY the improved prompt, on one "
-    "line, no preamble, no quotes, no explanation.\n\nPROMPT: {prompt}")
+    "terms; keep the format of the input (a tag list stays a tag list, prose stays prose, "
+    "see INPUT FORMAT when given); do not pad it with generic quality filler (masterpiece, "
+    "best quality, 8k). Output ONLY the improved prompt, on one line, no preamble, no "
+    "quotes, no explanation.\n\nPROMPT: {prompt}")
+
+# custom-34: the input format is detected in code (small models guess it badly, above all
+# with braces or wildcards in the text) and stated to the model. Config ollama_improve.format:
+# 'auto' (default), 'tags', 'prose' or 'off'.
+FORMAT_NOTES = {
+    'tags': ("INPUT FORMAT: comma-separated tags. Answer in the SAME format: one line of "
+             "comma-separated tags or short phrases (2 to 5 words each), most specific first; "
+             "no full sentences, no narrative, no bullet points."),
+    'prose': ("INPUT FORMAT: prose. Answer in the SAME format: one flowing paragraph of "
+              "natural sentences, no comma-separated tag list, no bullet points, no "
+              "keyword dump at the end."),
+}
+_FORMAT_CHOICES = ('auto', 'tags', 'prose', 'off')
+_SENTENCE_END_RE = re.compile(r'[.!?](?:\s|$)')
+_STRIP_SYNTAX_RE = re.compile(r'\{[^{}]*\}|__[\w-]+__|<lora:[^>]*>|\([^()]*:\s*[\d.]+\)')
+
+
+def detect_format(text):
+    """'tags' or 'prose' for the positive prompt, from the text alone.
+
+    Dynamic syntax ({a|b}, __wildcards__, <lora:...>, (word:1.2)) is blanked first so it
+    never tips the balance. Sentence punctuation inside the text means prose; otherwise
+    the mean length of the comma-separated fragments decides: up to 4 words a fragment is
+    a tag list, longer fragments read as prose. A short single phrase ("a fox") is tags.
+    """
+    cleaned = _STRIP_SYNTAX_RE.sub(' x ', text or '').strip()
+    if not cleaned:
+        return 'tags'
+    inner = cleaned.rstrip('.!? ')
+    if _SENTENCE_END_RE.search(inner):
+        return 'prose'
+    fragments = [f.strip() for f in cleaned.split(',') if f.strip()]
+    if not fragments:
+        return 'tags'
+    mean_words = sum(len(f.split()) for f in fragments) / len(fragments)
+    return 'tags' if mean_words <= 4 else 'prose'
+
+
+def _format_note(text):
+    """The INPUT FORMAT block for `text`, or '' (kind negative, config off, empty text)."""
+    mode = str(_setting('format', 'auto')).strip().lower()
+    if mode not in _FORMAT_CHOICES:
+        mode = 'auto'
+    if mode == 'off' or not (text or '').strip():
+        return ''
+    fmt = detect_format(text) if mode == 'auto' else mode
+    return FORMAT_NOTES[fmt]
+
+
 IMPROVE_NEGATIVE = (
     "You are an expert text-to-image prompt writer. The following is a NEGATIVE prompt: a "
     "comma-separated list of things that must NOT appear in the image. Expand and tidy it "
@@ -89,6 +139,9 @@ def _instruction(kind, text='', directives=None):
         tpl = _setting('negative_instruction', IMPROVE_NEGATIVE)
     else:
         tpl = _setting('positive_instruction', IMPROVE_POSITIVE)
+        note = _format_note(text)              # custom-34 : tags ou prose, comme l'entree
+        if note:
+            tpl = _insert_before_label(tpl, note)
     if uses_dynamic_syntax(text):
         tpl = _insert_before_label(tpl, SYNTAX_NOTE)
     directives = (directives or '').strip()

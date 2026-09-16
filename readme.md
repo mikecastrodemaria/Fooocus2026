@@ -305,10 +305,10 @@ Without this loop, the restart button still works — it just becomes a clean ex
 
 **What it does:** Turns a short idea into a structured scene layout using an [Omost](https://github.com/lllyasviel/Omost) LLM (the Canvas DSL), then flattens that layout into a rich, deduplicated SDXL prompt you can inject into the main prompt box. This version is **prompt generation only** — no regional attention conditioning (kept for a future V2). The raw layout JSON is shown and stored so a later V2 can reuse it.
 
-**Requires:** A local [Ollama](https://ollama.com) server exposing an OpenAI-compatible endpoint, with an Omost model loaded. The default expects a model named `omost-llama3` (a Modelfile wrapping the `omost-llama-3-8b` GGUF, Q8) at `http://localhost:11434/v1/chat/completions`. No new pip dependency — the call uses the bundled `requests`.
+**Requires:** A local [Ollama](https://ollama.com) server exposing an OpenAI-compatible endpoint, with an Omost model loaded. The default expects a model named `omost-llama3` (a Modelfile wrapping the `omost-llama-3-8b` GGUF, Q8) at `http://127.0.0.1:11434/v1/chat/completions`. No new pip dependency — the call uses the bundled `requests`.
 
 **Setting up the Omost model in Ollama (one time):**
-1. Install [Ollama](https://ollama.com) and make sure it is running — `ollama list` should respond. It serves on `http://localhost:11434` by default.
+1. Install [Ollama](https://ollama.com) and make sure it is running — `ollama list` should respond. It serves on `http://127.0.0.1:11434` by default.
 2. Pull a Q8 GGUF of the Omost model (lllyasviel does not ship a GGUF, so use a community conversion, ~8.5 GB):
    ```
    ollama pull hf.co/zhaijunxiao/omost-llama-3-8b-Q8_0-GGUF:Q8_0
@@ -427,7 +427,7 @@ Local entries also carry a text badge (`[lora-name]`, `[embedding]`, `[wildcard]
 
 **How to use:** pull a vision model once (for example `ollama pull qwen2.5vl:7b` or `ollama pull llava`), click **🔍 Detect** to list the vision models Ollama reports, pick a style and a length, then **Describe this Image into Prompt**. The answer is cleaned before it lands in the prompt: reasoning blocks removed, sentences stating what is *absent* dropped (they tend to make it appear), hedges like "appears to be" rewritten.
 
-**Config:** `ollama_describe.endpoint` (empty = the host of `omost.endpoint`, so the Ollama you set up for Layout/Omost works as is), `.model` (empty = first vision model), `.style`, `.length`, `.timeout`, `.temperature`, `.keep_alive`. If Ollama is down or the model is missing, the error says which command to run; other ticked methods still return their description.
+**Config:** `ollama_describe.endpoint` (empty = the host of `omost.endpoint`, so the Ollama you set up for Layout/Omost works as is), `.model` (empty = first vision model), `.style`, `.length`, `.timeout`, `.temperature`, `.keep_alive`. If Ollama is down or the model is missing, the error says which command to run; other ticked methods still return their description. The Ollama calls never go through an HTTP proxy, whatever `HTTP_PROXY` / `HTTPS_PROXY` say in the environment (custom-35): a local server stays local.
 
 ---
 
@@ -483,6 +483,8 @@ czp.bat inpaint --spec fix.json
 **What it does:**
 - **▾** unfolds a panel with a two-line text area and **✨ Improve with these directives**. Whatever you type is added to the default instruction for that call only, as a `USER DIRECTIVES` block the model must follow on top of the general rules: "more cinematic", "keep it under 60 words", "write it in French", "add anime-specific defects" for the negative. The plain button keeps its one-click behaviour; **Close** folds the panel.
 - **Improve negative on an empty box** starts from a standard SDXL negative (lowres, worst quality, bad anatomy, bad hands, extra limbs, watermark, text...) and lets the model expand and tidy it, directives included. If Ollama is unreachable, the standard negative is inserted as is, with a warning saying why.
+
+**Format kept (custom-34):** the positive prompt's format is detected in code and stated to the model. A comma-separated tag list comes back as tags (short phrases, no sentences); prose comes back as one flowing paragraph. Sentence punctuation inside the text means prose; otherwise fragments of up to 4 words on average mean tags. `{a|b|c}` groups, `__wildcards__`, `<lora:...>` and `(word:1.2)` weights are blanked before judging. The negative prompt is always a list. Directives typed in the panel win ("in prose" forces prose). Config `ollama_improve.format`: `auto` (default), `tags`, `prose`, `off`.
 
 **Config:** `ollama_improve.default_negative` (empty = the built-in baseline). Directives are not saved: the box keeps its text for the session only.
 
@@ -581,7 +583,7 @@ All upstream keys still apply. The fork adds a few of its own. Most have a UI co
 | `path_gfpgan` | `""` | path string (optional) | custom-10 | A1111-compatible: extra folder for GFPGAN models. |
 | `path_codeformer` | `""` | path string (optional) | custom-10 | A1111-compatible: extra folder for CodeFormer models. |
 | `omost.enabled` | `true` | bool | Layout/Omost | Master toggle for **🧭 Layout / Omost**. **ON by default** — set to `false` to hide it; when off the accordion is never built (no import, no thread, no network call). |
-| `omost.endpoint` | `"http://localhost:11434/v1/chat/completions"` | URL string | Layout/Omost | OpenAI-compatible chat/completions endpoint (Ollama by default). |
+| `omost.endpoint` | `"http://127.0.0.1:11434/v1/chat/completions"` | URL string | Layout/Omost | OpenAI-compatible chat/completions endpoint (Ollama by default). |
 | `omost.model` | `"omost-llama3"` | string | Layout/Omost | Name of the Omost model served by the endpoint. |
 | `omost.timeout` | `120` | 10..600 (int, seconds) | Layout/Omost | HTTP timeout for the LLM call. Clamped on load. |
 | `tag_autocomplete.enabled` | `true` | bool | custom-13 | Master toggle for **⌨️ Tag Autocomplete**. ON by default since custom-14.1 — when off, nothing is downloaded or injected. |
@@ -598,12 +600,13 @@ All upstream keys still apply. The fork adds a few of its own. Most have a UI co
 | `provenance.enabled` | `true` | bool | custom-23 | Write the machine-readable AI declaration (IPTC `DigitalSourceType` in XMP) on every saved image. No prompt, no parameter. |
 | `provenance.watermark` | `false` | bool | custom-23 | Also embed an invisible TrustMark watermark. Needs `pip install trustmark`; missing package = image saved without it, never a failed save. |
 | `provenance.watermark_id` | `"Fooocus26"` | string (9 ASCII chars) | custom-23 | Payload of the TrustMark watermark. |
-| `ollama_describe.endpoint` | `""` | URL string | custom-25 | Ollama server for Describe. Empty = the host of `omost.endpoint`, else `http://localhost:11434`. |
+| `ollama_describe.endpoint` | `""` | URL string | custom-25 | Ollama server for Describe. Empty = the host of `omost.endpoint`, else `http://127.0.0.1:11434`. |
 | `ollama_describe.model` | `""` | string | custom-25 | Vision model. Empty = the first model Ollama reports with the `vision` capability. |
 | `ollama_describe.style` / `.length` | `"Prompt (prose)"` / `"Long"` | string | custom-25 | Default style and length of the Describe panel (and of auto-describe). |
 | `ollama_describe.timeout` / `.temperature` / `.keep_alive` | `180` / `0.3` / `"5m"` | int / float / string | custom-25 | HTTP timeout (s), sampling temperature, how long Ollama keeps the model loaded. |
 | `cli_protocol.instance_url` | `""` | URL string | custom-26 | Running Fooocus instance `czp` talks to. Empty = `http://127.0.0.1:<GRADIO_SERVER_PORT or 7865>`. Env `FOOOCUS_CLI_URL` overrides it. |
 | `ollama_improve.default_negative` | `""` | string | custom-31 | What *Improve negative* starts from when the box is empty. Empty = the built-in SDXL baseline. |
+| `ollama_improve.format` | `"auto"` | `auto` / `tags` / `prose` / `off` | custom-34 | Format stated to the model for *Improve prompt*: detected from the input (`auto`), forced, or not mentioned (`off`). |
 | `global_faceswap.enabled` / `.stop` / `.weight` | `false` / `0.9` / `0.75` | bool / 0..1 / 0..2 | custom-32 | Global FaceSwap (Settings): apply the saved face (`global_faceswap_face.png` next to `config.txt`) to every generation. Written by the Settings controls themselves. |
 | `exact_faceswap.enabled` / `.keep_original` / `.offload_host` / `.timeout` | `false` / `false` / `false` / `600` | bool / bool / bool / 30..3600 s | custom-33 | Exact face swap of the same face on every output through the crispz-studio Face swap plugin, before metadata and provenance. Written by the Settings controls themselves. |
 
@@ -623,7 +626,7 @@ Example fragment:
   },
   "omost": {
     "enabled": true,
-    "endpoint": "http://localhost:11434/v1/chat/completions",
+    "endpoint": "http://127.0.0.1:11434/v1/chat/completions",
     "model": "omost-llama3",
     "timeout": 120
   },

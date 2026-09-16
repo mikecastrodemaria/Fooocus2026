@@ -148,6 +148,61 @@ class TestInstructions(unittest.TestCase):
         self.assertNotIn('\n', neg)
 
 
+class TestFormatDetection(unittest.TestCase):
+    # custom-34
+    def test_tag_lists(self):
+        for text in ('1girl, red hair, smile, outdoors, sunset',
+                     'portrait of a woman, cinematic lighting, 85mm, film grain',
+                     'a fox',
+                     'masterpiece, (best quality:1.2), <lora:foo:0.8>, forest'):
+            self.assertEqual(I.detect_format(text), 'tags', text)
+
+    def test_prose(self):
+        for text in ('A young woman walks through a rainy street at night, her red coat '
+                     'glowing under the neon signs while taxis pass by.',
+                     'The dryad stands in a glittering forest. Her skin shimmers with rainbow light.',
+                     'an ancient myth dryad with glittery rainbow glowing skin standing in a '
+                     'misty forest at dawn with soft light through the trees'):
+            self.assertEqual(I.detect_format(text), 'prose', text)
+
+    def test_dynamic_syntax_does_not_tip_the_balance(self):
+        self.assertEqual(I.detect_format('{shy|sad|smile} girl, __color__ hair, outdoors'), 'tags')
+        self.assertEqual(I.detect_format('A {shy|sad} girl waits at the station. The train is late.'), 'prose')
+
+    def test_trailing_period_alone_is_not_prose(self):
+        self.assertEqual(I.detect_format('1girl, red hair, smile.'), 'tags')
+
+    def test_empty_is_tags(self):
+        self.assertEqual(I.detect_format(''), 'tags')
+        self.assertEqual(I.detect_format(None), 'tags')
+
+
+class TestFormatNote(unittest.TestCase):
+    def test_positive_gets_the_matching_note(self):
+        tags = I._instruction('positive', '1girl, red hair, smile')
+        prose = I._instruction('positive', 'A girl with red hair smiles at the camera on a sunny beach.')
+        self.assertIn(I.FORMAT_NOTES['tags'], tags)
+        self.assertNotIn(I.FORMAT_NOTES['prose'], tags)
+        self.assertIn(I.FORMAT_NOTES['prose'], prose)
+        self.assertNotIn(I.FORMAT_NOTES['tags'], prose)
+
+    def test_negative_never_gets_a_format_note(self):
+        tpl = I._instruction('negative', 'A long sentence describing everything to avoid here.')
+        for note in I.FORMAT_NOTES.values():
+            self.assertNotIn(note, tpl)
+
+    def test_note_comes_before_syntax_note_and_directives_and_label(self):
+        tpl = I._instruction('positive', '{shy|sad} girl, red hair', directives='in French')
+        self.assertLess(tpl.index('INPUT FORMAT'), tpl.index(I.SYNTAX_NOTE))
+        self.assertLess(tpl.index(I.SYNTAX_NOTE), tpl.index(I.DIRECTIVES_HEAD))
+        self.assertTrue(tpl.endswith('\n\nPROMPT: {prompt}'))
+
+    def test_empty_text_gets_no_note(self):
+        tpl = I._instruction('positive', '')
+        for note in I.FORMAT_NOTES.values():
+            self.assertNotIn(note, tpl)
+
+
 class TestSyntaxNoteOverTheWire(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -176,6 +231,11 @@ class TestSyntaxNoteOverTheWire(unittest.TestCase):
         sent = FakeOllama.last_generate['prompt']
         self.assertIn('make it a winter night', sent)
         self.assertTrue(sent.endswith('PROMPT: a fox'))
+
+    def test_format_note_travels_with_a_prose_prompt(self):
+        I.improve('A red fox sleeps under a pine tree while snow falls quietly.', kind='positive',
+                  model='llama3.1:8b', base=self.base)
+        self.assertIn('INPUT FORMAT: prose', FakeOllama.last_generate['prompt'])
 
     def test_default_negative_can_be_improved_like_any_text(self):
         out, _ = I.improve(I.default_negative(), kind='negative', model='llama3.1:8b', base=self.base)

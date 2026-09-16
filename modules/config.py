@@ -726,7 +726,7 @@ def provenance_setting(key, default=None):
 
 # === custom-25: Describe via un modele vision Ollama ===
 _ollama_describe_defaults = {
-    'endpoint': '',              # '' = hote de omost.endpoint (meme Ollama), sinon localhost:11434
+    'endpoint': '',              # '' = hote de omost.endpoint (meme Ollama), sinon 127.0.0.1:11434
     'model': '',                 # '' = premier modele vision detecte
     'style': 'Prompt (prose)',
     'length': 'Long',
@@ -760,7 +760,7 @@ def ollama_describe_setting(key, default=None):
                 return f'{parts.scheme}://{parts.netloc}'
         except Exception:
             pass
-        return 'http://localhost:11434'
+        return 'http://127.0.0.1:11434'
     return value
 
 
@@ -800,12 +800,13 @@ for _k, _v in _exact_faceswap_defaults.items():
 # === custom-28: Improve prompt via un modele texte Ollama ===
 _ollama_improve_defaults = {
     'enabled': True,             # False = cache les boutons "Improve" a cote des prompts
-    'endpoint': '',              # '' = meme hote que ollama_describe / omost, sinon localhost:11434
+    'endpoint': '',              # '' = meme hote que ollama_describe / omost, sinon 127.0.0.1:11434
     'model': '',                 # '' = premier modele Ollama installe
     'timeout': 120,
     'temperature': 0.7,
     'keep_alive': '5m',
     'default_negative': '',      # '' = the built-in SDXL baseline (custom-31), used when the negative is empty
+    'format': 'auto',            # custom-34: 'auto' detects tags vs prose, 'tags' / 'prose' force it, 'off' says nothing
 }
 ollama_improve_config = get_config_item_or_set_default(
     key='ollama_improve',
@@ -829,7 +830,7 @@ def ollama_improve_setting(key, default=None):
         try:
             return ollama_describe_setting('endpoint')
         except Exception:
-            return 'http://localhost:11434'
+            return 'http://127.0.0.1:11434'
     return value
 
 
@@ -928,7 +929,7 @@ def write_asset_browser_settings(updates: dict) -> tuple:
 # clamped), so a malformed config.txt can never crash the feature.
 _omost_defaults = {
     'enabled': True,
-    'endpoint': 'http://localhost:11434/v1/chat/completions',
+    'endpoint': 'http://127.0.0.1:11434/v1/chat/completions',
     'model': 'omost-llama3',
     'timeout': 120,                     # seconds, clamped to 10..600 below
 }
