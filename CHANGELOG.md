@@ -26,6 +26,11 @@ Only fork-specific changes are listed here — upstream history is available via
   "Hugging Face Space" with the steps: create on CPU basic, then a paid GPU (T4 small
   minimum; ZeroGPU does not apply to a Docker Space), sleep time, optional persistent
   storage with `DATADIR=/data`.
+- **`hf-cli` skill for AI agents** (Hugging Face CLI for AI Agents), generated with
+  `hf skills add --claude` from huggingface_hub 1.31.0, committed in
+  `.claude/skills/hf-cli/` (Claude Code, a real copy rather than the symlink the command
+  creates, so Windows checkouts work) and `.agents/skills/hf-cli/` (other agents).
+  `.gitignore` now ignores `.claude/*` except `.claude/skills/`.
 
 ## [custom-36] — 2026-09-16 — Ollama default endpoint is 127.0.0.1, not localhost
 

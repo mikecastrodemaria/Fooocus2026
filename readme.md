@@ -810,7 +810,7 @@ Using `--always-high-vram` shifts resource allocation from RAM to VRAM and achie
 
 ### Hugging Face Space
 
-The fork can run as a **Docker Space** that pulls the image built by this repository's CI (`ghcr.io/mikecastrodemaria/fooocus2026`, public): the Space itself holds two files, both in [`huggingface/`](huggingface/).
+The project does not host a public Space (a GPU Space is paid hardware), but the fork can run as a **Docker Space** that pulls the image built by this repository's CI (`ghcr.io/mikecastrodemaria/fooocus2026`, public): the Space itself holds two files, both in [`huggingface/`](huggingface/).
 
 1. [huggingface.co/new-space](https://huggingface.co/new-space): name it, **SDK: Docker** (blank template), hardware **CPU basic** for now, Create.
 2. In the Space's *Files* tab, add `Dockerfile` and `README.md` with the contents of `huggingface/Dockerfile` and `huggingface/README.md` (the README front matter carries `sdk: docker` and `app_port: 7860`).
@@ -819,6 +819,8 @@ The fork can run as a **Docker Space** that pulls the image built by this reposi
 5. Optional, Settings > **Storage** (persistent disk), then Settings > **Variables**: `DATADIR=/data`, `config_path=/data/config.txt`, `config_example_path=/data/config_modification_tutorial.txt`. Without it the models (about 7 GB) are downloaded again at every cold start.
 
 Update the Space with Settings > **Factory rebuild** (tag `edge` follows `main`), or pin it to a release by replacing `edge` with a version tag in the Dockerfile.
+
+**Hugging Face CLI skill for AI agents.** The repository ships the [`hf-cli` skill](https://huggingface.co/docs/hub/en/agents-cli) in `.claude/skills/hf-cli/` (Claude Code) and `.agents/skills/hf-cli/` (Codex, Cursor, OpenCode and any agent reading `.agents/skills`), so an agent opened in this repository knows the `hf` CLI: `hf auth login`, `hf repos create <user>/fooocus2026 --type space --sdk docker --flavor t4-small --sleep-time 900` to create the Space with its GPU in one go (the web form only offers ZeroGPU for a new Space), `hf upload <user>/fooocus2026 huggingface/ . --type space` to push the two Space files, `hf spaces ...` for hardware, variables and secrets, `hf jobs` for compute. Install the CLI with `pip install -U "huggingface_hub[cli]"` or `curl -LsSf https://hf.co/cli/install.sh | bash -s`. The skill is generated from the installed CLI version: after `hf update`, refresh it with `hf skills add --claude --force` and copy `.agents/skills/hf-cli` over `.claude/skills/hf-cli` (a real copy, not the symlink the command creates, so Windows checkouts work).
 
 Thanks to [camenduru](https://github.com/camenduru) for the template!
 
