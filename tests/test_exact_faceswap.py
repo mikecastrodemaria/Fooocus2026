@@ -128,6 +128,21 @@ class TestAvailability(World):
     def test_plugin_without_faceswap_action(self):
         self.install(with_faceswap=False)
         self.assertIsNone(X.find_action())
+        ok, msg = X.availability()
+        self.assertFalse(ok)
+        self.assertIn('older version', msg, 'a studio without the action is an outdated install')
+        self.assertIn('Updates', msg)
+
+    def test_other_plugin_only_names_it(self):
+        d = self.install(with_faceswap=False)
+        m = manifest(with_faceswap=False)
+        m['id'] = 'crispz'
+        with open(os.path.join(d, 'fooocus_extra.json'), 'w', encoding='utf-8') as f:
+            json.dump(m, f)
+        ok, msg = X.availability()
+        self.assertFalse(ok)
+        self.assertIn('crispz', msg)
+        self.assertIn('install crispz-studio', msg)
 
     def test_plugin_but_no_face(self):
         self.install()

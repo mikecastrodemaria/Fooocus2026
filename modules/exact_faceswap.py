@@ -96,8 +96,18 @@ def availability():
         return False, 'the Extra plugins subsystem is not available'
     found = find_action()
     if found is None:
-        return False, ('no installed plugin offers a Face swap action: install crispz-studio from '
-                       'Extra > Manager (https://github.com/mikecastrodemaria/crispz-studio)')
+        root = INSTALL_ROOT_OVERRIDE or ext.INSTALL_ROOT
+        installed = [p['id'] for p in ext.registry.list_plugins(root)]
+        if any('studio' in pid for pid in installed):
+            # installed before 2026-09-14: its manifest predates the actions block
+            return False, ('crispz-studio is installed but its manifest has no Face swap action '
+                           '(older version): Extra > Manager > Updates > Check, then Update')
+        if installed:
+            return False, ('installed plugins (' + ', '.join(installed) + ') offer no Face swap '
+                           'action: install crispz-studio from Extra > Manager '
+                           '(https://github.com/mikecastrodemaria/crispz-studio)')
+        return False, ('no Extra plugin installed: install crispz-studio from Extra > Manager '
+                       '(https://github.com/mikecastrodemaria/crispz-studio)')
     plugin, action = found
     if not os.path.isfile(global_faceswap.face_path()):
         return False, 'no face reference loaded above'
