@@ -434,3 +434,11 @@ div:has(> #negative_prompt) {
 #inpaint_brush_color input[type=color]{
   background: none;
 }
+/* custom-31 : triangle next to the Improve buttons (unfolds the directives panel) */
+.improve_more_btn {
+  min-width: 2.4em !important;
+  max-width: 2.4em !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  flex-grow: 0 !important;
+}

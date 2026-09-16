@@ -45,6 +45,19 @@ SYNTAX_NOTE = (
 
 _LABEL_RE = re.compile(r'\n\n(?:NEGATIVE )?PROMPT:')
 
+# custom-31: what Improve negative starts from when the negative prompt is empty. A plain
+# SDXL baseline, overridable with ollama_improve.default_negative in config.txt.
+DEFAULT_NEGATIVE = (
+    "lowres, worst quality, low quality, jpeg artifacts, blurry, out of focus, "
+    "bad anatomy, bad proportions, bad hands, missing fingers, extra digits, fewer digits, "
+    "extra limbs, deformed, disfigured, mutated, cropped, cut off, "
+    "text, watermark, signature, logo, username")
+
+# custom-31: user directives, appended to the instruction for one call.
+DIRECTIVES_HEAD = (
+    "USER DIRECTIVES for this rewrite (apply them on top of the rules above; when they "
+    "conflict with the rules above, the directives win):\n")
+
 
 def _setting(key, default):
     """Lit modules.config.ollama_improve_setting sans importer modules.config (effets de bord)."""
@@ -59,20 +72,34 @@ def _setting(key, default):
         return default
 
 
-def _instruction(kind, text=''):
-    """Consigne pour ce `kind`; avec la note de syntaxe dynamique si `text` en utilise."""
-    if kind == 'negative':
-        tpl = _setting('negative_instruction', IMPROVE_NEGATIVE)
-    else:
-        tpl = _setting('positive_instruction', IMPROVE_POSITIVE)
-    if not uses_dynamic_syntax(text):
-        return tpl
+def _insert_before_label(tpl, block):
+    """Insere `block` juste avant le libelle final PROMPT: / NEGATIVE PROMPT: (sinon a la fin)."""
     last = None
     for last in _LABEL_RE.finditer(tpl):
         pass
     if last is None:                        # custom instruction without the label: append
-        return tpl + '\n\n' + SYNTAX_NOTE
-    return tpl[:last.start()] + '\n\n' + SYNTAX_NOTE + tpl[last.start():]
+        return tpl + '\n\n' + block
+    return tpl[:last.start()] + '\n\n' + block + tpl[last.start():]
+
+
+def _instruction(kind, text='', directives=None):
+    """Consigne pour ce `kind`; avec la note de syntaxe dynamique si `text` en utilise
+    (custom-29) et les directives de l'utilisateur s'il en a donne (custom-31)."""
+    if kind == 'negative':
+        tpl = _setting('negative_instruction', IMPROVE_NEGATIVE)
+    else:
+        tpl = _setting('positive_instruction', IMPROVE_POSITIVE)
+    if uses_dynamic_syntax(text):
+        tpl = _insert_before_label(tpl, SYNTAX_NOTE)
+    directives = (directives or '').strip()
+    if directives:
+        tpl = _insert_before_label(tpl, DIRECTIVES_HEAD + directives)
+    return tpl
+
+
+def default_negative():
+    """Le negatif de depart quand la case est vide (config ollama_improve.default_negative)."""
+    return str(_setting('default_negative', DEFAULT_NEGATIVE)).strip() or DEFAULT_NEGATIVE
 
 
 def list_models(base=None):
@@ -81,8 +108,10 @@ def list_models(base=None):
     return [m.get('name') for m in tags if m.get('name')]
 
 
-def improve(text, kind='positive', model=None, base=None, timeout=None, temperature=None):
+def improve(text, kind='positive', model=None, base=None, timeout=None, temperature=None,
+            directives=None):
     """Reecrit `text` (kind 'positive' ou 'negative'). Renvoie (texte ameliore, modele utilise).
+    `directives` : consignes libres de l'utilisateur pour cet appel (custom-31).
     Leve OllamaError avec un message actionnable (Ollama arrete, pas de modele, vide...)."""
     text = (text or '').strip()
     if not text:
@@ -96,7 +125,7 @@ def improve(text, kind='positive', model=None, base=None, timeout=None, temperat
         model = found[0]
     payload = {
         'model': model,
-        'prompt': _instruction(kind, text).replace('{prompt}', text),
+        'prompt': _instruction(kind, text, directives).replace('{prompt}', text),
         'stream': False,
         'think': False,
         'keep_alive': _setting('keep_alive', '5m'),

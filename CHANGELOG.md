@@ -3,6 +3,27 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-31] — 2026-09-16 — Improve prompt: directives panel and standard negative
+
+### Added
+- **Directives panel**: a small `▾` button next to each Improve button unfolds a panel
+  under the prompts with a two-line text area and **✨ Improve with these directives**.
+  What you type there is added to the default instruction for that call only (a
+  `USER DIRECTIVES` block, after the custom-29 syntax note, before the prompt), for
+  example "more cinematic, under 60 words, in French". The plain Improve buttons keep
+  their one-click behaviour. **Close** folds the panel; `▾` toggles it.
+- **Empty negative**: **Improve negative** on an empty box starts from a standard SDXL
+  negative (lowres, bad anatomy, bad hands, watermark, text...) and lets the model expand
+  and tidy it, directives included. If Ollama is unreachable, the standard negative is
+  inserted as is and a warning says why. Overridable with `ollama_improve.default_negative`
+  in `config.txt`.
+- `modules.ollama_improve.improve(..., directives=)` and `default_negative()`.
+
+### Notes
+- Directives are per click and not saved: the box keeps its text for the session only.
+- Tests: directive placement and blank handling, over-the-wire cases in
+  `tests/test_ollama_improve.py`.
+
 ## [custom-30] — 2026-09-16 — Extra plugins: interrupted torch install detected
 
 ### Added

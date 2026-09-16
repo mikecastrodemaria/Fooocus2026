@@ -477,6 +477,17 @@ czp.bat inpaint --spec fix.json
 
 ---
 
+### 22. ✨ Improve prompt: directives panel and standard negative
+**Where:** the two **✨ Improve** buttons under the prompt column (custom-28), each with a small **▾** next to it.
+
+**What it does:**
+- **▾** unfolds a panel with a two-line text area and **✨ Improve with these directives**. Whatever you type is added to the default instruction for that call only, as a `USER DIRECTIVES` block the model must follow on top of the general rules: "more cinematic", "keep it under 60 words", "write it in French", "add anime-specific defects" for the negative. The plain button keeps its one-click behaviour; **Close** folds the panel.
+- **Improve negative on an empty box** starts from a standard SDXL negative (lowres, worst quality, bad anatomy, bad hands, extra limbs, watermark, text...) and lets the model expand and tidy it, directives included. If Ollama is unreachable, the standard negative is inserted as is, with a warning saying why.
+
+**Config:** `ollama_improve.default_negative` (empty = the built-in baseline). Directives are not saved: the box keeps its text for the session only.
+
+---
+
 ## 🚀 Getting this fork
 
 ### Option A — I already have Fooocus installed
