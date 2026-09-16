@@ -3,6 +3,35 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-37] — 2026-09-16 — Colab notebook for the fork, pygit2 dropped
+
+### Fixed
+- **`fooocus_colab.ipynb`** cloned the upstream `lllyasviel/Fooocus` and started with
+  `pip install pygit2==1.15.1`, which fails to build on Colab's Python 3.13. The
+  notebook now clones this fork into `/content/Fooocus2026`, sets
+  `FOOOCUS_AUTO_UPDATE=1` (non-interactive console) and starts
+  `entry_with_update.py --share --always-high-vram`.
+- **`pygit2` removed from `requirements_versions.txt`**: unused since the safe update at
+  boot (custom-19) replaced the pygit2 + `reset --hard` auto-update, and its build
+  failure on Python 3.13 made the "Installing requirements" step fail too.
+- **Readme Colab section** rewritten for the fork: badge to this repository's notebook,
+  the presets shipped in `presets/`, the two differences with the upstream notebook.
+- `build_launcher.py`: the Windows launcher template is a raw string (no more
+  `SyntaxWarning: invalid escape sequence '\p'` on Python 3.12+).
+
+### Added
+- **Hugging Face Space files** in `huggingface/`: a two-line Dockerfile that pulls the
+  public CI image `ghcr.io/mikecastrodemaria/fooocus2026:edge` on port 7860, and the
+  Space README with its front matter (`sdk: docker`, `app_port: 7860`). Readme section
+  "Hugging Face Space" with the steps: create on CPU basic, then a paid GPU (T4 small
+  minimum; ZeroGPU does not apply to a Docker Space), sleep time, optional persistent
+  storage with `DATADIR=/data`.
+- **`hf-cli` skill for AI agents** (Hugging Face CLI for AI Agents), generated with
+  `hf skills add --claude` from huggingface_hub 1.31.0, committed in
+  `.claude/skills/hf-cli/` (Claude Code, a real copy rather than the symlink the command
+  creates, so Windows checkouts work) and `.agents/skills/hf-cli/` (other agents).
+  `.gitignore` now ignores `.claude/*` except `.claude/skills/`.
+
 ## [custom-36] — 2026-09-16 — Ollama default endpoint is 127.0.0.1, not localhost
 
 ### Fixed

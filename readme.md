@@ -792,19 +792,35 @@ See also the common problems and troubleshoots [here](troubleshoot.md).
 
 ### Colab
 
-(Last tested - 2024 Aug 12 by [mashb1t](https://github.com/mashb1t))
+(Last tested - 2026 Sep 16 on the free T4 tier, Colab Python 3.13)
 
 | Colab | Info
 | --- | --- |
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lllyasviel/Fooocus/blob/main/fooocus_colab.ipynb) | Fooocus Official
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/mikecastrodemaria/Fooocus2026/blob/main/fooocus_colab.ipynb) | Fooocus2026 (this fork)
 
-In Colab, you can modify the last line to `!python entry_with_update.py --share --always-high-vram` or `!python entry_with_update.py --share --always-high-vram --preset anime` or `!python entry_with_update.py --share --always-high-vram --preset realistic` for Fooocus Default/Anime/Realistic Edition.
+The notebook clones **this fork** (`mikecastrodemaria/Fooocus2026`) into `/content/Fooocus2026` and starts it with `!python entry_with_update.py --share --always-high-vram`. Add `--preset anime`, `--preset realistic`, `--preset lightning`, `--preset lcm`, `--preset pony_v6`, `--preset playground_v2.5` or `--preset sai` to the last line to start on one of the presets shipped in `presets/`.
+
+Two differences with the upstream notebook: `pygit2` is not installed (the fork's safe update at boot, feature 17, replaced it, and it does not build on Colab's Python 3.13 anyway), and `FOOOCUS_AUTO_UPDATE=1` is set so the boot update check applies a *safe* fast-forward without asking (a Colab console is not interactive; without the variable the check only reports and starts as is). The Ollama features (Layout/Omost, Describe, Improve) and the Extra plugins need a machine of your own; on Colab they simply say so when clicked.
 
 You can also change the preset in the UI. Please be aware that this may lead to timeouts after 60 seconds. If this is the case, please wait until the download has finished, change the preset to initial and back to the one you've selected or reload the page.
 
 Note that this Colab will disable refiner by default because Colab free's resources are relatively limited (and some "big" features like image prompt may cause free-tier Colab to disconnect). We make sure that basic text-to-image is always working on free-tier Colab.
 
 Using `--always-high-vram` shifts resource allocation from RAM to VRAM and achieves the overall best balance between performance, flexibility and stability on the default T4 instance. Please find more information [here](https://github.com/lllyasviel/Fooocus/pull/1710#issuecomment-1989185346).
+
+### Hugging Face Space
+
+The project does not host a public Space (a GPU Space is paid hardware), but the fork can run as a **Docker Space** that pulls the image built by this repository's CI (`ghcr.io/mikecastrodemaria/fooocus2026`, public): the Space itself holds two files, both in [`huggingface/`](huggingface/).
+
+1. [huggingface.co/new-space](https://huggingface.co/new-space): name it, **SDK: Docker** (blank template), hardware **CPU basic** for now, Create.
+2. In the Space's *Files* tab, add `Dockerfile` and `README.md` with the contents of `huggingface/Dockerfile` and `huggingface/README.md` (the README front matter carries `sdk: docker` and `app_port: 7860`).
+3. Settings > **Hardware**: `Nvidia T4 small` at least (SDXL does not run on CPU). Paid hardware needs a payment method under Settings > Billing. **ZeroGPU is not an option** here: it only serves Gradio-SDK Spaces with `@spaces.GPU` functions, and the fork is a Docker Space on Gradio 3.41.
+4. Settings > **Sleep time**: pick a short delay so the GPU is not billed while nobody uses it.
+5. Optional, Settings > **Storage** (persistent disk), then Settings > **Variables**: `DATADIR=/data`, `config_path=/data/config.txt`, `config_example_path=/data/config_modification_tutorial.txt`. Without it the models (about 7 GB) are downloaded again at every cold start.
+
+Update the Space with Settings > **Factory rebuild** (tag `edge` follows `main`), or pin it to a release by replacing `edge` with a version tag in the Dockerfile.
+
+**Hugging Face CLI skill for AI agents.** The repository ships the [`hf-cli` skill](https://huggingface.co/docs/hub/en/agents-cli) in `.claude/skills/hf-cli/` (Claude Code) and `.agents/skills/hf-cli/` (Codex, Cursor, OpenCode and any agent reading `.agents/skills`), so an agent opened in this repository knows the `hf` CLI: `hf auth login`, `hf repos create <user>/fooocus2026 --type space --sdk docker --flavor t4-small --sleep-time 900` to create the Space with its GPU in one go (the web form only offers ZeroGPU for a new Space), `hf upload <user>/fooocus2026 huggingface/ . --type space` to push the two Space files, `hf spaces ...` for hardware, variables and secrets, `hf jobs` for compute. Install the CLI with `pip install -U "huggingface_hub[cli]"` or `curl -LsSf https://hf.co/cli/install.sh | bash -s`. The skill is generated from the installed CLI version: after `hf update`, refresh it with `hf skills add --claude --force` and copy `.agents/skills/hf-cli` over `.claude/skills/hf-cli` (a real copy, not the symlink the command creates, so Windows checkouts work).
 
 Thanks to [camenduru](https://github.com/camenduru) for the template!
 
