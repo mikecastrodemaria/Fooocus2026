@@ -1,0 +1,18 @@
+[flake8]
+# Shared by the "Lint" GitHub workflow and local runs (flake8 . from the repo root).
+# Vendored upstream code is not linted: ldm_patched (ComfyUI backend) and
+# extras/BLIP ship undefined-name findings that are not ours to fix.
+exclude =
+    .git,
+    __pycache__,
+    ldm_patched,
+    extras/BLIP,
+    extra_plugins/installed,
+    models,
+    repositories,
+    venv,
+    env,
+    fooocus_env,
+    node_modules
+max-line-length = 127
+max-complexity = 10
