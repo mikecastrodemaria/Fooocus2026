@@ -780,6 +780,22 @@ global_faceswap_config = get_config_item_or_set_default(
 for _k, _v in _global_faceswap_defaults.items():
     global_faceswap_config.setdefault(_k, _v)
 
+# === custom-33: swap exact (crispz-studio) du visage global sur chaque sortie ===
+_exact_faceswap_defaults = {
+    'enabled': False,
+    'keep_original': False,      # True = l'image d'avant le swap est aussi enregistree
+    'offload_host': False,       # True = VRAM SDXL liberee avant chaque swap (petites cartes)
+    'timeout': 600,              # secondes par image
+}
+exact_faceswap_config = get_config_item_or_set_default(
+    key='exact_faceswap',
+    default_value=dict(_exact_faceswap_defaults),
+    validator=lambda x: isinstance(x, dict),
+    expected_type=dict
+)
+for _k, _v in _exact_faceswap_defaults.items():
+    exact_faceswap_config.setdefault(_k, _v)
+
 
 # === custom-28: Improve prompt via un modele texte Ollama ===
 _ollama_improve_defaults = {

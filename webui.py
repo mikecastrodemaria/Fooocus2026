@@ -1179,6 +1179,39 @@ with shared.gradio_root:
                                     global_faceswap_stop, global_faceswap_weight],
                             outputs=[global_faceswap_status], queue=False, show_progress=False)
 
+                    # custom-33 : swap exact (crispz-studio) du meme visage sur chaque sortie,
+                    # applique par le worker sur l'image finale avant metadonnees et provenance
+                    import modules.exact_faceswap
+                    _efs = modules.exact_faceswap.settings()
+                    gr.HTML('<small><b>Exact face swap on every output.</b> Pastes the real face '
+                            'from the reference above on each final image, before metadata and '
+                            'provenance, through the crispz-studio Face swap plugin (Extra plugins). '
+                            'A few seconds per image. An image where no face is found is kept as is.'
+                            '</small>')
+                    exact_faceswap_enabled = gr.Checkbox(
+                        label='Paste the exact face on every output (crispz-studio Face swap plugin)',
+                        value=_efs['enabled'])
+                    with gr.Row():
+                        exact_faceswap_keep = gr.Checkbox(
+                            label='Also save the image before the swap', value=_efs['keep_original'])
+                        exact_faceswap_offload = gr.Checkbox(
+                            label='Free the SDXL VRAM before each swap (slower, for small cards)',
+                            value=_efs['offload_host'])
+                    exact_faceswap_status = gr.HTML(value=modules.exact_faceswap.status_html())
+
+                    def _efs_save(enabled, keep, offload):
+                        return modules.exact_faceswap.save(enabled, keep, offload)
+
+                    for _efs_ctrl in (exact_faceswap_enabled, exact_faceswap_keep, exact_faceswap_offload):
+                        _efs_ctrl.change(
+                            _efs_save,
+                            inputs=[exact_faceswap_enabled, exact_faceswap_keep, exact_faceswap_offload],
+                            outputs=[exact_faceswap_status], queue=False, show_progress=False)
+                    # a new (or removed) face changes what the exact swap can do
+                    global_faceswap_image.change(
+                        lambda: modules.exact_faceswap.status_html(),
+                        outputs=[exact_faceswap_status], queue=False, show_progress=False)
+
             with gr.Tab(label='Styles', elem_classes=['style_selections_tab']):
                 style_sorter.try_load_sorted_styles(
                     style_names=legal_style_names,

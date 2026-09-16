@@ -3,6 +3,30 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-33] — 2026-09-16 — Exact face swap on every output (crispz-studio)
+
+### Added
+- **Settings → Global FaceSwap → Exact face swap on every output**: with the same face
+  reference as custom-32, the real face is pasted on each final image through the Face
+  swap action of an installed Extra plugin (crispz-studio: inswapper, occlusion mask,
+  colour match, CodeFormer). Options: *Also save the image before the swap* and *Free the
+  SDXL VRAM before each swap* (for small cards). Saved immediately, no restart.
+- New `modules/exact_faceswap.py`: `maybe_swap()` is called by
+  `async_worker.save_and_log` on the final array, **before** `private_logger.log()`, so
+  metadata, the AI provenance and the watermark are applied to the swapped image. One
+  CLI call per image (the family server only serves `/upscale`), temp files cleaned.
+  `availability()` explains what is missing (plugin, face, venv), once per cause in the
+  console; a plugin failure ("no face detected", venv problem) keeps the image as is.
+- Config block `exact_faceswap` (`enabled`, `keep_original`, `offload_host`, `timeout`).
+  `global_faceswap.write_config_block()` is now shared by both blocks.
+
+### Notes
+- Needs crispz-studio installed from Extra → Manager, with insightface + onnxruntime-gpu
+  in its venv and `faceswap/inswapper_128.onnx` (custom-24). The status line under the
+  checkbox says whether a swap can run right now.
+- Tests: `tests/test_exact_faceswap.py` against a stub plugin (settings, availability,
+  swap, failure, temp cleanup).
+
 ## [custom-32] — 2026-09-16 — Global FaceSwap: one face on every generation
 
 ### Added

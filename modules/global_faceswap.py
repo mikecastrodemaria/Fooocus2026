@@ -93,21 +93,30 @@ def save_face(image):
     return p
 
 
-def save(enabled, image, stop, weight):
-    """Persist everything (face file + config.txt block) and return the status HTML."""
-    path = save_face(image)
-    block = {'enabled': bool(enabled), 'stop': float(stop), 'weight': float(weight)}
+def write_config_block(key, block):
+    """Set one top-level key of config.txt, leaving every other key as it is.
+    Returns None, or the error text."""
     cfg_path = _config_path()
     try:
         current = {}
         if os.path.exists(cfg_path):
             with open(cfg_path, 'r', encoding='utf-8') as f:
                 current = json.load(f)
-        current[CONFIG_KEY] = block
+        current[key] = block
         with open(cfg_path, 'w', encoding='utf-8') as f:
             json.dump(current, f, indent=4, ensure_ascii=False)
+        return None
     except Exception as e:
-        return f'<span style="color:#e55;">Could not write config.txt: {e}</span>'
+        return str(e)
+
+
+def save(enabled, image, stop, weight):
+    """Persist everything (face file + config.txt block) and return the status HTML."""
+    path = save_face(image)
+    block = {'enabled': bool(enabled), 'stop': float(stop), 'weight': float(weight)}
+    err = write_config_block(CONFIG_KEY, block)
+    if err:
+        return f'<span style="color:#e55;">Could not write config.txt: {err}</span>'
     cfg = _config()
     if cfg is not None:
         cfg.global_faceswap_config = dict(block)
