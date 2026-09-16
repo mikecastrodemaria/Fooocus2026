@@ -22,7 +22,8 @@ __pycache__/
 /models/vae/
 /models/vae_approx/
 /models/clip/
-/models/clip_vision//models/controlnet/
+/models/clip_vision/
+/models/controlnet/
 /models/diffusers/
 /models/gligen/
 /models/hypernetworks/
@@ -66,6 +67,7 @@ Thumbs.db
 /repositories/
 /fooocus_env/
 /venv/
+/env/
 /node_modules/
 /package-lock.json
 
