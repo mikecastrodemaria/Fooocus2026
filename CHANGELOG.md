@@ -3,6 +3,28 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-34] — 2026-09-16 — Improve prompt keeps the input format (tags or prose)
+
+### Added
+- **Format detection for Improve prompt**: the positive prompt's format is detected in
+  code, then stated to the model as an `INPUT FORMAT` block: a comma-separated tag list
+  gets "answer as tags, short phrases, no sentences", prose gets "answer as one flowing
+  paragraph, no tag list". Small models guess this badly on their own, above all with
+  `{a|b|c}` groups or `__wildcards__` in the text, so the detection blanks the dynamic
+  syntax first. Rule: sentence punctuation inside the text = prose; otherwise fragments
+  of up to 4 words on average = tags, longer = prose. The negative prompt is always a
+  list and gets no note.
+- Order in the instruction: format, then the custom-29 syntax note, then the custom-31
+  directives (which win on conflict: "in prose" typed in the panel overrides), then the
+  prompt label.
+- Config `ollama_improve.format`: `auto` (default), `tags`, `prose`, or `off` for the
+  previous behaviour. The default positive instruction now says "keep the format of the
+  input" instead of "keep it comma-separated where that reads naturally".
+
+### Notes
+- Tests: `TestFormatDetection` and `TestFormatNote` in `tests/test_ollama_improve.py`,
+  plus an over-the-wire case.
+
 ## [custom-33] — 2026-09-16 — Exact face swap on every output (crispz-studio)
 
 ### Added

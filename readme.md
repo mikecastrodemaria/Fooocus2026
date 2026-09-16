@@ -484,6 +484,8 @@ czp.bat inpaint --spec fix.json
 - **▾** unfolds a panel with a two-line text area and **✨ Improve with these directives**. Whatever you type is added to the default instruction for that call only, as a `USER DIRECTIVES` block the model must follow on top of the general rules: "more cinematic", "keep it under 60 words", "write it in French", "add anime-specific defects" for the negative. The plain button keeps its one-click behaviour; **Close** folds the panel.
 - **Improve negative on an empty box** starts from a standard SDXL negative (lowres, worst quality, bad anatomy, bad hands, extra limbs, watermark, text...) and lets the model expand and tidy it, directives included. If Ollama is unreachable, the standard negative is inserted as is, with a warning saying why.
 
+**Format kept (custom-34):** the positive prompt's format is detected in code and stated to the model. A comma-separated tag list comes back as tags (short phrases, no sentences); prose comes back as one flowing paragraph. Sentence punctuation inside the text means prose; otherwise fragments of up to 4 words on average mean tags. `{a|b|c}` groups, `__wildcards__`, `<lora:...>` and `(word:1.2)` weights are blanked before judging. The negative prompt is always a list. Directives typed in the panel win ("in prose" forces prose). Config `ollama_improve.format`: `auto` (default), `tags`, `prose`, `off`.
+
 **Config:** `ollama_improve.default_negative` (empty = the built-in baseline). Directives are not saved: the box keeps its text for the session only.
 
 ---
@@ -604,6 +606,7 @@ All upstream keys still apply. The fork adds a few of its own. Most have a UI co
 | `ollama_describe.timeout` / `.temperature` / `.keep_alive` | `180` / `0.3` / `"5m"` | int / float / string | custom-25 | HTTP timeout (s), sampling temperature, how long Ollama keeps the model loaded. |
 | `cli_protocol.instance_url` | `""` | URL string | custom-26 | Running Fooocus instance `czp` talks to. Empty = `http://127.0.0.1:<GRADIO_SERVER_PORT or 7865>`. Env `FOOOCUS_CLI_URL` overrides it. |
 | `ollama_improve.default_negative` | `""` | string | custom-31 | What *Improve negative* starts from when the box is empty. Empty = the built-in SDXL baseline. |
+| `ollama_improve.format` | `"auto"` | `auto` / `tags` / `prose` / `off` | custom-34 | Format stated to the model for *Improve prompt*: detected from the input (`auto`), forced, or not mentioned (`off`). |
 | `global_faceswap.enabled` / `.stop` / `.weight` | `false` / `0.9` / `0.75` | bool / 0..1 / 0..2 | custom-32 | Global FaceSwap (Settings): apply the saved face (`global_faceswap_face.png` next to `config.txt`) to every generation. Written by the Settings controls themselves. |
 | `exact_faceswap.enabled` / `.keep_original` / `.offload_host` / `.timeout` | `false` / `false` / `false` / `600` | bool / bool / bool / 30..3600 s | custom-33 | Exact face swap of the same face on every output through the crispz-studio Face swap plugin, before metadata and provenance. Written by the Settings controls themselves. |
 

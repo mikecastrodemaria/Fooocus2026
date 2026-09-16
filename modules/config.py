@@ -806,6 +806,7 @@ _ollama_improve_defaults = {
     'temperature': 0.7,
     'keep_alive': '5m',
     'default_negative': '',      # '' = the built-in SDXL baseline (custom-31), used when the negative is empty
+    'format': 'auto',            # custom-34: 'auto' detects tags vs prose, 'tags' / 'prose' force it, 'off' says nothing
 }
 ollama_improve_config = get_config_item_or_set_default(
     key='ollama_improve',
