@@ -131,6 +131,12 @@ class AsyncTask:
             if cn_img is not None:
                 self.cn_tasks[cn_type].append([cn_img, cn_stop, cn_weight])
 
+        # custom-32 : visage de reference global (Settings) -> tache FaceSwap ajoutee ici,
+        # avec les interrupteurs (Input Image, onglet, mixage) ouverts pour l'onglet courant
+        import modules.flags
+        import modules.global_faceswap
+        modules.global_faceswap.inject(self, modules.flags.cn_ip_face)
+
         self.debugging_dino = args.pop()
         self.dino_erode_or_dilate = args.pop()
         self.debugging_enhance_masks_checkbox = args.pop()
@@ -423,8 +429,13 @@ def worker():
         )
 
     def save_and_log(async_task, height, imgs, task, use_expansion, width, loras, persist_image=True) -> list:
+        import modules.exact_faceswap as exact_faceswap
         img_paths = []
         for x in imgs:
+            # custom-33 : swap exact du visage global (crispz-studio) sur l'image finale,
+            # avant metadonnees et provenance ; l'original est aussi enregistre si demande
+            x_original = x
+            x, swapped = exact_faceswap.maybe_swap(x)
             d = [('Prompt', 'prompt', task['log_positive_prompt']),
                  ('Negative Prompt', 'negative_prompt', task['log_negative_prompt']),
                  ('Fooocus V2 Expansion', 'prompt_expansion', task['expansion']),
@@ -477,6 +488,8 @@ def worker():
             d.append(('Metadata Scheme', 'metadata_scheme',
                       async_task.metadata_scheme.value if async_task.save_metadata_to_images else async_task.save_metadata_to_images))
             d.append(('Version', 'version', 'Fooocus v' + fooocus_version.version))
+            if swapped and exact_faceswap.settings()['keep_original']:
+                img_paths.append(log(x_original, d, metadata_parser, async_task.output_format, task, persist_image))
             img_paths.append(log(x, d, metadata_parser, async_task.output_format, task, persist_image))
 
         return img_paths

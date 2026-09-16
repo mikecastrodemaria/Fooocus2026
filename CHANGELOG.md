@@ -3,6 +3,54 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-33] — 2026-09-16 — Exact face swap on every output (crispz-studio)
+
+### Added
+- **Settings → Global FaceSwap → Exact face swap on every output**: with the same face
+  reference as custom-32, the real face is pasted on each final image through the Face
+  swap action of an installed Extra plugin (crispz-studio: inswapper, occlusion mask,
+  colour match, CodeFormer). Options: *Also save the image before the swap* and *Free the
+  SDXL VRAM before each swap* (for small cards). Saved immediately, no restart.
+- New `modules/exact_faceswap.py`: `maybe_swap()` is called by
+  `async_worker.save_and_log` on the final array, **before** `private_logger.log()`, so
+  metadata, the AI provenance and the watermark are applied to the swapped image. One
+  CLI call per image (the family server only serves `/upscale`), temp files cleaned.
+  `availability()` explains what is missing (plugin, face, venv), once per cause in the
+  console; a plugin failure ("no face detected", venv problem) keeps the image as is.
+- Config block `exact_faceswap` (`enabled`, `keep_original`, `offload_host`, `timeout`).
+  `global_faceswap.write_config_block()` is now shared by both blocks.
+
+### Notes
+- Needs crispz-studio installed from Extra → Manager, with insightface + onnxruntime-gpu
+  in its venv and `faceswap/inswapper_128.onnx` (custom-24). The status line under the
+  checkbox says whether a swap can run right now.
+- Tests: `tests/test_exact_faceswap.py` against a stub plugin (settings, availability,
+  swap, failure, temp cleanup).
+
+## [custom-32] — 2026-09-16 — Global FaceSwap: one face on every generation
+
+### Added
+- **Settings → 🪞 Global FaceSwap (every generation)**: a face reference, an on/off
+  checkbox and the usual Stop At / Weight sliders. When on, the face is applied to
+  **every** generation: text-to-image, Vary, Upscale, Inpaint and Enhance, without going
+  through Input Image → Image Prompt. Saved immediately (config.txt block
+  `global_faceswap` + `global_faceswap_face.png` next to config.txt), no restart.
+- New `modules/global_faceswap.py`: `AsyncTask` calls `inject()` right after its Image
+  Prompt tasks are built. A FaceSwap task (IP-Adapter face) is appended and the gates
+  the worker checks are opened for the current tab: Input Image off → on with the tab
+  set to Image Prompt; Vary/Upscale → the matching mixing flag; Inpaint → the other one;
+  Enhance and the rest → the Vary one, enough to reach the control-net goal. It never
+  turns on a Vary or an Inpaint the user did not ask for, and stale Image Prompt images
+  are not revived unless the user had a mixing flag on themselves.
+
+### Notes
+- Same IP-Adapter FaceSwap as the Image Prompt type: the identity is approximate and it
+  acts during diffusion, so *Upscale Fast* (no diffusion) is unchanged. The exact face is
+  the crispz-studio Face swap plugin (custom-24); custom-33 will apply it to every output.
+- Works for the Job Queue and the X/Y/Z Grid too (they build the same task).
+- Tests: `tests/test_global_faceswap.py` (settings, face file, and the injection rules
+  per tab).
+
 ## [custom-31] — 2026-09-16 — Improve prompt: directives panel and standard negative
 
 ### Added

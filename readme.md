@@ -488,6 +488,19 @@ czp.bat inpaint --spec fix.json
 
 ---
 
+### 23. 🪞 Global FaceSwap (one face on every generation)
+**Where:** Settings tab → **🪞 Global FaceSwap (every generation)** accordion.
+
+**What it does:** one face reference, an on/off checkbox and the usual *Stop At* / *Weight* sliders. When on, the face is applied to **every** generation: text-to-image, Vary, Upscale, Inpaint and Enhance, without going through Input Image → Image Prompt → Advanced → FaceSwap. It is the same IP-Adapter FaceSwap as the Image Prompt type, so the identity is approximate and it acts during diffusion (*Upscale Fast*, which does not diffuse, is unchanged). For the exact face see the crispz-studio Face swap plugin (feature 12).
+
+**How it works:** the task builder appends a FaceSwap task and opens the worker's gates for the current tab (Input Image, Image Prompt tab, mixing flags) so the face reaches the diffusion passes, without ever turning on a Vary or an Inpaint you did not ask for, and without reviving stale Image Prompt images unless you had a mixing flag on yourself. The Job Queue and the X/Y/Z Grid go through the same builder, so they get the face too.
+
+**Config:** block `global_faceswap` (`enabled`, `stop`, `weight`) in `config.txt`, written as soon as you touch a control; the face is `global_faceswap_face.png` next to `config.txt`. No restart needed.
+
+**Exact face swap on every output (custom-33):** below the sliders, a second checkbox pastes the *real* face from the same reference on each final image, through the Face swap action of the crispz-studio plugin (feature 12: inswapper, occlusion mask, colour match, CodeFormer). It runs on the final image before metadata, AI provenance and watermark, so those apply to the swapped result. One plugin call per image, a few seconds each. Options: *Also save the image before the swap* and *Free the SDXL VRAM before each swap* (slower, for small cards). The status line says whether a swap can run (plugin installed, face loaded, venv healthy); an image where no face is found, or any plugin failure, is saved unchanged with a console line. Config block `exact_faceswap` (`enabled`, `keep_original`, `offload_host`, `timeout`).
+
+---
+
 ## 🚀 Getting this fork
 
 ### Option A — I already have Fooocus installed
@@ -590,6 +603,9 @@ All upstream keys still apply. The fork adds a few of its own. Most have a UI co
 | `ollama_describe.style` / `.length` | `"Prompt (prose)"` / `"Long"` | string | custom-25 | Default style and length of the Describe panel (and of auto-describe). |
 | `ollama_describe.timeout` / `.temperature` / `.keep_alive` | `180` / `0.3` / `"5m"` | int / float / string | custom-25 | HTTP timeout (s), sampling temperature, how long Ollama keeps the model loaded. |
 | `cli_protocol.instance_url` | `""` | URL string | custom-26 | Running Fooocus instance `czp` talks to. Empty = `http://127.0.0.1:<GRADIO_SERVER_PORT or 7865>`. Env `FOOOCUS_CLI_URL` overrides it. |
+| `ollama_improve.default_negative` | `""` | string | custom-31 | What *Improve negative* starts from when the box is empty. Empty = the built-in SDXL baseline. |
+| `global_faceswap.enabled` / `.stop` / `.weight` | `false` / `0.9` / `0.75` | bool / 0..1 / 0..2 | custom-32 | Global FaceSwap (Settings): apply the saved face (`global_faceswap_face.png` next to `config.txt`) to every generation. Written by the Settings controls themselves. |
+| `exact_faceswap.enabled` / `.keep_original` / `.offload_host` / `.timeout` | `false` / `false` / `false` / `600` | bool / bool / bool / 30..3600 s | custom-33 | Exact face swap of the same face on every output through the crispz-studio Face swap plugin, before metadata and provenance. Written by the Settings controls themselves. |
 
 Each value is clamped on save — bad values in `config.txt` fall back to the default rather than crashing.
 
