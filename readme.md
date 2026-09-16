@@ -4,7 +4,7 @@
 
 # Fooocus 2026 — Custom Fork
 
-> Version **`2026.3.0`** · A personal fork of **[lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) v2.5.5** with a series of quality-of-life features: a **Save Preset** button, **CivitAI Model Settings** integration (checkpoint triggers, consensus settings, save-as-preset), **LoRA trigger words** from local metadata + CivitAI, **Embeddings panel** with bulk-insert, **Wildcards editor**, **Vary-with-aspect-ratio** override, **Custom Resolution** (any ratio + size, snapped to /64), an **🖼️ Asset Browser** (PhotoSwipe-based standalone gallery for outputs + LoRAs/Checkpoints/Embeddings previews — opt-in, zero impact when disabled), **architecture filtering** (auto-hides Flux/SD3/LLMs from dropdowns — SD/SDXL only), a real **Restart UI** button, and an **🧩 Extra Plugins** tab that runs external upscalers (e.g. **crispz**) installed straight from a GitHub URL, and a **⌨️ Tag Autocomplete** for prompts (Danbooru/e621 tags + your own LoRA triggers, embeddings and wildcards — zero impact when disabled), a **📋 Job Queue** (stack generations with different prompts/settings and run them back-to-back — Generate stays clickable mid-generation, jobs added on the fly start on their own), and an **📊 X/Y/Z Grid** that turns the queue into annotated comparison sheets.
+> Version **`2026.6.0`** · A personal fork of **[lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) v2.5.5** with a series of quality-of-life features: a **Save Preset** button, **CivitAI Model Settings** integration (checkpoint triggers, consensus settings, save-as-preset), **LoRA trigger words** from local metadata + CivitAI, **Embeddings panel** with bulk-insert, **Wildcards editor**, **Vary-with-aspect-ratio** override, **Custom Resolution** (any ratio + size, snapped to /64), an **🖼️ Asset Browser** (PhotoSwipe-based standalone gallery for outputs + LoRAs/Checkpoints/Embeddings previews — opt-in, zero impact when disabled), **architecture filtering** (auto-hides Flux/SD3/LLMs from dropdowns — SD/SDXL only), a real **Restart UI** button, and an **🧩 Extra Plugins** tab that runs external upscalers (e.g. **crispz**) installed straight from a GitHub URL, and a **⌨️ Tag Autocomplete** for prompts (Danbooru/e621 tags + your own LoRA triggers, embeddings and wildcards — zero impact when disabled), a **📋 Job Queue** (stack generations with different prompts/settings and run them back-to-back — Generate stays clickable mid-generation, jobs added on the fly start on their own), and an **📊 X/Y/Z Grid** that turns the queue into annotated comparison sheets.
 
 ![Fooocus2026 fork — Models tab showing CivitAI / LoRA / Embeddings / Wildcards accordions and Restart UI, with wildcards in the prompt](docs/screenshots/overview.png)
 
@@ -644,7 +644,7 @@ Example fragment:
 ## 📁 Files touched by this fork
 | File | Purpose |
 |---|---|
-| `fooocus_version.py` | Version bumped to `2026.5.0` (CalVer): custom-19 to custom-28 |
+| `fooocus_version.py` | Version bumped to `2026.6.0` (CalVer): custom-19 to custom-36 |
 | `modules/civitai_api.py` | **New** — CivitAI client, caching, consensus aggregation, model+embedding triggers; search + SHA256-verified download (custom-22) |
 | `modules/lora_metadata.py` | **New** — local safetensors metadata reader for LoRA/embedding triggers |
 | `modules/util.py` | Adds `compute_custom_wh()` — ratio + size → snapped W×H (custom-7) |
