@@ -65,6 +65,14 @@ def prepare_environment():
     print(f"Python {sys.version}")
     print(f"Fooocus version: {fooocus_version.version}")
 
+    # custom-38: the pinned stack (torch 2.1.0, gradio 3.41.2, onnxruntime 1.18.1...) ships
+    # no wheels for Python 3.13+, so pip falls back to source builds and fails; the start
+    # then dies later on an unrelated ModuleNotFoundError. Say it up front instead.
+    if sys.version_info >= (3, 13) and 'TORCH_COMMAND' not in os.environ and 'REQS_FILE' not in os.environ:
+        print("[Warning] Python 3.13 or newer: the pinned requirements have no wheels for this "
+              "version and their install is likely to fail. Use Python 3.10 or 3.11 (on Colab, "
+              "the fork's notebook creates a 3.11 venv with uv: see readme.md, Colab section).")
+
     if REINSTALL_ALL or not is_installed("torch") or not is_installed("torchvision"):
         run(f'"{python}" -m {torch_command}', "Installing torch and torchvision", "Couldn't install torch", live=True)
 

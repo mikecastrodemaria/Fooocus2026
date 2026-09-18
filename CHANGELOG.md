@@ -3,6 +3,21 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-38] — 2026-09-18 — Colab: Python 3.11 venv, Python 3.13 warning at boot
+
+### Fixed
+- **`fooocus_colab.ipynb`** failed at "Installing requirements" on Colab's Python 3.13:
+  the pinned stack has no wheels for it (`onnxruntime==1.18.1` has none, `scipy`,
+  `safetensors`, `pyyaml` fall back to source builds), and the start then died on
+  `No module named 'supervision'`. The notebook now installs `uv`, creates a Python 3.11
+  venv in `/content/venv` (`uv venv --python 3.11 --seed`) and runs the launcher with it,
+  so torch 2.1.0+cu121, xformers 0.0.23 and every pinned requirement install as binary
+  wheels, like on Windows. Checked with a dry-run resolution on Python 3.11.
+- **`launch.py`**: on Python 3.13 or newer (without `TORCH_COMMAND` / `REQS_FILE`
+  overrides) a warning says up front that the pinned requirements have no wheels for this
+  version and points to Python 3.10 or 3.11, instead of a confusing crash later.
+- Readme Colab section: the venv is the third difference with the upstream notebook.
+
 ## [custom-37] — 2026-09-16 — Colab notebook for the fork, pygit2 dropped
 
 ### Fixed
