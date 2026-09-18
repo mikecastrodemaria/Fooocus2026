@@ -792,15 +792,15 @@ See also the common problems and troubleshoots [here](troubleshoot.md).
 
 ### Colab
 
-(Last tested - 2026 Sep 16 on the free T4 tier, Colab Python 3.13)
+(Last tested - 2026 Sep 18 on the free T4 tier, Colab Python 3.13 with a Python 3.11 venv)
 
 | Colab | Info
 | --- | --- |
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/mikecastrodemaria/Fooocus2026/blob/main/fooocus_colab.ipynb) | Fooocus2026 (this fork)
 
-The notebook clones **this fork** (`mikecastrodemaria/Fooocus2026`) into `/content/Fooocus2026` and starts it with `!python entry_with_update.py --share --always-high-vram`. Add `--preset anime`, `--preset realistic`, `--preset lightning`, `--preset lcm`, `--preset pony_v6`, `--preset playground_v2.5` or `--preset sai` to the last line to start on one of the presets shipped in `presets/`.
+The notebook clones **this fork** (`mikecastrodemaria/Fooocus2026`) into `/content/Fooocus2026`, creates a **Python 3.11 venv** with [uv](https://github.com/astral-sh/uv) in `/content/venv` and starts it with `!/content/venv/bin/python entry_with_update.py --share --always-high-vram`. Add `--preset anime`, `--preset realistic`, `--preset lightning`, `--preset lcm`, `--preset pony_v6`, `--preset playground_v2.5` or `--preset sai` to the last line to start on one of the presets shipped in `presets/`.
 
-Two differences with the upstream notebook: `pygit2` is not installed (the fork's safe update at boot, feature 17, replaced it, and it does not build on Colab's Python 3.13 anyway), and `FOOOCUS_AUTO_UPDATE=1` is set so the boot update check applies a *safe* fast-forward without asking (a Colab console is not interactive; without the variable the check only reports and starts as is). The Ollama features (Layout/Omost, Describe, Improve) and the Extra plugins need a machine of your own; on Colab they simply say so when clicked.
+Three differences with the upstream notebook: the venv, because Colab runs Python 3.13 and the pinned stack (torch 2.1.0, gradio 3.41.2, onnxruntime 1.18.1, safetensors 0.4.3...) has no wheels for it (pip tries to compile scipy and friends from source, then fails on `onnxruntime==1.18.1`, and the start dies later on `No module named 'supervision'`); `pygit2` is not installed (the fork's safe update at boot, feature 17, replaced it, and it does not build on Colab's Python 3.13 anyway), and `FOOOCUS_AUTO_UPDATE=1` is set so the boot update check applies a *safe* fast-forward without asking (a Colab console is not interactive; without the variable the check only reports and starts as is). The Ollama features (Layout/Omost, Describe, Improve) and the Extra plugins need a machine of your own; on Colab they simply say so when clicked.
 
 You can also change the preset in the UI. Please be aware that this may lead to timeouts after 60 seconds. If this is the case, please wait until the download has finished, change the preset to initial and back to the one you've selected or reload the page.
 
