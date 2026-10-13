@@ -699,6 +699,39 @@ def job_queue_enabled():
         return False
 
 
+# === custom-39: Batch input (one Job Queue job per image of a folder) ===
+_batch_input_defaults = {
+    'enabled': True,          # False = no Batch accordion under Input Image
+    'allowed_roots': [],      # [] = any folder of this machine (local use); else the folder must be under one of these
+    'recursive': False,       # default of the "Include subfolders" box
+    'keep_name': True,        # default of "Name outputs after the source file"
+}
+batch_input_config = get_config_item_or_set_default(
+    key='batch_input',
+    default_value=dict(_batch_input_defaults),
+    validator=lambda x: isinstance(x, dict),
+    expected_type=dict
+)
+for _k, _v in _batch_input_defaults.items():
+    batch_input_config.setdefault(_k, _v)
+
+
+def batch_input_setting(key, default=None):
+    if key in _batch_input_defaults and default is None:
+        default = _batch_input_defaults[key]
+    try:
+        return batch_input_config.get(key, default)
+    except Exception:
+        return default
+
+
+def batch_input_enabled():
+    try:
+        return job_queue_enabled() and bool(batch_input_config.get('enabled', True))
+    except Exception:
+        return False
+
+
 # === custom-23: provenance IA (EU AI Act art. 50) ===
 _provenance_defaults = {
     'enabled': True,           # declaration XMP IPTC trainedAlgorithmicMedia sur chaque image

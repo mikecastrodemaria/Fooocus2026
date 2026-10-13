@@ -3,6 +3,37 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-39] — 2026-10-13 — Batch input: one queue job per image of a folder
+
+### Added
+- **📁 Batch accordion** under the Input Image tabs: a folder path on the machine running
+  Fooocus (**Scan folder**, optional name filter, sub-folders) or a multi-file picker from
+  the browser. **Queue the batch** stacks one Job Queue job per image with the settings of
+  the active tab, **Upscale or Variation** or **Enhance**, so the series gets the queue's
+  order, Pause, Stop, Skip, restart survival and a Generate button that stays clickable.
+- **Source-named outputs** (default, box *Name outputs after the source file*):
+  `photo_12.jpg` gives `photo_12_upscaled.png` (`_vary`, `_enhanced`) in the dated output
+  folder, `_2`, `_3` on collision. `modules.util.generate_temp_filename(stem=)`,
+  `private_logger.log(stem=)` and `AsyncTask.output_stem` carry the name; nothing changes
+  for ordinary generations.
+- **Lazy file references**: a folder image is stored in the job as `{'__file__': path}`
+  and decoded by the queue runner when the job starts, so a 200-image batch costs no RAM
+  until its turn and the saved queue holds the path, not a copy. Missing or unreadable file
+  at that moment = job skipped with a console line, the series continues. Files picked from
+  the browser are decoded at once (Gradio temp files do not survive a restart).
+- Seeds: Random = one seed per image, fixed = the same for the batch. The
+  `job_queue.max_jobs` guard applies, with a message saying how many slots are free.
+- Config block `batch_input`: `enabled` (true), `allowed_roots` ([] = any folder of this
+  machine; otherwise the batch folder must be under one of them, for `--listen` on a
+  shared network), `recursive` (false), `keep_name` (true).
+- New `modules/batch_input.py` (standard library at import; numpy/PIL when an image is
+  decoded), tests in `tests/test_batch_input.py` (scan order, filters, allowed roots,
+  job building, codec round trip of the references, materialisation, naming).
+
+### Notes
+- Inpaint (a mask per image) and Image Prompt are not batched; Describe and Metadata
+  neither. The accordion says so when another tab is active.
+
 ## [custom-38] — 2026-09-18 — Colab: Python 3.11 venv, Python 3.13 warning at boot
 
 ### Fixed

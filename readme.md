@@ -503,6 +503,21 @@ czp.bat inpaint --spec fix.json
 
 ---
 
+### 24. 📁 Batch input (one queue job per image of a folder)
+**Where:** a **📁 Batch** accordion under the Input Image tabs (needs the Job Queue, ON by default; master toggle `batch_input.enabled`).
+
+**What it does:** instead of one uploaded image, point to a **folder on the machine running Fooocus** (type the path, **Scan folder** shows what it finds, optional name filter `*.png, IMG_*` and sub-folders) or **pick files** from the browser. **Queue the batch** stacks **one Job Queue job per image**, each with the settings of the active tab: **Upscale or Variation** (the image goes in the Upscale slot; pick a method first) or **Enhance** (the image goes in the Enhance slot; tick the Enhance checkbox first). Generate or Run queue then processes the series with everything the queue already offers: order, Pause, Stop, Skip, restart survival, Generate clickable mid-series. Upscale *Fast* plus the Global FaceSwap exact swap (feature 23) swaps a whole folder in one queue.
+
+**Outputs:** with *Name outputs after the source file* (default) the result of `photo_12.jpg` is `photo_12_upscaled.png` (`_vary`, `_enhanced`) in the usual dated output folder, numbered `_2`, `_3` on collision, instead of the time stamp. Untick it for the usual names.
+
+**Seeds:** Random seed = a different seed per image; a fixed seed applies to the whole batch, as it does for a single generation.
+
+**Memory and files:** a folder image is **not** decoded when the batch is built. The job holds a reference to the file, read when its turn comes, so 200 photos in the queue cost nothing until then; the saved queue stores the path, not a copy. A file deleted or renamed in between is **skipped with a console line** and the series continues. Files picked from the browser are decoded at once (they live in Gradio's temp folder, which does not survive a restart), so keep that path for a handful of images. The queue's `job_queue.max_jobs` guard (50 by default) applies: raise it in `config.txt` for bigger folders.
+
+**Config:** block `batch_input` (`enabled`, `allowed_roots`, `recursive`, `keep_name`). `allowed_roots` is empty by default (any folder of the machine, local use); with `--listen` on a shared network, list the folders a batch may read from, anything else is refused with a message.
+
+---
+
 ## 🚀 Getting this fork
 
 ### Option A — I already have Fooocus installed
@@ -597,6 +612,7 @@ All upstream keys still apply. The fork adds a few of its own. Most have a UI co
 | `job_queue.max_jobs` | `50` | int | custom-14 | Max pending jobs (snapshots with input images live in RAM). Also applies when a saved queue is restored. |
 | `job_queue.persist` | `true` | bool | custom-21 | Save the queue on every change and restore it (waiting) at the next launch. |
 | `job_queue.persist_path` | `""` | path string | custom-21 | Where the saved queue lives. Empty = `cache/job_queue` at the Fooocus root. |
+| `batch_input.enabled` / `.allowed_roots` / `.recursive` / `.keep_name` | `true` / `[]` / `false` / `true` | bool / list of paths / bool / bool | custom-39 | **📁 Batch** accordion under Input Image (needs the Job Queue). `allowed_roots` empty = any folder of this machine; otherwise a batch folder must be under one of them (for `--listen` on a shared network). `recursive` and `keep_name` are the defaults of the two boxes. |
 | `provenance.enabled` | `true` | bool | custom-23 | Write the machine-readable AI declaration (IPTC `DigitalSourceType` in XMP) on every saved image. No prompt, no parameter. |
 | `provenance.watermark` | `false` | bool | custom-23 | Also embed an invisible TrustMark watermark. Needs `pip install trustmark`; missing package = image saved without it, never a failed save. |
 | `provenance.watermark_id` | `"Fooocus26"` | string (9 ASCII chars) | custom-23 | Payload of the TrustMark watermark. |
@@ -670,6 +686,7 @@ Example fragment:
 | `modules/ui_gradio_extensions.py` | Conditional injection of the Tag Autocomplete script + config meta (custom-13) |
 | `modules/job_queue.py` | **New** — thread-safe pending-jobs queue + labels, pure stdlib (custom-14); persistence with input images, job kept until finished, soft pause (custom-21) |
 | `modules/xyz_grid.py` | **New** — X/Y/Z grid: axis registry, combo expansion, Pillow sheet assembly (custom-15) |
+| `modules/batch_input.py` | **New** — Batch input: folder scan, lazy file references resolved when the job starts, one queue job per image, source-named outputs (custom-39) |
 | `xyz_cli.py` | **New** — headless X/Y/Z grid runner with ctrl-order validation (custom-15.3) |
 | `update_check.py` | **New** — boot update offered only when safe: fetch, local-work guard, `--ff-only` apply (custom-19) |
 | `fooocus_protocol.py`, `czp.bat`, `czp.sh` | **New** — crispz family CLI protocol v1: spec validation, SDXL mapping, instance / local routing, hidden `cli_caps` / `cli_gen` endpoints (custom-26) |
