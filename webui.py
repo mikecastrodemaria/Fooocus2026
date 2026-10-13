@@ -183,7 +183,18 @@ def queue_runner():
             if next_model:
                 prev_model = next_model
 
-            task = worker.AsyncTask(args=list(job.args))
+            # custom-39: a batch job carries a file reference, decoded only now; a missing
+            # file means the job is skipped with a console line and the queue goes on
+            from modules import batch_input
+            job_args, missing = batch_input.materialize(list(job.args))
+            if missing:
+                print(f'[Batch] Job skipped ({job.label}): {missing}')
+                jq.queue.finish(job, done=True)
+                yield (gr.update(), gr.update(), gr.update(), gr.update()) + queue_state_updates()
+                idle_since = time.perf_counter()
+                continue
+            task = worker.AsyncTask(args=job_args)
+            task.output_stem = batch_input.output_stem_of(job.meta)
             jq.queue.current_task = task
             print(f'[JobQueue] Job started: {job.label} ({len(jq.queue) - 1} more in queue)')
 
@@ -679,6 +690,31 @@ with shared.gradio_root:
             with gr.Row(visible=extra_ui.enabled_default()) as extra_plugins_panel:
                 extra_ui.build_extra_panel(output_gallery=gallery)
 
+            # custom-39: Batch input, one Job Queue job per image (Upscale or Variation and Enhance tabs)
+            if modules.config.batch_input_enabled():
+                with gr.Row(visible=modules.config.default_image_prompt_checkbox) as batch_input_panel:
+                    with gr.Accordion(label='\U0001F4C1 Batch: one job per image (Upscale or Variation, Enhance)', open=False):
+                        gr.HTML('<div style="font-size:12px;color:#888;margin-bottom:4px;">'
+                                'Point to a folder on the machine running Fooocus (hundreds of files are fine, each '
+                                'image is read when its job starts) or pick a few files from this browser. '
+                                '<b>Queue the batch</b> stacks one Job Queue job per image with the settings of the '
+                                'active tab (Upscale or Variation, or Enhance); Generate or Run queue starts them. '
+                                'Random seed = a different seed per image; a fixed seed applies to the whole batch.</div>')
+                        with gr.Row():
+                            batch_folder = gr.Textbox(label='Folder on the Fooocus machine',
+                                                      placeholder='D:\\photos\\to_upscale  or  /home/me/photos', scale=3)
+                            batch_pattern = gr.Textbox(label='Name filter (optional)', placeholder='*.png, IMG_*', scale=1)
+                        with gr.Row():
+                            batch_recursive = gr.Checkbox(label='Include subfolders',
+                                                          value=bool(modules.config.batch_input_setting('recursive')))
+                            batch_keep_name = gr.Checkbox(label='Name outputs after the source file (photo_12_upscaled.png)',
+                                                          value=bool(modules.config.batch_input_setting('keep_name')))
+                            batch_scan_button = gr.Button(value='\U0001F50D Scan folder')
+                        batch_files = gr.File(label='... or pick files (uploaded from this browser, read at once)',
+                                              file_count='multiple', file_types=['image'])
+                        batch_status = gr.Markdown(value='')
+                        batch_queue_button = gr.Button(value='\U0001F4C1 Queue the batch', variant='primary')
+
             with gr.Row(visible=modules.config.default_enhance_checkbox) as enhance_input_panel:
                 with gr.Tabs():
                     with gr.Tab(label='Upscale or Variation'):
@@ -889,6 +925,9 @@ with shared.gradio_root:
 
             input_image_checkbox.change(lambda x: gr.update(visible=x), inputs=input_image_checkbox,
                                         outputs=image_input_panel, queue=False, show_progress=False, _js=switch_js)
+            if modules.config.batch_input_enabled():
+                input_image_checkbox.change(lambda x: gr.update(visible=x), inputs=input_image_checkbox,
+                                            outputs=batch_input_panel, queue=False, show_progress=False)
             ip_advanced.change(lambda: None, queue=False, show_progress=False, _js=down_js)
 
             current_tab = gr.Textbox(value='uov', visible=False)
@@ -3354,6 +3393,55 @@ with shared.gradio_root:
                                    queue=False, show_progress=False) \
                 .then(fn=queue_add, inputs=ctrls, outputs=[queue_display, queue_status, queue_add_button],
                       queue=False, show_progress=False)
+
+            # === custom-39: Batch input, one job per image of a folder or of a file selection ===
+            if modules.config.batch_input_enabled():
+                from modules import batch_input
+
+                # positions in the snapshot (after the currentTask pop), derived from ctrls itself
+                _batch_idx = {name: ctrls.index(c) - 1 for name, c in (
+                    ('input_image_checkbox', input_image_checkbox), ('current_tab', current_tab),
+                    ('uov_method', uov_method), ('uov_image', uov_input_image),
+                    ('enhance_image', enhance_input_image), ('enhance_checkbox', enhance_checkbox),
+                    ('seed', image_seed), ('base_model', base_model))}
+
+                def batch_build(*all_args):
+                    import traceback
+                    folder, recursive, pattern, files, keep_name, random_seed = all_args[-6:]
+                    base = list(all_args[:-6])
+                    base.pop(0)  # currentTask
+                    try:
+                        entries, msg = batch_input.collect(folder, recursive, pattern, files)
+                        if msg:
+                            return queue_refresh() + (msg,)
+                        jobs, msg = batch_input.build_jobs(base, entries, _batch_idx, keep_name, random_seed)
+                        if msg:
+                            return queue_refresh() + (msg,)
+                        room = jq.queue.max_jobs - len(jq.queue)
+                        if len(jobs) > room:
+                            return queue_refresh() + (
+                                f'{len(jobs)} images but only {room} free slot(s) in the queue '
+                                f'(job_queue.max_jobs = {jq.queue.max_jobs}): run or clear the queue first, '
+                                'or raise the limit in config.txt.',)
+                        for args_i, label_i, meta_i in jobs:
+                            jq.queue.add(args_i, label_i, meta_i)
+                        print(f'[Batch] {len(jobs)} job(s) added to the queue.')
+                        return queue_refresh() + (
+                            f'**{len(jobs)} job(s) queued.** Generate or Run queue starts them; '
+                            'folder images are read when their job starts.',)
+                    except Exception as e:
+                        traceback.print_exc()
+                        return queue_refresh() + (f'Batch failed: {e}',)
+
+                batch_scan_button.click(batch_input.scan_report, inputs=[batch_folder, batch_recursive, batch_pattern],
+                                        outputs=batch_status, queue=False, show_progress=False)
+                batch_queue_button.click(fn=refresh_seed, inputs=[seed_random, image_seed], outputs=image_seed,
+                                         queue=False, show_progress=False) \
+                    .then(fn=batch_build,
+                          inputs=ctrls + [batch_folder, batch_recursive, batch_pattern, batch_files,
+                                          batch_keep_name, seed_random],
+                          outputs=[queue_display, queue_status, queue_add_button, batch_status],
+                          queue=False, show_progress=False)
             queue_remove_button.click(queue_remove, inputs=queue_display, outputs=[queue_display, queue_status, queue_add_button], queue=False, show_progress=False)
             queue_up_button.click(queue_up, inputs=queue_display, outputs=[queue_display, queue_status, queue_add_button], queue=False, show_progress=False)
             queue_down_button.click(queue_down, inputs=queue_display, outputs=[queue_display, queue_status, queue_add_button], queue=False, show_progress=False)

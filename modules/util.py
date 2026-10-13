@@ -203,9 +203,15 @@ def join_prompts(*args, **kwargs):
     return ', '.join(prompts)
 
 
-def generate_temp_filename(folder='./outputs/', extension='png'):
+def generate_temp_filename(folder='./outputs/', extension='png', stem=None):
     current_time = datetime.datetime.now()
     date_string = current_time.strftime("%Y-%m-%d")
+    if stem:
+        # custom-39: a batch job names its outputs after the source file
+        # (photo_12_upscaled.png, then _2, _3 on collision) instead of the time stamp
+        from modules.batch_input import unique_output_path
+        result, filename = unique_output_path(os.path.join(folder, date_string), stem, extension)
+        return date_string, os.path.abspath(result), filename
     time_string = current_time.strftime("%Y-%m-%d_%H-%M-%S")
     random_number = random.randint(1000, 9999)
     filename = f"{time_string}_{random_number}.{extension}"
