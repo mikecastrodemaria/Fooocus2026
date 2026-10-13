@@ -660,7 +660,7 @@ Example fragment:
 ## 📁 Files touched by this fork
 | File | Purpose |
 |---|---|
-| `fooocus_version.py` | Version bumped to `2026.7.0` (CalVer): custom-19 to custom-38 |
+| `fooocus_version.py` | Version bumped to `2026.7.0` (CalVer): custom-19 to custom-39 |
 | `modules/civitai_api.py` | **New** — CivitAI client, caching, consensus aggregation, model+embedding triggers; search + SHA256-verified download (custom-22) |
 | `modules/lora_metadata.py` | **New** — local safetensors metadata reader for LoRA/embedding triggers |
 | `modules/util.py` | Adds `compute_custom_wh()` — ratio + size → snapped W×H (custom-7) |
