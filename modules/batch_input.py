@@ -1,11 +1,12 @@
 """custom-39 — Batch input: one Job Queue job per image of a folder (or of a file selection).
 
-The Input Image panel gets a "Batch" accordion: a folder path on the machine running
-Fooocus (scanned here, hundreds of files are fine) or a multi-file picker (upload from
-the browser, a handful of files). "Queue the batch" clones the current settings once per
-image, with the image put in the slot of the active tab (Upscale or Variation, Enhance),
-and stacks the clones in the Job Queue (custom-14), which brings order, pause, stop,
-restart survival and a Generate button that stays clickable.
+The Upscale or Variation tab gets a "Batch" accordion under the method radio: a folder
+path on the machine running Fooocus (scanned here, hundreds of files are fine) or a
+multi-file picker (upload from the browser, a handful of files). The list of files then
+takes the place of the drop zone (custom-40), in that tab and in the Enhance tab, and
+Generate or + Queue clones the current settings once per image, with the image put in the
+slot of the active tab, and stacks the clones in the Job Queue (custom-14), which brings
+order, pause, stop, restart survival and a Generate button that stays clickable.
 
 Memory: a folder image is NOT decoded when the job is built. The job holds a small
 reference {'__file__': path} that the queue runner resolves when the job starts
@@ -143,6 +144,21 @@ def summarize(files, where=''):
     names = [os.path.basename(f) for f in files[:5]]
     more = f' (+{len(files) - 5} more)' if len(files) > 5 else ''
     return f'**{len(files)} image(s)** {where}: {", ".join(names)}{more}'
+
+
+def list_html(entries, note=''):
+    """The block that takes the place of the drop zone while a batch is selected (custom-40)."""
+    import html
+    if not entries:
+        return ''
+    n = len(entries)
+    names = [html.escape(os.path.basename(p)) for p, _ in entries[:30]]
+    more = f'<li>... and {n - 30} more</li>' if n > 30 else ''
+    note = f', {html.escape(note)}' if note else ''
+    items = ''.join(f'<li>{name}</li>' for name in names)
+    return ('<div style="border:1px dashed #888;border-radius:8px;padding:10px 14px;font-size:13px;">'
+            f'<b>\U0001F4C1 Batch: {n} image(s)</b>, one job each{note}. Generate or + Queue stacks them.'
+            f'<ol style="margin:6px 0 0 0;padding-left:22px;max-height:260px;overflow:auto;">{items}{more}</ol></div>')
 
 
 def collect(folder, recursive, pattern, uploads):

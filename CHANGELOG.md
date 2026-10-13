@@ -3,6 +3,21 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-40] — 2026-10-13 — Batch input lives in the Upscale tab, the list replaces the drop zone
+
+### Changed
+- The **📁 Batch** accordion moves into the **Upscale or Variation** tab, under the method
+  radio and before the Documentation link (folder path with Enter or **Scan folder**, name
+  filter, sub-folders, file picker, source-name option).
+- As soon as a batch is selected, **the list of files takes the place of the drop zone**
+  ("Drop Image Here") in the Upscale or Variation tab and in the Enhance tab, with a
+  **Clear batch** button to go back to a single image. The list says which settings apply
+  to each image (the method on the right, or the Enhance settings).
+- **Generate and + Queue stack the batch themselves**: one Job Queue job per image with
+  the settings of the active tab. The separate "Queue the batch" button is gone. On the
+  tabs that do not take a batch (Image Prompt, Inpaint, Describe) they behave as before.
+- `modules.batch_input.list_html()` renders the block; tests added.
+
 ## [custom-39] — 2026-10-13 — Batch input: one queue job per image of a folder
 
 ### Added

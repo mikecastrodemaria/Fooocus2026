@@ -219,6 +219,20 @@ class TestMaterialize(World):
         self.assertFalse(B.is_file_ref({'__file__': 'x', 'extra': 1}))
 
 
+class TestListHtml(unittest.TestCase):
+    def test_empty_and_escaping(self):
+        self.assertEqual(B.list_html([]), '')
+        html = B.list_html([('/x/a<b>.png', False), ('/x/c.jpg', True)], 'the method applies')
+        self.assertIn('2 image(s)', html)
+        self.assertIn('a&lt;b&gt;.png', html)
+        self.assertIn('the method applies', html)
+
+    def test_long_lists_are_cut(self):
+        html = B.list_html([(f'/x/{i}.png', False) for i in range(40)])
+        self.assertIn('and 10 more', html)
+        self.assertEqual(html.count('<li>'), 31)
+
+
 class TestNaming(unittest.TestCase):
     def test_output_stem_is_file_system_safe(self):
         self.assertEqual(B.output_stem('D:/x/photo 12.jpg', 'upscaled'), 'photo 12_upscaled')
