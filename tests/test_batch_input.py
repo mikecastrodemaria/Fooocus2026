@@ -104,6 +104,11 @@ class TestScan(World):
         self.assertIn('(+2 more)', report)
         self.assertIn('No image found', B.scan_report(self.root, pattern='*.gif'))
 
+    def test_summarize_takes_entries_too(self):
+        entries = [('/x/a.png', True), ('/x/b.png', False)]
+        self.assertIn('**2 image(s)** selected: a.png, b.png', B.summarize(entries, 'selected'))
+        self.assertIn('**2 image(s)** selected: a.png, b.png', B.summarize(['/x/a.png', '/x/b.png'], 'selected'))
+
     def test_collect_mixes_uploads_and_folder(self):
         self.png('f1.png')
         up = self.png('upload.png', folder=tempfile.mkdtemp(prefix='batch-up-'))

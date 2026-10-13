@@ -13,10 +13,16 @@ Only fork-specific changes are listed here — upstream history is available via
   ("Drop Image Here") in the Upscale or Variation tab and in the Enhance tab, with a
   **Clear batch** button to go back to a single image. The list says which settings apply
   to each image (the method on the right, or the Enhance settings).
-- **Generate and + Queue stack the batch themselves**: one Job Queue job per image with
-  the settings of the active tab. The separate "Queue the batch" button is gone. On the
-  tabs that do not take a batch (Image Prompt, Inpaint, Describe) they behave as before.
-- `modules.batch_input.list_html()` renders the block; tests added.
+- **Queue the batch** (stack without starting, then ▶ Run queue) and **Generate** or
+  **+ Queue** (same, Generate starts the queue) all stack one Job Queue job per image with
+  the settings of the active tab. On the tabs that do not take a batch (Image Prompt,
+  Inpaint, Describe) they behave as before.
+- The accordion spans the full width of the tab (folder + Scan on one row, filter and the
+  two options on the next, file picker, status, Queue the batch / Clear batch).
+- `modules.batch_input.list_html()` renders the block; `summarize()` takes the selection
+  entries (the first build raised on them, so the list never replaced the drop zone);
+  tests added. The wiring is checked against a real Gradio 3.41.2 server (scan, upload,
+  clear) in the session.
 
 ## [custom-39] — 2026-10-13 — Batch input: one queue job per image of a folder
 

@@ -139,11 +139,13 @@ def scan_report(path, recursive=False, pattern=''):
 
 
 def summarize(files, where=''):
+    """One Markdown line; `files` holds paths or (path, eager) entries."""
     if not files:
         return f'No image found {where}.'.replace('  ', ' ')
-    names = [os.path.basename(f) for f in files[:5]]
-    more = f' (+{len(files) - 5} more)' if len(files) > 5 else ''
-    return f'**{len(files)} image(s)** {where}: {", ".join(names)}{more}'
+    paths = [f[0] if isinstance(f, (tuple, list)) else f for f in files]
+    names = [os.path.basename(p) for p in paths[:5]]
+    more = f' (+{len(paths) - 5} more)' if len(paths) > 5 else ''
+    return f'**{len(paths)} image(s)** {where}: {", ".join(names)}{more}'
 
 
 def list_html(entries, note=''):
