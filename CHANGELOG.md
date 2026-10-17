@@ -3,6 +3,27 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [custom-40] — 2026-10-13 — Batch input lives in the Upscale tab, the list replaces the drop zone
+
+### Changed
+- The **📁 Batch** accordion moves into the **Upscale or Variation** tab, under the method
+  radio and before the Documentation link (folder path with Enter or **Scan folder**, name
+  filter, sub-folders, file picker, source-name option).
+- As soon as a batch is selected, **the list of files takes the place of the drop zone**
+  ("Drop Image Here") in the Upscale or Variation tab and in the Enhance tab, with a
+  **Clear batch** button to go back to a single image. The list says which settings apply
+  to each image (the method on the right, or the Enhance settings).
+- **Queue the batch** (stack without starting, then ▶ Run queue) and **Generate** or
+  **+ Queue** (same, Generate starts the queue) all stack one Job Queue job per image with
+  the settings of the active tab. On the tabs that do not take a batch (Image Prompt,
+  Inpaint, Describe) they behave as before.
+- The accordion spans the full width of the tab (folder + Scan on one row, filter and the
+  two options on the next, file picker, status, Queue the batch / Clear batch).
+- `modules.batch_input.list_html()` renders the block; `summarize()` takes the selection
+  entries (the first build raised on them, so the list never replaced the drop zone);
+  tests added. The wiring is checked against a real Gradio 3.41.2 server (scan, upload,
+  clear) in the session.
+
 ## [custom-39] — 2026-10-13 — Batch input: one queue job per image of a folder
 
 ### Added

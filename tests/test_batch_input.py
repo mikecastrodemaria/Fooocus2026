@@ -104,6 +104,11 @@ class TestScan(World):
         self.assertIn('(+2 more)', report)
         self.assertIn('No image found', B.scan_report(self.root, pattern='*.gif'))
 
+    def test_summarize_takes_entries_too(self):
+        entries = [('/x/a.png', True), ('/x/b.png', False)]
+        self.assertIn('**2 image(s)** selected: a.png, b.png', B.summarize(entries, 'selected'))
+        self.assertIn('**2 image(s)** selected: a.png, b.png', B.summarize(['/x/a.png', '/x/b.png'], 'selected'))
+
     def test_collect_mixes_uploads_and_folder(self):
         self.png('f1.png')
         up = self.png('upload.png', folder=tempfile.mkdtemp(prefix='batch-up-'))
@@ -217,6 +222,20 @@ class TestMaterialize(World):
         self.assertEqual(missing, '')
         self.assertIs(out[IDX['uov_image']], args[IDX['uov_image']])
         self.assertFalse(B.is_file_ref({'__file__': 'x', 'extra': 1}))
+
+
+class TestListHtml(unittest.TestCase):
+    def test_empty_and_escaping(self):
+        self.assertEqual(B.list_html([]), '')
+        html = B.list_html([('/x/a<b>.png', False), ('/x/c.jpg', True)], 'the method applies')
+        self.assertIn('2 image(s)', html)
+        self.assertIn('a&lt;b&gt;.png', html)
+        self.assertIn('the method applies', html)
+
+    def test_long_lists_are_cut(self):
+        html = B.list_html([(f'/x/{i}.png', False) for i in range(40)])
+        self.assertIn('and 10 more', html)
+        self.assertEqual(html.count('<li>'), 31)
 
 
 class TestNaming(unittest.TestCase):
