@@ -619,14 +619,10 @@ def fetch_civitai_preview_for(kind: str, rel_filename: str, api_key: str = None)
         if not images:
             return {'success': False, 'message': 'CivitAI has no images for this model.',
                     'kind': kind, 'rel_path': rel_filename}
-        # Pick the first usable URL (most-reactions sort).
-        img_url = None
-        for it in images:
-            u = it.get('url') if isinstance(it, dict) else None
-            if u:
-                img_url = u
-                break
-        if not img_url:
+        # The usable URLs (most-reactions sort): a video example is fetched as its
+        # poster frame, and a candidate the CDN refuses gives way to the next one.
+        candidates = civitai_api.preview_candidates(images)
+        if not candidates:
             return {'success': False, 'message': 'CivitAI returned no usable image URL.',
                     'kind': kind, 'rel_path': rel_filename}
     except Exception as e:
@@ -634,21 +630,28 @@ def fetch_civitai_preview_for(kind: str, rel_filename: str, api_key: str = None)
                 'kind': kind, 'rel_path': rel_filename}
 
     # Download → re-encode as PNG to normalise format (CivitAI may serve JPEG/WebP).
-    try:
-        import urllib.request
-        from io import BytesIO
-        from PIL import Image
-        req = urllib.request.Request(img_url, headers={'User-Agent': 'Fooocus2025/asset-browser'})
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = resp.read()
-        im = Image.open(BytesIO(data)).convert('RGB')
-        stem = os.path.splitext(os.path.basename(full))[0]
-        target_dir = os.path.dirname(full)
-        target_path = os.path.join(target_dir, f'{stem}.preview.png')
-        im.save(target_path, 'PNG', optimize=True)
-        print(f'[asset-browser] fetched CivitAI preview for {rel_filename} -> {target_path}')
-    except Exception as e:
-        return {'success': False, 'message': f'Download/save failed: {e}',
+    import urllib.request
+    from io import BytesIO
+    from PIL import Image
+    stem = os.path.splitext(os.path.basename(full))[0]
+    target_dir = os.path.dirname(full)
+    target_path = os.path.join(target_dir, f'{stem}.preview.png')
+    last_err = None
+    for img_url in candidates:
+        try:
+            req = urllib.request.Request(img_url, headers={'User-Agent': 'Fooocus2025/asset-browser'})
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = resp.read()
+            im = Image.open(BytesIO(data)).convert('RGB')
+            im.save(target_path, 'PNG', optimize=True)
+            print(f'[asset-browser] fetched CivitAI preview for {rel_filename} -> {target_path}')
+            last_err = None
+            break
+        except Exception as e:
+            last_err = e
+            print(f'[asset-browser] CivitAI preview candidate failed ({img_url}): {e}')
+    if last_err is not None:
+        return {'success': False, 'message': f'Download/save failed: {last_err}',
                 'kind': kind, 'rel_path': rel_filename}
 
     # Invalidate the cached thumbnail / full copy for this model so the next
