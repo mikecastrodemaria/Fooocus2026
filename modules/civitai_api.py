@@ -776,13 +776,71 @@ def base_model_support(base):
     return 'hidden', 'not SD/SDXL: Fooocus2026 hides this architecture from its lists'
 
 
+# CivitAI serves the example "images" of the video models (Wan, LTX, Hunyuan...) as
+# video/mp4: an <img> cannot show them and Pillow cannot open them, so the search
+# results skipped them and the Asset Browser's "Fetch from CivitAI" failed on them. The
+# CDN renders the first frame of a video as a JPEG on request: the transform segment of
+# the URL becomes 'anim=false,transcode=true' and the extension '.jpeg'.
+_VIDEO_EXTS = ('.mp4', '.webm', '.mov', '.m4v')
+
+
+def is_video_url(url):
+    """True when a CivitAI media URL points at a video."""
+    path = str(url or '').split('?', 1)[0].split('#', 1)[0].lower()
+    return path.endswith(_VIDEO_EXTS)
+
+
+def media_is_video(item):
+    """True for an entry of the API's 'images' list that is a video ('type': 'video',
+    or a video URL when the type is missing)."""
+    if not isinstance(item, dict):
+        return False
+    return str(item.get('type') or '').lower() == 'video' or is_video_url(item.get('url'))
+
+
+def still_url(url, width=None):
+    """The poster frame (a JPEG) of a CivitAI video URL:
+        https://image.civitai.com/<sig>/<uuid>/original=true/<name>.mp4
+     -> https://image.civitai.com/<sig>/<uuid>/anim=false,transcode=true/<name>.jpeg
+    A 'width=N' already in the URL (or given) is kept. Anything that is not a video URL,
+    or not shaped like a CivitAI CDN URL, comes back unchanged."""
+    u = str(url or '')
+    if not is_video_url(u):
+        return u
+    u = u.split('?', 1)[0].split('#', 1)[0]
+    base, _, fname = u.rpartition('/')
+    prefix, _, transforms = base.rpartition('/')
+    if not prefix or '=' not in transforms:
+        return url
+    opts = ['anim=false', 'transcode=true']
+    w = width or next((t.split('=', 1)[1] for t in transforms.split(',')
+                       if t.startswith('width=')), None)
+    if w:
+        opts.append(f'width={w}')
+    stem = fname.rsplit('.', 1)[0]
+    return f"{prefix}/{','.join(opts)}/{stem}.jpeg"
+
+
+def preview_candidates(images, limit=3):
+    """The URLs to try, in order, for a model's preview image: the API's images with a
+    video rendered as its poster frame (so every candidate is something Pillow opens)."""
+    out = []
+    for it in images or []:
+        if not isinstance(it, dict) or not it.get('url'):
+            continue
+        out.append(still_url(it['url']) if media_is_video(it) else it['url'])
+        if len(out) >= limit:
+            break
+    return out
+
+
 def _preview_url(version, nsfw):
     for img in version.get('images') or []:
-        if not isinstance(img, dict) or not img.get('url') or img.get('type') == 'video':
+        if not isinstance(img, dict) or not img.get('url'):
             continue
         if not nsfw and (img.get('nsfwLevel') or 0) > 1:
             continue
-        return img['url']
+        return still_url(img['url']) if media_is_video(img) else img['url']
     return ''
 
 

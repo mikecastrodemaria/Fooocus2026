@@ -219,5 +219,27 @@ class TestDownload(unittest.TestCase):
         self.assertEqual(os.listdir(self.dir), [])
 
 
+class TestVideoPreviews(unittest.TestCase):
+    """Les LoRA video (Wan, LTX...) s'illustrent avec des 'images' .mp4 : la carte et le
+    bouton Fetch de l'Asset Browser prennent la premiere frame rendue en JPEG par le CDN."""
+    VID = 'https://image.civitai.com/sig/uuid/original=true/uuid.mp4'
+    STILL = 'https://image.civitai.com/sig/uuid/anim=false,transcode=true/uuid.jpeg'
+
+    def test_still_url(self):
+        self.assertTrue(C.is_video_url(self.VID))
+        self.assertEqual(C.still_url(self.VID), self.STILL)
+        self.assertEqual(C.still_url(self.VID.replace('original=true', 'width=450') + '?a=1'),
+                         'https://image.civitai.com/sig/uuid/anim=false,transcode=true,width=450/uuid.jpeg')
+        self.assertEqual(C.still_url('https://img/x.jpg'), 'https://img/x.jpg')
+        self.assertEqual(C.still_url('https://host/clip.mp4'), 'https://host/clip.mp4')
+        self.assertTrue(C.media_is_video({'type': 'video', 'url': 'https://i/noext'}))
+
+    def test_search_card_and_fetch_candidates(self):
+        imgs = [{'url': self.VID, 'type': 'video', 'nsfwLevel': 1}, {'url': 'https://img/x.jpg', 'nsfwLevel': 1}]
+        self.assertEqual(C._preview_url({'images': imgs}, nsfw=False), self.STILL)
+        self.assertEqual(C.preview_candidates(imgs), [self.STILL, 'https://img/x.jpg'])
+        self.assertEqual(C.preview_candidates([{'type': 'video'}, None]), [])
+
+
 if __name__ == '__main__':
     unittest.main()
