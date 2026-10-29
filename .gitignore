@@ -37,6 +37,7 @@ __pycache__/
 
 ## Outputs & generated content
 /outputs/
+/out/
 /log/
 /input/
 /tmp/

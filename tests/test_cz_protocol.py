@@ -1,0 +1,208 @@
+"""crispz-sdxl lot 1: the CLI protocol v1 endpoints on CPU, with the fake engine.
+
+Covers cli_caps (identity, capabilities computed from what runs, model lists)
+and a cli_gen round trip through FakeWorker: the spec goes through the
+custom-26 validator and mapping (fooocus_protocol.build_task_args), the fake
+engine decodes the AsyncTask snapshot by name and writes an image in the
+family layout (out/YYYY-MM-DD/{date}_{tag}_seed{seed}_{w}x{h}.png with the
+crispz chunk and the .json sidecar). No torch, no gradio, no model.
+
+Run:  python -m pytest tests/test_cz_protocol.py -q
+      python -m unittest tests.test_cz_protocol -v
+"""
+import json
+import os
+import re
+import shutil
+import sys
+import tempfile
+import unittest
+from unittest import mock
+
+from PIL import Image
+
+sys.argv = sys.argv[:1]  # modules.config -> args_manager parses sys.argv at import
+
+import cz_core  # noqa: E402
+import cz_imageio  # noqa: E402
+import cz_pipeline  # noqa: E402
+import cz_protocol  # noqa: E402
+import modules.config as cfg  # noqa: E402
+
+MODELS = ['sdxl/juggernautXL_v9.safetensors', 'sdxl/realvisxlV40.safetensors']
+LORAS = ['styles/ink_v2.safetensors', 'add_detail_xl.safetensors']
+
+
+class FakeEngineCase(unittest.TestCase):
+    """A temporary out/ and the fake engine on, for every test of the class."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp(prefix='crispz_sdxl_')
+        self.env = mock.patch.dict(os.environ, {'CRISPZ_FAKE_ENGINE': '1', 'CRISPZ_OUT_DIR': self.dir,
+                                                'CRISPZ_CONFIG': os.path.join(self.dir, 'no-config.txt')})
+        self.env.start()
+        self.lists = mock.patch.multiple(cfg, model_filenames=list(MODELS), lora_filenames=list(LORAS))
+        self.lists.start()
+
+    def tearDown(self):
+        self.lists.stop()
+        self.env.stop()
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    @staticmethod
+    def call(handler, spec):
+        out = handler(json.dumps(spec) if isinstance(spec, dict) else spec)
+        assert isinstance(out, str), 'an endpoint answers a JSON string'
+        return json.loads(out)
+
+
+class TestCaps(FakeEngineCase):
+    def test_identity_and_engine(self):
+        caps = self.call(cz_protocol.cli_caps, '{}')
+        self.assertEqual((caps['ok'], caps['protocol'], caps['tool'], caps['version']),
+                         (True, 1, 'crispz-sdxl', '0.1.0'))
+        self.assertEqual(caps['engine']['tool'], 'fooocus2026')
+        self.assertTrue(caps['engine']['fake'])
+
+    def test_models_and_loras_come_from_the_fooocus_lists(self):
+        caps = self.call(cz_protocol.cli_caps, '{}')
+        self.assertEqual((caps['models'], caps['loras']), (MODELS, LORAS))
+        self.assertFalse(caps['model_loaded'])
+
+    def test_supports_never_claims_more_than_the_pipeline_runs(self):
+        caps = self.call(cz_protocol.cli_caps, '{}')
+        s = caps['supports']
+        self.assertEqual(s['max_refs'], min(cfg.default_controlnet_image_count, 4))
+        for op in cz_pipeline.IMPLEMENTED_OPS:
+            self.assertIn(op, caps['ops'])
+        self.assertEqual(s['edit'], 'edit' in cz_pipeline.IMPLEMENTED_OPS)
+        self.assertEqual(s['faces'], 'faces' in cz_pipeline.IMPLEMENTED_OPS)
+        self.assertEqual(set(caps['planned']), {'edit', 'faces'} - set(cz_pipeline.IMPLEMENTED_OPS))
+        self.assertTrue(s['loras'] and s['seed'] and s['negative'] and s['arbitrary_size'])
+
+    def test_the_four_family_endpoints_exist(self):
+        self.assertEqual(set(cz_protocol.endpoints()), {'cli_caps', 'cli_gen', 'cli_edit', 'cli_faces'})
+
+
+class TestGenRoundTrip(FakeEngineCase):
+    SPEC = {'protocol': 1, 'op': 'gen', 'prompt': 'a red cat on a roof <lora:ink_v2:0.7>',
+            'negative': 'blurry', 'width': 256, 'height': 320, 'seed': 7, 'steps': 4,
+            'model': 'juggernaut'}
+
+    def test_gen_writes_a_family_image_through_the_fake_engine(self):
+        res = self.call(cz_protocol.cli_gen, self.SPEC)
+        self.assertTrue(res['ok'], res)
+        self.assertEqual((res['tool'], res['version'], res['seed_used']), ('crispz-sdxl', '0.1.0', 7))
+        self.assertTrue(res['engine']['fake'])
+        self.assertTrue(any('FAKE engine' in w for w in res['warnings']), 'the degradation is announced')
+        self.assertEqual(res['loras'], ['styles/ink_v2.safetensors:0.7'])
+
+        self.assertEqual(len(res['images']), 1)
+        path = res['images'][0]
+        self.assertTrue(os.path.isfile(path), path)
+        day = cz_core.today()
+        self.assertEqual(os.path.dirname(path), os.path.join(self.dir, day))
+        self.assertEqual(os.path.basename(path), f'{day}_sdxl_seed7_256x320.png')
+        with Image.open(path) as im:
+            self.assertEqual(im.size, (256, 320))
+            self.assertIn('parameters', im.text)
+
+        meta = cz_imageio.read_meta(path)
+        self.assertEqual((meta['tool'], meta['engine'], meta['seed'], meta['steps']), ('crispz-sdxl', 'fake', 7, 4))
+        self.assertEqual(meta['prompt'], 'a red cat on a roof')  # the LoRA tag is stripped
+        self.assertEqual(meta['model'], 'sdxl/juggernautXL_v9.safetensors')  # resolved by partial name
+        sidecar = os.path.splitext(path)[0] + '.json'
+        with open(sidecar, encoding='utf-8') as f:
+            self.assertEqual(json.load(f), meta)
+
+    def test_a_second_render_with_the_same_seed_never_overwrites(self):
+        first = self.call(cz_protocol.cli_gen, self.SPEC)['images'][0]
+        second = self.call(cz_protocol.cli_gen, self.SPEC)['images'][0]
+        self.assertNotEqual(first, second)
+        self.assertTrue(re.search(r'_seed7_256x320_2\.png$', second), second)
+
+    def test_out_dir_of_the_spec_receives_a_copy(self):
+        target = os.path.join(self.dir, 'dataset', 'lea')
+        res = self.call(cz_protocol.cli_gen, dict(self.SPEC, out_dir=target))
+        self.assertTrue(res['ok'], res)
+        self.assertEqual(os.path.dirname(res['images'][0]), target)
+        self.assertTrue(os.path.isfile(res['images'][0]))
+
+    def test_a_random_seed_is_reported(self):
+        res = self.call(cz_protocol.cli_gen, dict(self.SPEC, seed=-1))
+        self.assertTrue(res['ok'], res)
+        self.assertIn(f'seed{res["seed_used"]}_', os.path.basename(res['images'][0]))
+
+    def test_upscale_and_inpaint_ride_cli_gen(self):
+        src = os.path.join(self.dir, 'in.png')
+        Image.new('RGB', (64, 48), (10, 20, 30)).save(src)
+        res = self.call(cz_protocol.cli_gen, {'protocol': 1, 'op': 'upscale', 'input': src, 'factor': 2})
+        self.assertTrue(res['ok'], res)
+        with Image.open(res['images'][0]) as im:
+            self.assertEqual(im.size, (128, 96))
+        mask = os.path.join(self.dir, 'mask.png')
+        m = Image.new('L', (64, 48), 0)
+        m.paste(255, (0, 0, 32, 48))
+        m.save(mask)
+        res = self.call(cz_protocol.cli_gen, {'protocol': 1, 'op': 'inpaint', 'input': src, 'mask': mask,
+                                              'prompt': 'an umbrella'})
+        self.assertTrue(res['ok'], res)
+        with Image.open(res['images'][0]) as im:
+            self.assertEqual(im.size, (64, 48))
+            self.assertEqual(im.getpixel((60, 40)), (10, 20, 30))  # outside the mask: untouched
+
+
+class TestRefusals(FakeEngineCase):
+    def test_bad_specs_answer_code_2_in_json(self):
+        self.assertEqual(self.call(cz_protocol.cli_gen, 'not json')['code'], 2)
+        self.assertEqual(self.call(cz_protocol.cli_gen, '[1, 2]')['code'], 2)
+        self.assertEqual(self.call(cz_protocol.cli_gen, {'protocol': 1, 'prompt': ''})['code'], 2)
+        res = self.call(cz_protocol.cli_gen, {'protocol': 1, 'prompt': 'x', 'model': 'nope'})
+        self.assertEqual((res['ok'], res['code']), (False, 2))
+        self.assertIn('checkpoint not found', res['error'])
+
+    def test_foreign_protocol_and_wrong_endpoint_answer_code_3(self):
+        self.assertEqual(self.call(cz_protocol.cli_gen, {'protocol': 2, 'prompt': 'x'})['code'], 3)
+        self.assertEqual(self.call(cz_protocol.cli_gen, {'protocol': 1, 'op': 'edit', 'prompt': 'x'})['code'], 3)
+
+    def test_edit_and_faces_are_refused_with_code_3_until_lot_2(self):
+        for handler in (cz_protocol.cli_edit, cz_protocol.cli_faces):
+            res = self.call(handler, {'protocol': 1, 'prompt': 'x', 'input': 'in.png'})
+            self.assertEqual((res['ok'], res['code']), (False, 3), res)
+            self.assertIn('lot 2', res['error'])
+
+    @unittest.skipIf('torch' in sys.modules or __import__('importlib').util.find_spec('torch'),
+                     'torch is installed here: the real engine would import')
+    def test_without_the_fake_engine_the_missing_engine_is_explained(self):
+        with mock.patch.dict(os.environ, {'CRISPZ_FAKE_ENGINE': '0'}):
+            res = self.call(cz_protocol.cli_gen, {'protocol': 1, 'prompt': 'x'})
+        self.assertEqual((res['ok'], res['code']), (False, 1))
+        self.assertIn('CRISPZ_FAKE_ENGINE=1', res['error'])
+
+
+class TestCoreConfig(unittest.TestCase):
+    def test_defaults_then_config_block_then_environment(self):
+        d = tempfile.mkdtemp(prefix='crispz_cfg_')
+        try:
+            path = os.path.join(d, 'config.txt')
+            with mock.patch.dict(os.environ, {'CRISPZ_CONFIG': path}, clear=False):
+                os.environ.pop('CRISPZ_OUT_DIR', None)
+                os.environ.pop('CRISPZ_FAKE_ENGINE', None)
+                c = cz_core.load_config()
+                self.assertEqual((c['tag'], c['port'], c['fake_engine']), ('sdxl', 7865, False))
+                self.assertEqual(cz_core.out_dir(c), os.path.join(cz_core.ROOT, 'out'))
+                with open(path, 'w', encoding='utf-8') as f:
+                    json.dump({'crispz': {'tag': 'xl', 'out_dir': d, 'fake_engine': True, 'port': 'x'}}, f)
+                c = cz_core.load_config()
+                self.assertEqual((c['tag'], c['port'], c['fake_engine']), ('xl', 7865, True))
+                self.assertTrue(cz_core.fake_engine_enabled(c))
+                self.assertEqual(cz_core.out_dir(c), d)
+                with mock.patch.dict(os.environ, {'CRISPZ_FAKE_ENGINE': '0', 'CRISPZ_OUT_DIR': os.path.join(d, 'e')}):
+                    self.assertFalse(cz_core.fake_engine_enabled(c))
+                    self.assertEqual(cz_core.out_dir(c), os.path.join(d, 'e'))
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+
+if __name__ == '__main__':
+    unittest.main()

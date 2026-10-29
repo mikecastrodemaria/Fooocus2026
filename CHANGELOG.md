@@ -3,6 +3,41 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [crispz-sdxl 0.1.0] (unreleased): lot 1, plan and skeleton of the crispz layer
+
+crispz-sdxl is a member of the crispz family (crispz-klein, crispz-flux3, crispz-qwen-edit,
+crispz-krea2, crispz-studio) whose engine is SDXL as this fork implements it. The Fooocus
+engine under `modules/` does not change; a crispz layer sits on top. Plan, feature matrix,
+lots and open questions: `FORK.md`.
+
+### Added
+- `cz_core.py`: tool identity (`crispz-sdxl`, `0.1.0`), the `crispz` block of `config.txt`
+  (`out_dir`, `tag`, `port`, `fake_engine`, `keep_fooocus_ui`) read without importing
+  `modules.config`, `CRISPZ_OUT_DIR` / `CRISPZ_FAKE_ENGINE` / `CRISPZ_CONFIG` overrides.
+- `cz_imageio.py`: family output layout `out/YYYY-MM-DD/{date}_{tag}_seed{seed}_{w}x{h}.png`
+  (collision suffix `_2`, `_3`), `crispz` PNG chunk, A1111 `parameters` chunk, `.json` sidecar.
+- `cz_pipeline.py`: `generate(spec, op)` in the family call convention, over
+  `fooocus_protocol.run()` (custom-26) and the Fooocus worker. `FakeWorker` answers the same
+  worker contract with a PIL placeholder renderer when `CRISPZ_FAKE_ENGINE=1`: the protocol
+  is testable on a CPU-only machine, no torch, no model, no download. Every fake render is
+  announced on the console and in the result warnings. `gen`, `upscale`, `inpaint` run;
+  `edit` and `faces` answer code 3 with the lot that brings them.
+- `cz_protocol.py`: the four family endpoints `cli_caps`, `cli_gen`, `cli_edit`, `cli_faces`
+  as handlers (bound to Gradio in lot 3). `cli_caps` answers tool `crispz-sdxl`, the engine
+  (`fooocus2026` and its version), `supports` computed from what `cz_pipeline` really runs
+  (`edit` and `faces` false until lot 2, `max_refs` from `default_controlnet_image_count`),
+  `models` and `loras` from the Fooocus lists.
+- `tests/test_cz_protocol.py`: caps, a `cli_gen` round trip through the fake engine (file
+  name, size, chunk, sidecar, LoRA tag, partial model name, `out_dir` copy, collision),
+  upscale and inpaint on the same endpoint, refusals with their codes, config precedence.
+  14 tests, CPU only, pytest or unittest.
+- `config-sample.txt` with the `crispz` and `cli_protocol` blocks; `/out/` ignored by git.
+
+### Notes
+- Nothing in `modules/`, `webui.py` or `fooocus_protocol.py` changes in this lot. The
+  custom-26 endpoints keep answering as `fooocus2026`; how the two identities share one
+  port is an open question in `FORK.md`.
+
 ## [custom-40] — 2026-10-13 — Batch input lives in the Upscale tab, the list replaces the drop zone
 
 ### Changed
