@@ -3,10 +3,13 @@ REM custom-26 : protocole CLI de la famille crispz (voir fooocus_protocol.py et
 REM comics2crispz/docs/CLI_PROTOCOL.md). Toujours UNE ligne JSON sur stdout.
 REM Codes : 0 ok, 1 erreur d'execution, 2 spec invalide, 3 non supporte, 4 pas de route.
 REM
-REM   czp.bat caps
+REM   czp.bat caps                        (repond crispz-sdxl, moteur fooocus2026)
 REM   czp.bat gen --spec spec.json        (--spec - : spec sur stdin)
 REM   czp.bat upscale --spec spec.json
 REM   czp.bat inpaint --spec spec.json
+REM   czp.bat edit --spec spec.json       (crispz-sdxl : image + prompt [+ mask])
+REM   czp.bat faces --spec spec.json      (crispz-sdxl : visages, insightface)
+REM   czp.bat doctor [--remote URL]       (ca ne marche pas ? il dit pourquoi)
 REM   options : --remote URL, --local, --timeout S
 setlocal
 set "CZP_CALLER_CWD=%CD%"

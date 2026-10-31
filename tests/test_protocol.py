@@ -105,9 +105,9 @@ class FakeFooocus(BaseHTTPRequestHandler):
             if FakeFooocus.engine:
                 caps['engine'] = {'tool': FakeFooocus.engine}
             out = json.dumps(caps)
-        elif self.path == '/run/cli_gen':
+        elif self.path in ('/run/cli_gen', '/run/cli_edit', '/run/cli_faces'):
             spec = json.loads(body['data'][0])
-            FakeFooocus.last = spec
+            FakeFooocus.last = dict(spec, _endpoint=self.path.rsplit('/', 1)[1])
             if spec.get('prompt') == 'boom':
                 out = json.dumps({'ok': False, 'error': 'refused', 'code': 2})
             else:
@@ -181,18 +181,84 @@ class TestRemoteRoute(unittest.TestCase):
         code, res = self.czp('gen', '--remote', self.url, spec={'protocol': 1, 'prompt': 'a cat'})
         self.assertEqual((code, res['ok']), (0, True))
 
+    def test_edit_and_faces_go_to_their_own_endpoints(self):
+        src = png(os.path.join(self.dir, 'in.png'))
+        code, res = self.czp('edit', '--remote', self.url, spec={'protocol': 1, 'prompt': 'night', 'input': src})
+        self.assertEqual((code, res['ok'], FakeFooocus.last['_endpoint'], FakeFooocus.last['op']),
+                         (0, True, 'cli_edit', 'edit'))
+        code, res = self.czp('faces', '--remote', self.url, spec={'protocol': 1, 'input': src})
+        self.assertEqual((code, FakeFooocus.last['_endpoint'], FakeFooocus.last['input']), (0, 'cli_faces', src))
+
+    def test_unknown_command_lists_the_commands(self):
+        code, res = self.czp('bidule')
+        self.assertEqual(code, 3)
+        self.assertIn('doctor', res['error'])
+
     def test_another_app_on_the_port_is_never_taken_for_fooocus(self):
         FakeFooocus.tool = 'crispz-studio'
         code, res = self.czp('gen', '--remote', self.url, spec={'protocol': 1, 'prompt': 'a cat'})
         self.assertEqual(code, 4)
-        self.assertIn('no Fooocus2026 instance', res['error'])
+        self.assertIn('instance answers at', res['error'])
 
     def test_spec_errors_come_before_any_route(self):
         code, res = self.czp('gen', '--remote', 'http://127.0.0.1:9', spec={'protocol': 1, 'prompt': ''})
         self.assertEqual(code, 2)
         code, _ = self.czp('edit', '--remote', self.url, spec={'protocol': 1, 'prompt': 'x'})
+        self.assertEqual(code, 2)  # edit needs an input image
+        code, _ = self.czp('gen', '--remote', self.url, spec={'protocol': 2, 'prompt': 'x'})
         self.assertEqual(code, 3)
         code, _ = self.czp('gen', '--remote', self.url)
+        self.assertEqual(code, 2)
+
+
+class TestLocalRouteIsCrispz(unittest.TestCase):
+    """Nothing listens: czp answers from its process AS crispz-sdxl, and with the fake
+    engine a gen round trip runs on CPU through the whole CLI (crispz-sdxl lot 2)."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp(prefix='fczp_')
+        self.env = mock.patch.dict(os.environ, {'CRISPZ_FAKE_ENGINE': '1', 'CRISPZ_OUT_DIR': self.dir,
+                                                'CZP_CALLER_CWD': self.dir})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def czp(self, *argv, spec=None):
+        if spec is not None:
+            path = os.path.join(self.dir, 'spec.json')
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(spec, f)
+            argv = argv + ('--spec', 'spec.json')
+        buf = io.StringIO()
+        code = P.main(list(argv), out=buf)
+        lines = buf.getvalue().splitlines()
+        self.assertEqual(len(lines), 1, 'toujours UNE ligne JSON')
+        return code, json.loads(lines[0])
+
+    def test_local_caps_answer_as_crispz_sdxl_with_the_engine_named(self):
+        code, caps = self.czp('caps', '--remote', 'http://127.0.0.1:9', '--local')
+        self.assertEqual((code, caps['tool'], caps['route'], caps['engine']['tool']),
+                         (0, 'crispz-sdxl', 'local', 'fooocus2026'))
+        self.assertFalse(caps['instance']['running'])
+        self.assertIn('edit', caps['ops'])
+
+    def test_local_gen_writes_in_the_family_layout_and_in_the_callers_out_dir(self):
+        code, res = self.czp('gen', '--local', spec={'protocol': 1, 'prompt': 'a cat', 'width': 256,
+                                                       'height': 256, 'seed': 5, 'out_dir': 'ds'})
+        self.assertEqual((code, res['ok'], res['route'], res['tool']), (0, True, 'local', 'crispz-sdxl'))
+        self.assertEqual(os.path.dirname(res['images'][0]), os.path.join(self.dir, 'ds'))
+        self.assertTrue(os.path.isfile(res['images'][0]))
+        self.assertTrue(any('FAKE' in w for w in res['warnings']))
+
+    def test_local_faces_and_edit_run_without_the_engine(self):
+        src = png(os.path.join(self.dir, 'in.png'), size=(64, 64))
+        code, res = self.czp('faces', '--local', spec={'protocol': 1, 'input': 'in.png'})
+        self.assertEqual((code, res['count'], len(res['faces'][0]['embedding'])), (0, 1, 512))
+        code, res = self.czp('edit', '--local', spec={'protocol': 1, 'prompt': 'night', 'input': src})
+        self.assertEqual((code, res['edit_mode']), (0, 'img2img'))
+        code, res = self.czp('edit', '--local', spec={'protocol': 1, 'prompt': 'night', 'input': 'nope.png'})
         self.assertEqual(code, 2)
 
 

@@ -52,6 +52,8 @@ layer sits beside `webui.py`, at the repo root like the other family apps:
 | `cz_imageio.py` | `out/YYYY-MM-DD/{date}_{tag}_seed{seed}_{w}x{h}.png`, `crispz` chunk, A1111 chunk, `.json` sidecar | 1 (fake engine), 2 (real outputs) |
 | `cz_pipeline.py` | `generate(spec, op)` in the family call convention, over `fooocus_protocol.run()`; `FakeWorker` for CPU runs | 1, 2 |
 | `cz_protocol.py` | `cli_caps`, `cli_gen`, `cli_edit`, `cli_faces` handlers, caps computed from what runs | 1, 2 |
+| `cz_models.py` | SDXL-only model and LoRA lists for caps (headers read, cached) | 2 |
+| `cz_doctor.py` | `czp doctor`: readable diagnosis of the app folder and the instance | 2 |
 | `cz_face.py` | insightface detection and embeddings (`detect_faces`, `detect_faces_full`, `similarity`), fake detector on CPU | 2 |
 | `cz_ui.py` | family tabs: Text to Image / Edit or Image Prompt / Image to Image, refine, upscale / Inpaint, Outpaint / Faces | 3 |
 | `app.py` | boots the crispz UI (and the Fooocus one if kept) and binds the endpoints | 3 |
@@ -94,8 +96,9 @@ engine of lot 1 decodes that same snapshot by name, so the tests exercise the re
    `faces` (`cz_face.py`, insightface, fake detector on CPU), real outputs imported into
    the family layout with the `crispz` chunk, the four endpoints bound in the running app
    in place of the custom-26 pair (`cz_protocol.bind_gradio`), `czp` routing to the
-   crispz-sdxl answer. Still to run by Mike on the 5090: `czp.bat caps` answers
-   `crispz-sdxl`, a `gen` with `out_dir`, an `edit`, a `faces`.
+   crispz-sdxl answer. Same identity on the czp local route, `czp edit`, `czp faces`,
+   `czp doctor`, SDXL-only caps lists. Still to run by Mike on the 5090: `czp.bat doctor`
+   until it says "All good", then `czp.bat gen`, `edit`, `faces`.
 3. UI: `cz_ui.py` with the family tabs, `app.py`, Fooocus UI kept or replaced.
 4. Install scripts and config: `install.bat/.sh`, `run.bat/.sh`, `update.bat/.sh`,
    `boot_check.bat`, `config-sample.txt` completed, Dockerfile check.
@@ -135,5 +138,7 @@ keeps `path_outputs`, the crispz layer copies into `out/`, `crispz.keep_fooocus_
 |---|---|---|
 | CPU tests, lot 1 | 32 tests (14 crispz + 18 custom-26) in 0.8 s, Python 3.13, no torch | `tests/test_cz_protocol.py`, `tests/test_protocol.py` |
 | CPU tests, lot 2 | 49 tests in 1.5 s (edit, faces, remote route, binding, import of a Fooocus file) | `tests/test_cz_protocol.py`, `tests/test_cz_face.py`, `tests/test_protocol.py` |
+| CPU tests, lot 2 bis | 58 tests in 1.8 s (czp local route, SDXL filter, doctor) | `tests/test_protocol.py`, `tests/test_cz_models.py`, `tests/test_cz_doctor.py` |
+| Mike's library, czp local route, empty arch cache | 154 checkpoints and about 2500 LoRAs listed, SD 1.5, SVD, Flux, Qwen, Z-Image, Wan, Krea included | motivated `cz_models.py` |
 | Real engine, 5090 | not measured yet (no GPU in the cloud session) | lot 2 validation by Mike |
 | Fake render | 256x320 placeholder, under 50 ms | `cz_pipeline.FakeWorker.render` |

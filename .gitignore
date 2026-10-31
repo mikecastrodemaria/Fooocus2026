@@ -48,6 +48,7 @@ __pycache__/
 hash_cache.txt
 sorted_styles.json
 model_arch_cache.json
+crispz_arch_cache.json
 
 ## User config (local to each install)
 config.txt

@@ -80,10 +80,16 @@ def caps_dict(models=None, loras=None):
     """The cli_caps answer. supports.* is computed from cz_pipeline.IMPLEMENTED_OPS,
     so a client never reads a capability this lot does not run; planned ops are
     listed apart with their lot."""
+    hidden = {}
     if models is None or loras is None:
+        import cz_models
         import modules.config as cfg
         models = list(cfg.model_filenames) if models is None else models
         loras = list(cfg.lora_filenames) if loras is None else loras
+        # The Fooocus lists keep SD 1.5 and every non Flux LoRA (custom-8); a family
+        # client needs SDXL only. Hidden counts are reported, never silent.
+        models, loras, hidden = cz_models.sdxl_lists(models, loras, list(cfg.paths_checkpoints),
+                                                     list(cfg.paths_loras))
     ops = list(cz_pipeline.IMPLEMENTED_OPS)
     faces_ok = 'faces' in ops and cz_face.available()
     if 'faces' in ops and not faces_ok:
@@ -108,7 +114,7 @@ def caps_dict(models=None, loras=None):
             'arbitrary_size': True, 'inpaint': 'inpaint' in ops, 'img2img': 'upscale' in ops,
             'detail_faces': 'gen' in ops, 'detail_hands': 'gen' in ops,
         },
-        'models': list(models), 'loras': list(loras),
+        'models': list(models), 'loras': list(loras), 'hidden': hidden,
         'model_loaded': cz_pipeline.model_loaded(),
         'out_dir': cz_pipeline.outputs_root(),
     }

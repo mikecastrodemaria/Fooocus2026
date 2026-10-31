@@ -9,8 +9,16 @@ comics2crispz, un script de nuit ou un agent le pilotent comme crispz-studio.
   czp.bat gen     --spec spec.json      (--spec - : spec sur stdin)
   czp.bat upscale --spec spec.json
   czp.bat inpaint --spec spec.json
+  czp.bat edit    --spec spec.json      (crispz-sdxl lot 2 : image + prompt, cz_pipeline)
+  czp.bat faces   --spec spec.json      (crispz-sdxl lot 2 : visages, cz_face)
+  czp.bat doctor  [--remote URL]        (diagnostic lisible : branche, python, instance)
   options : --remote URL (force cette instance), --local (force ce process),
             --timeout S (defaut 3600)
+
+crispz-sdxl (lot 2, 2026-10-31) : les deux routes repondent avec l'identite de la
+famille, tool "crispz-sdxl", le moteur "fooocus2026" nomme dans caps.engine. La
+route locale passe par cz_protocol / cz_pipeline ; les fonctions de mapping de ce
+module (validate_spec, build_task_args, execute, run) restent le socle.
 
 Routage (protocole §6) : par defaut on sonde l'instance Fooocus qui tourne
 (config.txt cli_protocol.instance_url, sinon http://127.0.0.1:7865) par son endpoint
@@ -27,7 +35,9 @@ Correspondance avec Fooocus :
   upscale  factor 1 = Vary (force = denoise) ; 1.5 / 2 = Upscale Fooocus (force =
            denoise ; denoise 0 en 2x = Upscale Fast). Autre facteur : exit 2.
   inpaint  masque blanc = a redessiner ; denoise = force ; prompt LOCAL.
-  edit     exit 3 : Fooocus n'a pas de pipeline d'edition par instruction.
+  edit     image vers image (cz_pipeline.build_edit_args) : Vary (Strong) avec denoise,
+           ou inpaint du masque ; SDXL suit le prompt comme description du resultat.
+  faces    detection et embeddings insightface (cz_face.py), sans le moteur.
 """
 import json
 import os
@@ -40,9 +50,15 @@ import urllib.error
 import urllib.request
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
+if __name__ == '__main__':
+    # Run as a script this file is "__main__"; cz_pipeline then imports a SECOND copy
+    # under its real name, with its own ProtocolError class, and "except ProtocolError"
+    # below misses the errors raised there (seen 2026-10-31: a code 2 came out as 1).
+    sys.modules.setdefault('fooocus_protocol', sys.modules[__name__])
 PROTOCOL = 1
 TOOL = 'fooocus2026'
-OPS = ('caps', 'gen', 'upscale', 'inpaint')
+OPS = ('caps', 'gen', 'edit', 'faces', 'upscale', 'inpaint')
+WORKER_OPS = ('gen', 'upscale', 'inpaint')  # ce que validate_spec / run mappent ici
 MAX_REFS = 4
 UPSCALE_FACTORS = (1.0, 1.5, 2.0)
 SPEC_FIELDS = ('protocol', 'op', 'prompt', 'negative', 'width', 'height', 'seed', 'steps',
@@ -104,11 +120,8 @@ def validate_spec(spec, op):
         raise ProtocolError('the spec must be a JSON object', 2)
     if spec.get('protocol') != PROTOCOL:
         raise ProtocolError(f'unsupported protocol {spec.get("protocol")!r} (this tool speaks {PROTOCOL})', 3)
-    if op == 'edit':
-        raise ProtocolError('edit is not supported: Fooocus has no instruction-edit pipeline '
-                            '(caps.supports.edit is false)', 3)
-    if op not in ('gen', 'upscale', 'inpaint'):
-        raise ProtocolError(f'unknown op {op!r}', 3)
+    if op not in WORKER_OPS:
+        raise ProtocolError(f'unknown op {op!r} for this mapping (edit and faces: cz_pipeline)', 3)
     warnings = []
     if spec.get('op') not in (None, op):
         warnings.append(f'spec op "{spec.get("op")}" ignored: the command is "{op}"')
@@ -526,8 +539,13 @@ def main(argv=None, out=None):
             i += 2
         else:
             return emit({'ok': False, 'error': f'unexpected argument "{rest[i]}"'}, 2)
-    if cmd not in OPS and cmd != 'edit':
-        return emit({'ok': False, 'error': f'unknown command "{cmd}" (caps, gen, upscale, inpaint)'}, 3)
+    if cmd == 'doctor':
+        # Human readable report on stdout, not a JSON line: it is for the person at
+        # the keyboard when "it does not work" (crispz-sdxl lot 2).
+        import cz_doctor
+        return cz_doctor.main(url=opts['--remote'], out=out)
+    if cmd not in OPS:
+        return emit({'ok': False, 'error': f'unknown command "{cmd}" ({", ".join(OPS)}, doctor)'}, 3)
     try:
         timeout = int(opts['--timeout'])
     except ValueError:
@@ -537,43 +555,67 @@ def main(argv=None, out=None):
     # stdout reserve a la ligne JSON : tout ce que Fooocus imprime part sur stderr
     real_stdout, sys.stdout = sys.stdout, sys.stderr
     try:
+        import cz_core
+        import cz_protocol
         if cmd == 'caps':
             inst = None if local else probe_instance(url)
             if inst:
                 inst['route'] = 'remote'
                 return emit(inst, 0)
-            if opts['--remote']:
-                return emit({'ok': False, 'error': f'no Fooocus2026 instance answers at {url}'}, 4)
-            cfg = _load_config()
-            caps = caps_dict(cfg.model_filenames, cfg.lora_filenames, False,
-                             {'running': False, 'url': url})
+            if opts['--remote'] and not local:  # --local wins: this process, whatever the URL
+                return emit({'ok': False, 'error': f'no crispz-sdxl / Fooocus2026 instance answers at {url} '
+                                                   '(czp.bat doctor says why)'}, 4)
+            if not local:
+                print(f'[czp] no running instance at {url}: answering from this process, without the '
+                      f'engine (czp.bat doctor for details)', file=sys.stderr)
+            _load_config()
+            caps = cz_protocol.caps_dict()
             caps['route'] = 'local'
+            caps['instance'] = {'running': False, 'url': url}
             return emit(caps, 0)
 
         if not opts['--spec']:
             return emit({'ok': False, 'error': f'{cmd} needs --spec <file> (or --spec - for stdin)'}, 2)
         spec = _read_spec(opts['--spec'])
-        validate_spec(spec, cmd)  # erreurs de spec avant toute route ou chargement
+        # Relative paths are the caller's (CZP_CALLER_CWD, else the cwd), resolved now:
+        # _load_config() below does chdir(ROOT), and the remote instance has no idea
+        # where the caller stood.
+        for key in ('input', 'mask', 'out_dir'):
+            if spec.get(key):
+                spec[key] = caller_path(str(spec[key]))
+        if spec.get('refs'):
+            spec['refs'] = [caller_path(str(r)) for r in spec['refs']]
+        # erreurs de spec avant toute route ou chargement
+        if cmd in WORKER_OPS:
+            validate_spec(spec, cmd)
+        elif cmd == 'edit':
+            import cz_pipeline
+            cz_pipeline.validate_edit_spec(spec)
+        else:  # faces
+            _existing_file(spec, 'input')
 
         if not local and probe_instance(url):
             remote_spec = dict(spec, op=cmd)
-            for key in ('input', 'mask', 'out_dir'):
-                if remote_spec.get(key):
-                    remote_spec[key] = caller_path(str(remote_spec[key]))
-            if remote_spec.get('refs'):
-                remote_spec['refs'] = [caller_path(str(r)) for r in remote_spec['refs']]
+            endpoint = {'edit': 'cli_edit', 'faces': 'cli_faces'}.get(cmd, 'cli_gen')
             try:
-                res = gradio_call(url, 'cli_gen', json.dumps(remote_spec), timeout)
+                res = gradio_call(url, endpoint, json.dumps(remote_spec), timeout)
             except Exception as e:
-                return emit({'ok': False, 'error': f'remote call to {url} failed: {e}'}, 1)
+                return emit({'ok': False, 'error': f'remote call to {url}/run/{endpoint} failed: {e}'}, 1)
             if not isinstance(res, dict):
                 return emit({'ok': False, 'error': f'unexpected reply from {url}: {str(res)[:200]}'}, 1)
             return emit(res, 0 if res.get('ok') else int(res.pop('code', 1)))
-        if opts['--remote']:
-            return emit({'ok': False, 'error': f'no Fooocus2026 instance answers at {url}'}, 4)
+        if opts['--remote'] and not local:
+            return emit({'ok': False, 'error': f'no crispz-sdxl / Fooocus2026 instance answers at {url} '
+                                               '(czp.bat doctor says why)'}, 4)
 
-        worker, _cfg = _load_backend()
-        return emit(run(spec, cmd, 'local', worker, timeout), 0)
+        import cz_pipeline
+        if cmd == 'faces' or cz_core.fake_engine_enabled():
+            _load_config()  # faces needs no engine; the fake engine needs no torch
+        else:
+            _load_backend()
+        res = cz_pipeline.generate(spec, cmd, route='local', timeout=timeout)
+        res['route'] = 'local'
+        return emit(res, 0)
     except ProtocolError as e:
         return emit({'ok': False, 'error': str(e)}, e.code)
     except Exception as e:

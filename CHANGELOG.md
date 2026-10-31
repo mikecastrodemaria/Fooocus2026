@@ -31,7 +31,29 @@ Decisions (Mike, 2026-10-31): the Fooocus UI stays, `cli_caps` answers as `crisp
   package), `tests/test_cz_protocol.py` (edit img2img and masked, faces, remote route and
   model switch, `bind_gradio` wiring, Fooocus file import); 49 CPU tests with custom-26.
 
+- `czp.bat` / `czp.sh` speak crispz-sdxl on both routes (2026-10-31, after Mike's first run
+  answered `fooocus2026` with `route: local` and nothing said why): the local route goes
+  through `cz_protocol.caps_dict()` and `cz_pipeline.generate()`, new commands `edit`,
+  `faces` and `doctor`, a stderr line when no instance answers and czp falls back to its
+  own process, relative paths of the spec resolved from the caller before any `chdir`.
+- `cz_doctor.py` (`czp.bat doctor [--remote URL]`): a readable report, branch and commit of
+  the app folder, Python and packages (torch, gradio, insightface, CUDA), the `crispz`
+  config, and the instance at the URL: answers as crispz-sdxl, as the old `fooocus2026`
+  (restart on the branch), as another crispz app, without endpoints, or not at all; each
+  finding ends with what to do. Exit 0 only when the instance answers as crispz-sdxl.
+- `cz_models.py`: `caps.models` and `caps.loras` list SDXL only. The Fooocus lists keep
+  SD 1.5 checkpoints and every LoRA that is not Flux or SD3 (custom-8); on Mike's library
+  the local route listed SD 1.5, SVD, an x4 upscaler, Flux, Qwen, Z-Image, Wan and Krea.
+  Headers are read (no weights), the arch is cached by path and mtime in
+  `crispz_arch_cache.json`, the hidden counts come back in `caps.hidden` and on the console.
+- Tests: `tests/test_cz_models.py` (crafted headers, cache), `tests/test_cz_doctor.py`
+  (fake instances: down, legacy, foreign, no endpoint, good), `tests/test_protocol.py`
+  (local route as crispz-sdxl with the fake engine, edit and faces routing). 58 CPU tests.
+
 ### Changed
+- `fooocus_protocol.py` run as a script registers itself as `fooocus_protocol` in
+  `sys.modules`: `cz_pipeline` imported a second copy with its own `ProtocolError`, so a
+  code 2 came out as 1 (seen on the first `czp.bat edit`).
 - `webui.py`: the custom-26 pair is replaced by `cz_protocol.bind_gradio(gr)`;
   `fooocus_protocol.remote_caps` / `remote_run` stay for the `czp --local` route.
 - `fooocus_protocol.probe_instance` accepts a `crispz-sdxl` answer whose
@@ -41,8 +63,7 @@ Decisions (Mike, 2026-10-31): the Fooocus UI stays, `cli_caps` answers as `crisp
 ### Notes
 - The real engine path (torch, the 5090) is not run in the cloud: to validate on the
   machine, `czp.bat caps` must answer `crispz-sdxl`, then a `gen` spec with `out_dir`.
-- Remaining for lot 3: `cz_ui.py` and `app.py`; the `czp --local` route still answers
-  `fooocus2026` (its caps are the engine's); lot 4 adds insightface to the install.
+- Remaining for lot 3: `cz_ui.py` and `app.py`; lot 4 adds insightface to the install.
 
 ## [crispz-sdxl 0.1.0] (unreleased): lot 1, plan and skeleton of the crispz layer
 
