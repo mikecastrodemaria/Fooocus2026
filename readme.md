@@ -449,6 +449,8 @@ czp.bat inpaint --spec fix.json
  "out_dir": "C:/book/panels"}
 ```
 
+**crispz-sdxl (branch `wip/crispz-sdxl`):** the running app now answers `cli_caps` as the family tool `crispz-sdxl` (engine `fooocus2026` named inside) and adds `cli_edit` and `cli_faces`; `czp` accepts that answer. See `FORK.md`.
+
 **Routing:** `czp` first looks for the running Fooocus (`cli_protocol.instance_url`, default `http://127.0.0.1:7865`) through its hidden `cli_caps` / `cli_gen` endpoints, and runs the spec there, in the worker thread, behind your own renders — one GPU, one queue. Without an instance it loads the backend itself (like `xyz_cli.py`). `--remote URL` forces an instance, `--local` forces the process. The answering app's identity is checked: another app on the port is never taken for Fooocus.
 
 **Mapping:** `gen` = SDXL txt2img — `width`/`height` exact size, `steps`, `loras` plus `<lora:…>` tags in the prompt (fuzzy names, unknown = exit 2), `refs` → Image Prompt (IP-Adapter, 4 max), `detail_faces` / `detail_hands` → Enhance with a `face` / `hand` mask. `upscale`: factor `1` = Vary (strength = `denoise`), `1.5` / `2` = Fooocus upscale (`denoise` 0 at 2x = Upscale Fast). `inpaint`: white mask = redraw, `denoise` = strength, prompt local to the area. `edit` answers 3 (no instruction-edit pipeline). On the remote route `model` is refused with a warning — the running instance's checkpoint is never swapped under your feet.

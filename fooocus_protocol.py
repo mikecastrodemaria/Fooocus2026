@@ -460,7 +460,12 @@ def probe_instance(url, timeout=4):
         caps = gradio_call(url, 'cli_caps', '{}', timeout)
     except Exception:
         return None
-    return caps if isinstance(caps, dict) and caps.get('tool') == TOOL else None
+    if not isinstance(caps, dict):
+        return None
+    # crispz-sdxl (cz_protocol.py) answers on the same port as the family tool, with
+    # this engine named in caps.engine.tool: that is still Fooocus, czp keeps routing.
+    engine = caps.get('engine') if isinstance(caps.get('engine'), dict) else {}
+    return caps if TOOL in (caps.get('tool'), engine.get('tool')) else None
 
 
 def _load_config():

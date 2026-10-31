@@ -33,6 +33,15 @@ DEFAULTS = {
     'port': 7865,
     'fake_engine': False,
     'keep_fooocus_ui': True,
+    # The hidden endpoints of the running app keep the checkpoint the user
+    # loaded (custom-26 rule: never swap the model under the user's feet, a
+    # swap costs 10 to 30 s per task on the 5090 and the UI would reload its
+    # own model right after). True lets a spec's "model" switch it anyway.
+    'allow_model_switch': False,
+    # Fooocus keeps writing its own file in path_outputs (log.html and the
+    # Asset Browser read it); the crispz layer adds a copy in out/ with the
+    # family name and the crispz chunk. False moves instead of copying.
+    'keep_fooocus_outputs': True,
 }
 
 
@@ -69,7 +78,8 @@ def load_config(path=None):
             log(f'config.txt "{CONFIG_KEY}.{key}" is not a known key (ignored)')
         cfg[key] = value
     cfg['fake_engine'] = bool(cfg['fake_engine'])
-    cfg['keep_fooocus_ui'] = bool(cfg['keep_fooocus_ui'])
+    for key in ('keep_fooocus_ui', 'allow_model_switch', 'keep_fooocus_outputs'):
+        cfg[key] = bool(cfg[key])
     try:
         cfg['port'] = int(cfg['port'])
     except (TypeError, ValueError):

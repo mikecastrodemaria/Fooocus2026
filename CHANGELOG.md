@@ -3,6 +3,47 @@
 This fork is based on [lllyasviel/Fooocus](https://github.com/lllyasviel/Fooocus) **v2.5.5**.
 Only fork-specific changes are listed here — upstream history is available via `git log`.
 
+## [crispz-sdxl 0.1.0] (unreleased): lot 2, engine wrapper and protocol complete
+
+Decisions (Mike, 2026-10-31): the Fooocus UI stays, `cli_caps` answers as `crispz-sdxl`.
+
+### Added
+- `cz_face.py`: `detect_faces`, `detect_faces_full` (box, mouth, score, 512-float normed
+  embedding, biggest first) and `similarity`, on insightface `buffalo_l` (lazy import, CPU
+  provider unless onnxruntime has CUDA). Fooocus2026 does not ship insightface: without it
+  the error says `pip install insightface` and `caps.supports.faces` is false. The fake
+  engine has a deterministic detector (one centred face, hashed embedding).
+- Op `edit` (`cz_pipeline.validate_edit_spec`, `build_edit_args`): SDXL has no
+  instruction pipeline, so an edit is an image to image pass. Without a mask: Vary (Strong)
+  on the input with `denoise` (default 0.6) and the refs as Image Prompt; with a mask:
+  inpaint of the white area with the main prompt. The result says `edit_mode`.
+- Op `faces` (`cz_pipeline.run_faces`): `{input}` -> `{faces, count, width, height}`.
+- `cz_protocol.bind_gradio(gr)`: the four hidden endpoints in the running app, out of the
+  Gradio queue; `ROUTE` becomes `remote` and a spec's `model` is refused with a warning
+  (custom-26 rule) unless `crispz.allow_model_switch` is set. `caps` carries `route`,
+  `model_switch`, `faces_engine`, `edit_mode`.
+- Real outputs in the family layout: the final Fooocus image is imported into
+  `out/YYYY-MM-DD/{date}_{tag}_seed{seed}_{w}x{h}.png` with the crispz chunk, the Fooocus
+  `parameters` chunk kept, the sidecar, then copied into the spec's `out_dir`
+  (`cz_imageio.import_image`, `copy_to`). `crispz.keep_fooocus_outputs` (true) leaves the
+  Fooocus file in `path_outputs` for `log.html` and the Asset Browser.
+- Tests: `tests/test_cz_face.py` (fake detector, insightface mapping with a stub, missing
+  package), `tests/test_cz_protocol.py` (edit img2img and masked, faces, remote route and
+  model switch, `bind_gradio` wiring, Fooocus file import); 49 CPU tests with custom-26.
+
+### Changed
+- `webui.py`: the custom-26 pair is replaced by `cz_protocol.bind_gradio(gr)`;
+  `fooocus_protocol.remote_caps` / `remote_run` stay for the `czp --local` route.
+- `fooocus_protocol.probe_instance` accepts a `crispz-sdxl` answer whose
+  `engine.tool` is `fooocus2026`, so `czp` and comics2crispz keep routing to the warm
+  instance (test added).
+
+### Notes
+- The real engine path (torch, the 5090) is not run in the cloud: to validate on the
+  machine, `czp.bat caps` must answer `crispz-sdxl`, then a `gen` spec with `out_dir`.
+- Remaining for lot 3: `cz_ui.py` and `app.py`; the `czp --local` route still answers
+  `fooocus2026` (its caps are the engine's); lot 4 adds insightface to the install.
+
 ## [crispz-sdxl 0.1.0] (unreleased): lot 1, plan and skeleton of the crispz layer
 
 crispz-sdxl is a member of the crispz family (crispz-klein, crispz-flux3, crispz-qwen-edit,

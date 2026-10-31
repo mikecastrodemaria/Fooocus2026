@@ -82,3 +82,49 @@ def read_meta(path):
         with open(sidecar, encoding='utf-8') as f:
             return json.load(f)
     return {}
+
+
+def import_image(src, meta, tag, seed, base=None, keep_source=True):
+    """A Fooocus output (modules/private_logger.py naming) -> a family file in
+    out/YYYY-MM-DD/ with the crispz chunk and the sidecar. The A1111
+    "parameters" chunk Fooocus wrote (scheme a1111) is kept as it is; with the
+    fooocus scheme, one is written from the family metadata. The source file
+    stays by default: log.html and the Asset Browser point at it."""
+    with Image.open(src) as im:
+        image = im.convert('RGB') if im.mode not in ('RGB', 'RGBA') else im.copy()
+        text = dict(im.text) if hasattr(im, 'text') else {}
+    width, height = image.size
+    meta = dict(meta, width=width, height=height, source=os.path.abspath(src))
+    path = output_path(tag, seed, width, height, base)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    info = PngInfo()
+    info.add_text(CHUNK, json.dumps(meta, ensure_ascii=False))
+    for key in ('parameters', 'fooocus_scheme'):
+        if text.get(key):
+            info.add_text(key, text[key])
+    if not text.get('parameters'):
+        info.add_text('parameters', a1111_parameters(meta))
+    image.save(path, pnginfo=info)
+    with open(os.path.splitext(path)[0] + '.json', 'w', encoding='utf-8') as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+    if not keep_source:
+        try:
+            os.remove(src)
+        except OSError as e:
+            cz_core.log(f'could not remove the Fooocus file {src} ({e}): both copies stay')
+    return path
+
+
+def copy_to(path, out_dir):
+    """The image and its sidecar copied into out_dir (a dataset folder of the
+    caller); returns the new image path."""
+    import shutil
+    os.makedirs(out_dir, exist_ok=True)
+    dst = os.path.join(out_dir, os.path.basename(path))
+    if os.path.abspath(dst) == os.path.abspath(path):
+        return path
+    shutil.copy2(path, dst)
+    sidecar = os.path.splitext(path)[0] + '.json'
+    if os.path.isfile(sidecar):
+        shutil.copy2(sidecar, os.path.splitext(dst)[0] + '.json')
+    return dst

@@ -23,6 +23,7 @@ machine without a GPU, and the tests run on CPU.
 import json
 
 import cz_core
+import cz_face
 import cz_pipeline
 import fooocus_protocol as fp
 
@@ -31,6 +32,11 @@ TOOL = cz_core.TOOL
 VERSION = cz_core.VERSION
 OPS = ('caps', 'gen', 'edit', 'faces', 'upscale', 'inpaint')
 ProtocolError = fp.ProtocolError
+
+# 'local' when this module runs in its own process (a CLI), 'remote' once
+# bind_gradio() wired it into the running app: there a spec's "model" is
+# refused unless crispz.allow_model_switch is set (see cz_pipeline.generate).
+ROUTE = 'local'
 
 
 def parse_spec(spec_json):
@@ -78,16 +84,25 @@ def caps_dict(models=None, loras=None):
         import modules.config as cfg
         models = list(cfg.model_filenames) if models is None else models
         loras = list(cfg.lora_filenames) if loras is None else loras
-    ops = cz_pipeline.IMPLEMENTED_OPS
+    ops = list(cz_pipeline.IMPLEMENTED_OPS)
+    faces_ok = 'faces' in ops and cz_face.available()
+    if 'faces' in ops and not faces_ok:
+        ops.remove('faces')  # announced, not silent: the client reads supports.faces false
     fake = cz_core.fake_engine_enabled()
+    cfg = cz_core.load_config()
     return {
         'ok': True, 'protocol': PROTOCOL, 'tool': TOOL, 'version': VERSION,
         'engine': {'tool': fp.TOOL, 'version': fp.tool_version(), 'fake': fake},
-        'ops': ['caps'] + list(ops),
+        'ops': ['caps'] + ops,
         'planned': dict(cz_pipeline.PLANNED_OPS),
+        'route': ROUTE,
+        'model_switch': ROUTE == 'local' or cfg['allow_model_switch'],
+        'faces_engine': 'fake' if fake else ('insightface' if faces_ok else None),
+        'edit_mode': 'img2img: Vary (Strong) with denoise, or inpaint of the mask; SDXL follows the '
+                     'prompt as a description of the result, not as an instruction',
         'supports': {
             'edit': 'edit' in ops,
-            'faces': 'faces' in ops,
+            'faces': faces_ok,
             'max_refs': min(max_refs(), fp.MAX_REFS),
             'loras': True, 'refs': 'gen' in ops, 'seed': True, 'negative': True,
             'arbitrary_size': True, 'inpaint': 'inpaint' in ops, 'img2img': 'upscale' in ops,
@@ -122,24 +137,48 @@ def cli_caps(_spec_json=None):
 def cli_gen(spec_json):
     def run(spec, op):
         if op not in ('gen', 'upscale', 'inpaint'):
-            raise ProtocolError(f'cli_gen runs gen, upscale and inpaint, not {op!r}', 3)
-        return cz_pipeline.generate(spec, op)
+            raise ProtocolError(f'cli_gen runs gen, upscale and inpaint, not {op!r} '
+                                '(edit: cli_edit, faces: cli_faces)', 3)
+        return cz_pipeline.generate(spec, op, route=ROUTE)
     return _answer(run, spec_json)
 
 
 def cli_edit(spec_json):
     def run(spec, op):
-        return cz_pipeline.generate(spec, 'edit')
+        if op not in ('gen', 'edit'):  # a spec without op, or op edit
+            raise ProtocolError(f'cli_edit runs edit, not {op!r}', 3)
+        return cz_pipeline.generate(spec, 'edit', route=ROUTE)
     return _answer(run, spec_json)
 
 
 def cli_faces(spec_json):
     def run(spec, op):
-        return cz_pipeline.generate(spec, 'faces')
+        if op not in ('gen', 'faces'):
+            raise ProtocolError(f'cli_faces runs faces, not {op!r}', 3)
+        return cz_pipeline.generate(spec, 'faces', route=ROUTE)
     return _answer(run, spec_json)
 
 
 def endpoints():
-    """api_name -> handler, for cz_ui.py to bind as hidden buttons (lot 3), the
-    same way webui.py binds the custom-26 pair."""
+    """api_name -> handler, in the order they are bound."""
     return {'cli_caps': cli_caps, 'cli_gen': cli_gen, 'cli_edit': cli_edit, 'cli_faces': cli_faces}
+
+
+def bind_gradio(gr):
+    """Hidden buttons in the current gr.Blocks context, one per endpoint, out
+    of the Gradio queue so POST /run/<api_name> answers (Gradio 3.41). Replaces
+    the custom-26 pair in webui.py: cli_caps now answers as crispz-sdxl, with
+    the engine named inside. Returns {api_name: button}."""
+    global ROUTE
+    ROUTE = 'remote'
+    buttons = {}
+    with gr.Row(visible=False):
+        spec_in = gr.Textbox(visible=False)
+        spec_out = gr.Textbox(visible=False)
+        for name, handler in endpoints().items():
+            button = gr.Button(visible=False)
+            button.click(handler, inputs=spec_in, outputs=spec_out, api_name=name, queue=False,
+                         show_progress=False)
+            buttons[name] = button
+    cz_core.log(f'{TOOL} {VERSION} endpoints bound: {", ".join(buttons)} (engine {fp.TOOL})')
+    return buttons

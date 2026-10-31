@@ -3270,16 +3270,12 @@ with shared.gradio_root:
         # Endpoints caches, hors file Gradio pour etre appelables en POST /run/<nom> (Gradio 3.41).
         # La generation elle-meme passe par le thread worker de Fooocus, derriere les rendus de
         # l'utilisateur : une GPU, une file.
-        import fooocus_protocol
-        with gr.Row(visible=False):
-            cli_protocol_in = gr.Textbox(visible=False)
-            cli_protocol_out = gr.Textbox(visible=False)
-            cli_caps_button = gr.Button(visible=False)
-            cli_gen_button = gr.Button(visible=False)
-        cli_caps_button.click(fooocus_protocol.remote_caps, inputs=cli_protocol_in, outputs=cli_protocol_out,
-                              api_name='cli_caps', queue=False, show_progress=False)
-        cli_gen_button.click(fooocus_protocol.remote_run, inputs=cli_protocol_in, outputs=cli_protocol_out,
-                             api_name='cli_gen', queue=False, show_progress=False)
+        # crispz-sdxl lot 2: the four family endpoints (cli_caps, cli_gen, cli_edit, cli_faces)
+        # replace the custom-26 pair. cli_caps answers as crispz-sdxl with fooocus2026 named in
+        # caps.engine; czp (fooocus_protocol.probe_instance) accepts that answer. The Fooocus UI
+        # stays as it is (Mike, 2026-10-31: UI kept, caps crispz-sdxl).
+        import cz_protocol
+        cz_protocol.bind_gradio(gr)
 
         # === custom-14: cablage Job Queue =================================
         if modules.config.job_queue_enabled():

@@ -1,6 +1,7 @@
 # crispz-sdxl: the crispz family on the Fooocus2026 SDXL engine
 
-Status: lot 1 (plan and skeleton), branch `wip/crispz-sdxl`, version 0.1.0 unreleased.
+Status: lot 2 done (engine wrapper and protocol), branch `wip/crispz-sdxl`, version 0.1.0 unreleased.
+Decisions taken by Mike on 2026-10-31: the Fooocus UI stays, `cli_caps` answers as `crispz-sdxl`.
 
 ## What it is
 
@@ -51,7 +52,7 @@ layer sits beside `webui.py`, at the repo root like the other family apps:
 | `cz_imageio.py` | `out/YYYY-MM-DD/{date}_{tag}_seed{seed}_{w}x{h}.png`, `crispz` chunk, A1111 chunk, `.json` sidecar | 1 (fake engine), 2 (real outputs) |
 | `cz_pipeline.py` | `generate(spec, op)` in the family call convention, over `fooocus_protocol.run()`; `FakeWorker` for CPU runs | 1, 2 |
 | `cz_protocol.py` | `cli_caps`, `cli_gen`, `cli_edit`, `cli_faces` handlers, caps computed from what runs | 1, 2 |
-| `cz_face.py` | insightface detection and embeddings (`detect_faces`, `detect_faces_full`) | 2 |
+| `cz_face.py` | insightface detection and embeddings (`detect_faces`, `detect_faces_full`, `similarity`), fake detector on CPU | 2 |
 | `cz_ui.py` | family tabs: Text to Image / Edit or Image Prompt / Image to Image, refine, upscale / Inpaint, Outpaint / Faces | 3 |
 | `app.py` | boots the crispz UI (and the Fooocus one if kept) and binds the endpoints | 3 |
 | `install.*`, `run.*`, `update.*`, `boot_check.bat` | family scripts over `launch.py` | 4 |
@@ -67,17 +68,17 @@ engine of lot 1 decodes that same snapshot by name, so the tests exercise the re
 |---|---|---|
 | Text to image SDXL (base + refiner, performance presets, Fooocus V2 expansion, styles) | Text to Image tab; op `gen` | 1 (op), 3 (tab) |
 | Image Prompt, IP-Adapter, 4 slots | `refs` of `gen`; Edit or Image Prompt tab | 1 (op), 3 (tab) |
-| FaceSwap (IP-Adapter face, global face, exact swap) | Faces tab; op `faces` (detection and embeddings), face ref of `gen` | 2 (op), 3 (tab) |
+| FaceSwap (IP-Adapter face, global face, exact swap) | Faces tab; op `faces` (detection and embeddings), face ref of `gen` | 2 (op, done), 3 (tab) |
 | PyraCanny, CPDS | Edit or Image Prompt tab, advanced | 3; no protocol field in v1 |
 | Vary subtle / strong | Image to Image tab; op `upscale` factor 1 | 1 (op), 3 (tab) |
 | Upscale 1.5x / 2x / fast, upscaler models, face restoration (custom-10) | Image to Image, refine, upscale tab; op `upscale` | 1 (op), 3 (tab) |
 | Inpaint | Inpaint, Outpaint tab; op `inpaint` | 1 (op), 3 (tab) |
 | Outpaint | Inpaint, Outpaint tab | 3; no protocol field in v1 |
 | Enhance (face, hand detail with SAM) | `detail_faces`, `detail_hands` of `gen` | 1 |
-| Instruction edit | op `edit` | 2, mapping to decide (open question 6) |
+| Instruction edit | op `edit`: Vary (Strong) with `denoise`, or inpaint of the mask | 2 (done) |
 | LoRAs (5 slots, prompt tags, trigger words) | `loras` of the spec, LoRA panel | 1 (op), 3 (tab) |
 | Checkpoint and LoRA lists, architecture filter | `caps.models`, `caps.loras` | 1 |
-| Metadata (fooocus / a1111 schemes), AI provenance (custom-23) | `crispz` chunk + sidecar, A1111 chunk kept | 2 |
+| Metadata (fooocus / a1111 schemes), AI provenance (custom-23) | `crispz` chunk + sidecar, A1111 chunk kept | 2 (done) |
 | Civitai search, download, settings, triggers | Models panel of the crispz UI | 3 or 5 (open question 2) |
 | Ollama describe / improve | prompt helpers of the tabs | 3 |
 | Job Queue, X/Y/Z grid, batch input, Asset Browser, wildcards, tag autocomplete, presets, Omost | stay in the Fooocus UI | out of scope for 0.1.0 (open question 2) |
@@ -89,10 +90,12 @@ engine of lot 1 decodes that same snapshot by name, so the tests exercise the re
    with the fake engine, `cz_protocol.py` with caps and `gen` (`upscale` and `inpaint` ride
    along since custom-26 maps them), `tests/test_cz_protocol.py`, `config-sample.txt`,
    `CHANGELOG.md`. `edit` and `faces` answer code 3.
-2. Engine wrapper and protocol: real engine validated on the RTX 5090 (Mike), `edit` and
-   `faces` ops (`cz_face.py`, insightface as in the family), real outputs renamed or written
-   into the family layout with the `crispz` chunk, endpoints bound in the running app beside
-   or instead of the custom-26 pair, `czp` answering as crispz-sdxl.
+2. Engine wrapper and protocol (done 2026-10-31): `edit` (img2img or masked inpaint) and
+   `faces` (`cz_face.py`, insightface, fake detector on CPU), real outputs imported into
+   the family layout with the `crispz` chunk, the four endpoints bound in the running app
+   in place of the custom-26 pair (`cz_protocol.bind_gradio`), `czp` routing to the
+   crispz-sdxl answer. Still to run by Mike on the 5090: `czp.bat caps` answers
+   `crispz-sdxl`, a `gen` with `out_dir`, an `edit`, a `faces`.
 3. UI: `cz_ui.py` with the family tabs, `app.py`, Fooocus UI kept or replaced.
 4. Install scripts and config: `install.bat/.sh`, `run.bat/.sh`, `update.bat/.sh`,
    `boot_check.bat`, `config-sample.txt` completed, Dockerfile check.
@@ -102,8 +105,13 @@ Each lot stops for validation.
 
 ## Open questions for Mike
 
+Answered on 2026-10-31: 1 (UI kept), 7 (`cli_caps` answers crispz-sdxl, the engine is named
+in `caps.engine.tool`, the czp probe accepts it). Taken as defaults, to confirm: 5 (Fooocus
+keeps `path_outputs`, the crispz layer copies into `out/`, `crispz.keep_fooocus_outputs`),
+6 (`edit` = Vary Strong with `denoise` 0.6, or inpaint with a mask; `supports.edit` true).
+
 1. Fooocus UI: keep it beside the crispz tabs (proposal: yes, `crispz.keep_fooocus_ui`, so
-   nothing of the fork is lost) or replace it in 0.1.0.
+   nothing of the fork is lost) or replace it in 0.1.0. Answered: kept.
 2. Out of scope for 0.1.0 in the crispz tabs: Job Queue, X/Y/Z, batch input, Asset Browser,
    wildcards, tag autocomplete, presets, Omost (proposal: out, they stay in the Fooocus UI).
    Civitai: in the crispz Models panel (lot 3) or later (lot 5)?
@@ -126,4 +134,6 @@ Each lot stops for validation.
 | What | Value | Where |
 |---|---|---|
 | CPU tests, lot 1 | 32 tests (14 crispz + 18 custom-26) in 0.8 s, Python 3.13, no torch | `tests/test_cz_protocol.py`, `tests/test_protocol.py` |
+| CPU tests, lot 2 | 49 tests in 1.5 s (edit, faces, remote route, binding, import of a Fooocus file) | `tests/test_cz_protocol.py`, `tests/test_cz_face.py`, `tests/test_protocol.py` |
+| Real engine, 5090 | not measured yet (no GPU in the cloud session) | lot 2 validation by Mike |
 | Fake render | 256x320 placeholder, under 50 ms | `cz_pipeline.FakeWorker.render` |

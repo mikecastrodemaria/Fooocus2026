@@ -92,6 +92,7 @@ class TestSpecValidation(unittest.TestCase):
 
 class FakeFooocus(BaseHTTPRequestHandler):
     tool = 'fooocus2026'
+    engine = None  # crispz-sdxl answers tool crispz-sdxl with engine {'tool': 'fooocus2026'}
     last = None
 
     def log_message(self, *a):
@@ -100,7 +101,10 @@ class FakeFooocus(BaseHTTPRequestHandler):
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)))
         if self.path == '/run/cli_caps':
-            out = json.dumps({'ok': True, 'tool': FakeFooocus.tool, 'protocol': 1})
+            caps = {'ok': True, 'tool': FakeFooocus.tool, 'protocol': 1}
+            if FakeFooocus.engine:
+                caps['engine'] = {'tool': FakeFooocus.engine}
+            out = json.dumps(caps)
         elif self.path == '/run/cli_gen':
             spec = json.loads(body['data'][0])
             FakeFooocus.last = spec
@@ -134,6 +138,7 @@ class TestRemoteRoute(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp(prefix='fczp_')
         FakeFooocus.tool = 'fooocus2026'
+        FakeFooocus.engine = None
 
     def tearDown(self):
         shutil.rmtree(self.dir, ignore_errors=True)
@@ -167,6 +172,14 @@ class TestRemoteRoute(unittest.TestCase):
     def test_a_remote_refusal_keeps_its_exit_code(self):
         code, res = self.czp('gen', '--remote', self.url, spec={'protocol': 1, 'prompt': 'boom'})
         self.assertEqual((code, res['ok']), (2, False))
+
+    def test_a_crispz_sdxl_instance_is_fooocus_too(self):
+        """Lot 2: the app answers cli_caps as crispz-sdxl, czp must keep routing to it."""
+        FakeFooocus.tool, FakeFooocus.engine = 'crispz-sdxl', 'fooocus2026'
+        code, caps = self.czp('caps', '--remote', self.url)
+        self.assertEqual((code, caps['tool'], caps['route']), (0, 'crispz-sdxl', 'remote'))
+        code, res = self.czp('gen', '--remote', self.url, spec={'protocol': 1, 'prompt': 'a cat'})
+        self.assertEqual((code, res['ok']), (0, True))
 
     def test_another_app_on_the_port_is_never_taken_for_fooocus(self):
         FakeFooocus.tool = 'crispz-studio'

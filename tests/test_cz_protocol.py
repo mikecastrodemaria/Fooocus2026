@@ -165,11 +165,11 @@ class TestRefusals(FakeEngineCase):
         self.assertEqual(self.call(cz_protocol.cli_gen, {'protocol': 2, 'prompt': 'x'})['code'], 3)
         self.assertEqual(self.call(cz_protocol.cli_gen, {'protocol': 1, 'op': 'edit', 'prompt': 'x'})['code'], 3)
 
-    def test_edit_and_faces_are_refused_with_code_3_until_lot_2(self):
-        for handler in (cz_protocol.cli_edit, cz_protocol.cli_faces):
-            res = self.call(handler, {'protocol': 1, 'prompt': 'x', 'input': 'in.png'})
-            self.assertEqual((res['ok'], res['code']), (False, 3), res)
-            self.assertIn('lot 2', res['error'])
+    def test_the_dedicated_endpoints_refuse_a_foreign_op(self):
+        self.assertEqual(self.call(cz_protocol.cli_edit, {'protocol': 1, 'op': 'gen', 'prompt': 'x'})['code'], 2)
+        self.assertEqual(self.call(cz_protocol.cli_edit, {'protocol': 1, 'op': 'faces', 'input': 'x.png'})['code'], 3)
+        self.assertEqual(self.call(cz_protocol.cli_faces, {'protocol': 1, 'op': 'edit', 'input': 'x.png'})['code'], 3)
+        self.assertEqual(self.call(cz_protocol.cli_faces, {'protocol': 1, 'op': 'faces'})['code'], 2)
 
     @unittest.skipIf('torch' in sys.modules or __import__('importlib').util.find_spec('torch'),
                      'torch is installed here: the real engine would import')
@@ -178,6 +178,142 @@ class TestRefusals(FakeEngineCase):
             res = self.call(cz_protocol.cli_gen, {'protocol': 1, 'prompt': 'x'})
         self.assertEqual((res['ok'], res['code']), (False, 1))
         self.assertIn('CRISPZ_FAKE_ENGINE=1', res['error'])
+
+
+class TestEdit(FakeEngineCase):
+    def setUp(self):
+        super().setUp()
+        self.src = os.path.join(self.dir, 'in.png')
+        Image.new('RGB', (64, 48), (10, 20, 30)).save(self.src)
+
+    def test_edit_without_a_mask_is_a_strong_variation_of_the_input(self):
+        spec = {'protocol': 1, 'op': 'edit', 'prompt': 'make it night', 'input': self.src, 'seed': 3,
+                'width': 1024, 'height': 1024, 'denoise': 0.4, 'refs': [self.src]}
+        res = self.call(cz_protocol.cli_edit, spec)
+        self.assertTrue(res['ok'], res)
+        self.assertEqual((res['edit_mode'], res['denoise'], res['refs_used'], res['seed_used']), ('img2img', 0.4, 1, 3))
+        self.assertTrue(any('width/height ignored' in w for w in res['warnings']))
+        with Image.open(res['images'][0]) as im:
+            self.assertEqual(im.size, (64, 48))  # the input size is kept
+        self.assertEqual(cz_imageio.read_meta(res['images'][0])['op'], 'edit')
+
+    def test_edit_with_a_mask_is_an_inpaint_with_the_main_prompt(self):
+        mask = os.path.join(self.dir, 'mask.png')
+        m = Image.new('L', (64, 48), 0)
+        m.paste(255, (0, 0, 32, 48))
+        m.save(mask)
+        res = self.call(cz_protocol.cli_edit, {'protocol': 1, 'op': 'edit', 'prompt': 'a window', 'input': self.src,
+                                               'mask': mask})
+        self.assertTrue(res['ok'], res)
+        self.assertEqual((res['edit_mode'], res['denoise']), ('inpaint', cz_pipeline.EDIT_DEFAULT_DENOISE))
+        with Image.open(res['images'][0]) as im:
+            self.assertEqual(im.getpixel((60, 40)), (10, 20, 30))
+
+    def test_edit_mapping_on_the_snapshot(self):
+        import modules.flags as flags
+        import modules.task_args as task_args
+        s, w = cz_pipeline.validate_edit_spec({'protocol': 1, 'prompt': 'x', 'input': self.src, 'refs': [self.src]})
+        s['seed_used'] = 1
+        args, info = cz_pipeline.build_edit_args(s, 'local', w)
+        _, idx = task_args.build(prompt='x', seed=1)
+        self.assertEqual((args[idx['current_tab']], args[idx['uov_method']]), ('uov', flags.strong_variation))
+        self.assertEqual(args[idx['overwrite_vary_strength']], cz_pipeline.EDIT_DEFAULT_DENOISE)
+        self.assertTrue(args[idx['input_image_checkbox']] and args[idx['mixing_image_prompt_and_vary_upscale']])
+        self.assertEqual(args[idx['uov_input_image']].shape, (48, 64, 3))
+
+    def test_edit_needs_an_input_and_a_prompt(self):
+        self.assertEqual(self.call(cz_protocol.cli_edit, {'protocol': 1, 'op': 'edit', 'prompt': 'x'})['code'], 2)
+        self.assertEqual(self.call(cz_protocol.cli_edit, {'protocol': 1, 'op': 'edit', 'input': self.src})['code'], 2)
+
+
+class TestFaces(FakeEngineCase):
+    def test_faces_answers_boxes_mouth_and_a_normed_512_embedding(self):
+        src = os.path.join(self.dir, 'face.png')
+        Image.new('RGB', (200, 100), (90, 60, 50)).save(src)
+        res = self.call(cz_protocol.cli_faces, {'protocol': 1, 'op': 'faces', 'input': src})
+        self.assertTrue(res['ok'], res)
+        self.assertEqual((res['tool'], res['count'], res['width'], res['height']), ('crispz-sdxl', 1, 200, 100))
+        face = res['faces'][0]
+        self.assertEqual(face['box'], [50, 25, 150, 75])
+        self.assertEqual(len(face['embedding']), 512)
+        self.assertAlmostEqual(sum(v * v for v in face['embedding']), 1.0, places=5)
+        self.assertTrue(any('FAKE' in w for w in res['warnings']))
+        again = self.call(cz_protocol.cli_faces, {'protocol': 1, 'op': 'faces', 'input': src})
+        self.assertEqual(again['faces'][0]['embedding'], face['embedding'])
+
+    def test_caps_say_faces_only_when_a_detector_exists(self):
+        self.assertTrue(self.call(cz_protocol.cli_caps, '{}')['supports']['faces'])
+        with mock.patch.dict(os.environ, {'CRISPZ_FAKE_ENGINE': '0'}):
+            with mock.patch('cz_face.importlib.util.find_spec', return_value=None):
+                caps = self.call(cz_protocol.cli_caps, '{}')
+                self.assertFalse(caps['supports']['faces'])
+                self.assertNotIn('faces', caps['ops'])
+                res = self.call(cz_protocol.cli_faces, {'protocol': 1, 'op': 'faces', 'input': __file__})
+                self.assertEqual(res['code'], 1)
+                self.assertIn('insightface', res['error'])
+
+
+class TestRemoteRoute(FakeEngineCase):
+    def test_bound_in_the_app_the_model_of_the_spec_is_refused_unless_allowed(self):
+        with mock.patch.object(cz_protocol, 'ROUTE', 'remote'):
+            res = self.call(cz_protocol.cli_gen, {'protocol': 1, 'prompt': 'x', 'model': 'juggernaut', 'seed': 1})
+            self.assertTrue(res['ok'], res)
+            self.assertTrue(any('refused on the remote route' in w for w in res['warnings']))
+            self.assertEqual(cz_imageio.read_meta(res['images'][0])['model'], cfg.default_base_model_name)
+            allowed = dict(cz_core.DEFAULTS, allow_model_switch=True)
+            with mock.patch.object(cz_core, 'load_config', return_value=allowed):
+                res = self.call(cz_protocol.cli_gen, {'protocol': 1, 'prompt': 'x', 'model': 'juggernaut', 'seed': 1})
+            self.assertEqual(cz_imageio.read_meta(res['images'][0])['model'], MODELS[0])
+
+    def test_bind_gradio_wires_the_four_endpoints_out_of_the_queue(self):
+        bound = []
+
+        class Widget:
+            def __init__(self, **kw):
+                pass
+
+            def click(self, fn, **kw):
+                bound.append((kw['api_name'], fn, kw['queue']))
+
+        class Row(Widget):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        gr = mock.Mock(Row=Row, Textbox=Widget, Button=Widget)
+        with mock.patch.object(cz_protocol, 'ROUTE', 'local'):
+            buttons = cz_protocol.bind_gradio(gr)
+            self.assertEqual(cz_protocol.ROUTE, 'remote')
+        self.assertEqual([b[0] for b in bound], ['cli_caps', 'cli_gen', 'cli_edit', 'cli_faces'])
+        self.assertEqual(set(buttons), set(cz_protocol.endpoints()))
+        self.assertTrue(all(b[1] is cz_protocol.endpoints()[b[0]] and b[2] is False for b in bound))
+
+
+class TestRealOutputImport(FakeEngineCase):
+    def test_a_fooocus_file_becomes_a_family_file_and_keeps_its_a1111_chunk(self):
+        from PIL.PngImagePlugin import PngInfo
+        fooocus_dir = os.path.join(self.dir, 'outputs', cz_core.today())
+        os.makedirs(fooocus_dir)
+        src = os.path.join(fooocus_dir, '2026-10-31_10-00-00_1234.png')
+        info = PngInfo()
+        info.add_text('parameters', 'a cat\nSteps: 30, Seed: 5')
+        info.add_text('fooocus_scheme', 'a1111')
+        Image.new('RGB', (64, 32)).save(src, pnginfo=info)
+        result = {'images': [src], 'seed_used': 5, 'loras': [], 'refs_used': 0}
+        spec = {'prompt': 'a cat', 'steps': 30, 'out_dir': os.path.join(self.dir, 'ds')}
+        res = cz_pipeline._import_outputs(result, spec, 'gen', fake=False)
+        path = res['images'][0]
+        self.assertEqual(os.path.dirname(path), os.path.join(self.dir, 'ds'))
+        self.assertEqual(os.path.basename(path), f'{cz_core.today()}_sdxl_seed5_64x32.png')
+        family = os.path.join(self.dir, cz_core.today(), os.path.basename(path))
+        self.assertTrue(os.path.isfile(family) and os.path.isfile(src), 'out/ copy and Fooocus file both stay')
+        with Image.open(path) as im:
+            self.assertEqual(im.text['parameters'], 'a cat\nSteps: 30, Seed: 5')
+        meta = cz_imageio.read_meta(path)
+        self.assertEqual((meta['seed'], meta['width'], meta['source'], meta['op']), (5, 64, src, 'gen'))
+        self.assertTrue(os.path.isfile(os.path.splitext(path)[0] + '.json'))
 
 
 class TestCoreConfig(unittest.TestCase):

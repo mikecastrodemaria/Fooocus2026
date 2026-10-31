@@ -2,12 +2,14 @@
     "_comment": "crispz-sdxl: copy this file to config.txt (Fooocus reads config.txt as JSON; keys you leave out take their defaults). Only the crispz layer keys are listed here, the Fooocus keys are documented in readme.md, section Configuration.",
 
     "crispz": {
-        "_comment": "crispz family layer (cz_core.py). out_dir: root of the family output tree, out/YYYY-MM-DD/ (relative to the app folder, or absolute). tag: middle part of the file names {date}_{tag}_seed{seed}_{w}x{h}. port: the Gradio port the family tools reach the app on (GRADIO_SERVER_PORT wins when set). fake_engine: true renders placeholder images with no model (CPU dry run of the protocol and the UI; the environment variable CRISPZ_FAKE_ENGINE=1 does the same without touching this file). keep_fooocus_ui: keep the Fooocus tabs beside the crispz tabs (lot 3).",
+        "_comment": "crispz family layer (cz_core.py). out_dir: root of the family output tree, out/YYYY-MM-DD/ (relative to the app folder, or absolute). tag: middle part of the file names {date}_{tag}_seed{seed}_{w}x{h}. port: the Gradio port the family tools reach the app on (GRADIO_SERVER_PORT wins when set). fake_engine: true renders placeholder images with no model (CPU dry run of the protocol and the UI; the environment variable CRISPZ_FAKE_ENGINE=1 does the same without touching this file). keep_fooocus_ui: keep the Fooocus tabs beside the crispz tabs (lot 3). allow_model_switch: let a spec's model switch the checkpoint on the hidden endpoints of the running app (default false: the loaded checkpoint stays, the spec gets a warning). keep_fooocus_outputs: Fooocus keeps its own file in path_outputs and the crispz layer adds a copy in out_dir (default true); false moves the file instead.",
         "out_dir": "out",
         "tag": "sdxl",
         "port": 7865,
         "fake_engine": false,
-        "keep_fooocus_ui": true
+        "keep_fooocus_ui": true,
+        "allow_model_switch": false,
+        "keep_fooocus_outputs": true
     },
 
     "cli_protocol": {
